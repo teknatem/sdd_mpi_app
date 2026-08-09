@@ -348,6 +348,12 @@ pub struct LlmConfig {
     /// Относительный путь разрешается от директории бинарника.
     #[serde(default = "default_chat_files_path")]
     pub chat_files_path: String,
+    /// Путь к каталогу эталонных кейсов («голден-сет»): `<case-id>.md` с frontmatter.
+    /// Прогоняется отдельной задачей после правок промптов и навыков, чтобы
+    /// изменение качества было видно на неизменном наборе вопросов.
+    /// Относительный путь разрешается от директории бинарника.
+    #[serde(default = "default_golden_set_path")]
+    pub golden_set_path: String,
 }
 
 fn default_skills_path() -> String {
@@ -358,12 +364,17 @@ fn default_chat_files_path() -> String {
     "chat_files".to_string()
 }
 
+fn default_golden_set_path() -> String {
+    "golden_set".to_string()
+}
+
 impl Default for LlmConfig {
     fn default() -> Self {
         Self {
             knowledge_base_path: "data/knowledge".to_string(),
             skills_path: default_skills_path(),
             chat_files_path: default_chat_files_path(),
+            golden_set_path: default_golden_set_path(),
         }
     }
 }
@@ -497,6 +508,12 @@ pub fn get_knowledge_base_path(config: &Config) -> PathBuf {
 /// Resolves relative paths relative to the executable directory (mirrors KB path).
 pub fn get_skills_path(config: &Config) -> PathBuf {
     resolve_relative_to_exe(&config.llm.skills_path)
+}
+
+/// Каталог эталонных кейсов для регрессии качества LLM.
+/// Resolves relative paths relative to the executable directory (mirrors KB path).
+pub fn get_golden_set_path(config: &Config) -> PathBuf {
+    resolve_relative_to_exe(&config.llm.golden_set_path)
 }
 
 /// Корень рабочих каталогов чатов (анкеты, планы, журнал шагов).

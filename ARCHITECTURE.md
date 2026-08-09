@@ -49,6 +49,7 @@
 | `a039` | Письмо | `a039_mail_message` | Журнал входящих и исходящих писем почтового конвейера. Одна запись = одно письмо (кратко): направление, отправитель/получатель, тема, статус… | a018_llm_chat, a038_llm_connection, a019_llm_artifact |
 | `a040` | Поисковая аналитика WB | `a040_wb_search_analytics_daily` | Ежедневные снимки поисковой аналитики Wildberries в разрезе номенклатуры (search-report / «Товары по контенту», подписка «Джем»): видимость… | a006_connection_mp, a002_organization, a007_marketplace_product, a036_wb_sales_funnel_daily, a037_wb_product_snapshot |
 | `a041` | Воронка продаж YM | `a041_ym_shows_sales_daily` | Ежедневная воронка продаж Яндекс.Маркета в разрезе товаров. Одна запись — один кабинет YM и одна дата; JSON-детализация по товарам (offer_id… | a006_connection_mp, a002_organization, a007_marketplace_product, a013_ym_order, a016_ym_returns |
+| `a042` | Поручение AI-сотруднику | `a042_agent_task` | Очередь поручений между AI-сотрудниками: один агент ставит задачу специалисту другой специализации, регламентное задание task029 исполняет е… | a017_llm_agent, a018_llm_chat, a019_llm_artifact |
 
 ## Projections (p9XX)
 
@@ -129,6 +130,9 @@
 | `task024` | wb search analytics daily |
 | `task025` | bitrix ticket sync |
 | `task026` | ym shows sales daily |
+| `task027` | llm judge |
+| `task028` | llm golden set |
+| `task029` | agent task runner |
 
 ## Chart of accounts (account_registry)
 
@@ -203,7 +207,7 @@
 | `item_cost_storno` | Себестоимость (сторно возврат) | 9002 | 41 | ✓ |
 | `commission_percent` | Процент комиссии |  |  |  |
 
-## API routes (409)
+## API routes (415)
 
 ### `/a004`
 - `GET` /api/a004/nomenclature
@@ -295,6 +299,7 @@
 - `GET` /api/a017-llm-agent/skills
 
 ### `/a018-llm-chat`
+- `GET POST` /api/a018-llm-chat
 - `GET DELETE` /api/a018-llm-chat/:chat_id/attachments/:attachment_id
 - `GET DELETE` /api/a018-llm-chat/:id
 - `GET POST` /api/a018-llm-chat/:id/context
@@ -481,6 +486,13 @@
 - `GET` /api/a040/wb-search-analytics/:id
 - `GET` /api/a040/wb-search-analytics/list
 
+### `/a042-agent-task`
+- `GET` /api/a042-agent-task
+- `GET DELETE` /api/a042-agent-task/:id
+- `POST` /api/a042-agent-task/:id/cancel
+- `POST` /api/a042-agent-task/:id/requeue
+- `GET` /api/a042-agent-task/list
+
 ### `/bi-timeline`
 - `GET` /api/bi-timeline/indicators
 - `POST` /api/bi-timeline/series
@@ -598,7 +610,7 @@
 - `GET POST PUT` /api/llm-skills
 
 ### `/llm-tools`
-- `GET POST` /api/llm-tools
+- `GET` /api/llm-tools
 
 ### `/marketplace`
 - `GET POST` /api/marketplace

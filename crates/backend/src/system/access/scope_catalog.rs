@@ -403,6 +403,17 @@ pub const SCOPE_CATALOG: &[ScopeDescriptor] = &[
         all_label: "Управление редактированиями базы знаний",
     },
     ScopeDescriptor {
+        scope_id: "a042_agent_task",
+        scope_type: ScopeType::Aggregate,
+        label: "Поручения AI-сотрудникам",
+        description:
+            "Очередь задач, которые агенты передают друг другу: постановка, статус, результат",
+        icon: "share-2",
+        category: "ai",
+        read_label: "Просмотр поручений AI-сотрудникам",
+        all_label: "Управление поручениями AI-сотрудникам",
+    },
+    ScopeDescriptor {
         scope_id: "a032_wb_returns_claims",
         scope_type: ScopeType::Aggregate,
         label: "Заявки на возврат WB",

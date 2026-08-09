@@ -5,8 +5,8 @@
 
 use crate::dashboards::MetadataDashboard;
 use crate::dashboards::{
-    D401WbFinanceDashboard, MonthlySummaryDashboard, WbAdvertReportDashboard, WbOrderFlowDashboard,
-    WbSalesFunnelDashboard, YmOrderFlowDashboard,
+    D401WbFinanceDashboard, LlmQualityDashboard, MonthlySummaryDashboard, WbAdvertReportDashboard,
+    WbOrderFlowDashboard, WbSalesFunnelDashboard, YmOrderFlowDashboard,
 };
 use crate::data_view::ui::{DataViewDetail, DataViewList, FilterRegistryPage};
 use crate::domain::a001_connection_1c::ui::list::Connection1CList;
@@ -77,6 +77,8 @@ use crate::domain::a037_wb_product_snapshot::ui::list::WbProductSnapshotList;
 use crate::domain::a038_llm_connection::ui::details::LlmConnectionDetails;
 use crate::domain::a038_llm_connection::ui::list::LlmConnectionList;
 use crate::domain::a039_mail_message::ui::list::MailMessageList;
+use crate::domain::a042_agent_task::ui::details::AgentTaskDetails;
+use crate::domain::a042_agent_task::ui::list::AgentTaskList;
 use crate::domain::a040_wb_search_analytics_daily::ui::details::WbSearchAnalyticsDetail;
 use crate::domain::a040_wb_search_analytics_daily::ui::list::WbSearchAnalyticsList;
 use crate::general_ledger::ui::{
@@ -735,6 +737,22 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
 
         // a039: Mail message log (журнал писем, read-only)
         "a039_mail_message" => view! { <MailMessageList /> }.into_any(),
+
+        // a042: очередь поручений между AI-сотрудниками
+        "a042_agent_task" => view! { <AgentTaskList /> }.into_any(),
+        k if k.starts_with("a042_agent_task_details_") => {
+            let id = k
+                .strip_prefix("a042_agent_task_details_")
+                .unwrap()
+                .to_string();
+            view! {
+                <AgentTaskDetails id=id on_close=Callback::new({
+                    let key_for_close = key_for_close.clone();
+                    move |_| { tabs_store.close_tab(&key_for_close); }
+                }) />
+            }
+            .into_any()
+        }
 
         // a038: LLM Connections (подключения)
         "a038_llm_connection" => view! { <LlmConnectionList /> }.into_any(),
@@ -1399,6 +1417,10 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
         "d406_wb_sales_funnel" => {
             log!("✅ Creating WbSalesFunnelDashboard");
             view! { <WbSalesFunnelDashboard /> }.into_any()
+        }
+        "d407_llm_quality" => {
+            log!("✅ Creating LlmQualityDashboard");
+            view! { <LlmQualityDashboard /> }.into_any()
         }
         k if k.starts_with("d402_wb_order_flow_srid_") => {
             let srid = k

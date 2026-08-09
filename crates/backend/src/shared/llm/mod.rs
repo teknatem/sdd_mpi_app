@@ -1,4 +1,5 @@
 pub mod admin_tools;
+pub mod agent_task_tools;
 pub mod builder_workflow;
 pub mod chart_tools;
 pub mod chat_workspace;
@@ -6,12 +7,14 @@ pub mod data_tools;
 pub mod funnel_repair_tools;
 pub mod deepseek_tools;
 pub mod frontmatter;
+pub mod golden_set;
 pub mod kb_admin_tools;
 pub mod kb_metrics;
 pub mod kb_search;
 pub mod kb_tools;
 pub mod kb_vocabulary;
 pub mod knowledge_base;
+pub mod llm_quality_tools;
 pub mod mail_tools;
 pub mod metadata_registry;
 pub mod openai_provider;
@@ -29,6 +32,7 @@ pub mod table_tools;
 pub mod ticket_tools;
 pub mod tool_executor;
 pub mod types;
+pub mod verdicts;
 pub mod workspace_tools;
 
 pub use metadata_registry::METADATA_REGISTRY;

@@ -26,6 +26,7 @@ pub const MANAGER_GRANTS: &[(&str, &str)] = &[
     ("a017_llm_agent", "all"),
     ("a038_llm_connection", "all"),
     ("a039_mail_message", "all"),
+    ("a042_agent_task", "all"),
     ("a018_llm_chat", "all"),
     ("a019_llm_artifact", "all"),
     ("a020_wb_promotion", "all"),
@@ -99,6 +100,7 @@ pub const OPERATOR_GRANTS: &[(&str, &str)] = &[
     ("a017_llm_agent", "read"),
     ("a038_llm_connection", "read"),
     ("a039_mail_message", "read"),
+    ("a042_agent_task", "read"),
     ("a018_llm_chat", "all"),
     // Артефакты — прямой результат чата (SQL/отчёты, встроенные в сообщения); нужен
     // для загрузки карточек артефактов и работы со страницей артефакта.

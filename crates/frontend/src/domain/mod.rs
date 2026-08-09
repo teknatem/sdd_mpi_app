@@ -38,3 +38,4 @@ pub mod a037_wb_product_snapshot;
 pub mod a038_llm_connection;
 pub mod a039_mail_message;
 pub mod a040_wb_search_analytics_daily;
+pub mod a042_agent_task;

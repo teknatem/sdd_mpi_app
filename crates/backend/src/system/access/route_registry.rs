@@ -748,6 +748,37 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
         scope_id: Some("a031_kb_edit"),
         mode: PolicyMode::Auto,
     },
+    // a042 — очередь поручений между AI-сотрудниками
+    RoutePolicy {
+        method: "*",
+        path: "/api/a042-agent-task",
+        scope_id: Some("a042_agent_task"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a042-agent-task/list",
+        scope_id: Some("a042_agent_task"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a042-agent-task/:id",
+        scope_id: Some("a042_agent_task"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a042-agent-task/:id/cancel",
+        scope_id: Some("a042_agent_task"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a042-agent-task/:id/requeue",
+        scope_id: Some("a042_agent_task"),
+        mode: PolicyMode::Auto,
+    },
     RoutePolicy {
         method: "GET",
         path: "/api/a032/wb-returns-claims",

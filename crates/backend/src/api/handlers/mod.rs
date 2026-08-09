@@ -39,6 +39,7 @@ pub mod a037_wb_product_snapshot;
 pub mod a038_llm_connection;
 pub mod a039_mail_message;
 pub mod a040_wb_search_analytics_daily;
+pub mod a042_agent_task;
 
 // Projection handlers (p900-p908)
 pub mod p900_mp_sales_register;
@@ -96,6 +97,7 @@ pub mod quality;
 pub mod debug;
 pub mod kb_read;
 pub mod llm_knowledge;
+pub mod llm_quality;
 pub mod llm_skills;
 pub mod llm_tools;
 

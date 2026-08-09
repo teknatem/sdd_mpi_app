@@ -29,8 +29,15 @@ pub const KNOWN_INTENTS: &[&str] = &[
     "kb_curation",                 // работа с базой знаний
     "mailbox",                     // чтение/отправка почты
     "support",                     // обращение в поддержку: сбой, пожелание, тикет
+    "llm_quality_review",          // оценка качества работы агентов по диалогам
     "meta_smalltalk",              // приветствие/уточнение/«что ты умеешь»
 ];
+
+/// Служебный маркер в начале задания фоновой задачи. Пользователь такого не пишет:
+/// это способ для задачи выбрать навык точно, а не надеяться на ключевые слова
+/// (текст задания судьи полон слов «ошибка»/«не работает» и без маркера уехал бы
+/// в `support`).
+pub const SERVICE_INTENT_MARKER: &str = "режим: ";
 
 /// Результат классификации.
 #[derive(Debug, Clone)]
@@ -159,6 +166,27 @@ pub fn intent_to_agent_type(intent: &str) -> AgentType {
     }
 }
 
+/// Канонический интент специализации — обратная сторона `intent_to_agent_type`.
+///
+/// Нужен фоновым сценариям, которые ставят задачу специалисту напрямую: маркер
+/// `Режим: <интент>` в начале задания поднимает нужный навык детерминированно,
+/// вместо того чтобы гадать по ключевым словам чужой формулировки.
+///
+/// У координатора `None`: ему доступно всё, и маркер только сузил бы набор.
+pub fn default_intent_for_agent_type(agent_type: &AgentType) -> Option<&'static str> {
+    Some(match agent_type {
+        AgentType::BusinessAnalyst => "data_query",
+        AgentType::SalesAnalyst => "sales_query",
+        AgentType::Marketer => "marketing_query",
+        AgentType::Financier => "finance_query",
+        AgentType::SystemAdmin => "sys_admin",
+        AgentType::KbAdmin => "kb_curation",
+        AgentType::PluginAdmin => "plugin_dev",
+        AgentType::Tester => "quality_check",
+        AgentType::CoordinatorAdmin => return None,
+    })
+}
+
 /// Быстрая (rule-based, без LLM) классификация интента для синхронной предактивации
 /// навыков перед основным циклом. Полный LLM-роутер по-прежнему идёт конкурентно.
 pub fn quick_intent(message: &str, seed_agent_type: &AgentType) -> String {
@@ -206,6 +234,20 @@ fn rule_based(message: &str, seed_agent_type: &AgentType) -> IntentResult {
     let m = message.to_lowercase();
 
     let any = |needles: &[&str]| needles.iter().any(|n| m.contains(n));
+
+    // Явный служебный маркер важнее любых ключевых слов: задание фоновой задачи
+    // само называет свой режим, и угадывать по тексту нечего.
+    if let Some(rest) = m.split_once(SERVICE_INTENT_MARKER) {
+        let named = rest
+            .1
+            .trim_start()
+            .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .next()
+            .unwrap_or_default();
+        if let Some(intent) = KNOWN_INTENTS.iter().find(|known| **known == named) {
+            return IntentResult::new(*intent, 0.95, "rules");
+        }
+    }
 
     let quality_words = any(&[
         "quality check",
@@ -420,6 +462,61 @@ fn rule_based(message: &str, seed_agent_type: &AgentType) -> IntentResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Задание судьи полно слов «ошибка» и «плохой ответ» — без явного маркера
+    /// оно уехало бы в `support` и подняло не тот навык.
+    #[test]
+    fn service_marker_wins_over_keyword_rules() {
+        let trigger = "Режим: llm_quality_review.\n\
+                       Ищи неверные ответы, ошибки SQL и повторные неудачные вызовы.";
+        let result = quick_intent_result(trigger, &AgentType::CoordinatorAdmin);
+        assert_eq!(result.intent, "llm_quality_review");
+        assert!(result.confidence > 0.9);
+    }
+
+    /// Незнакомый режим не должен молча становиться интентом: иначе опечатка в
+    /// задании тихо активировала бы произвольный навык.
+    #[test]
+    fn unknown_service_marker_falls_through_to_rules() {
+        let result = quick_intent_result("Режим: не_существует. Построй график продаж", &AgentType::BusinessAnalyst);
+        assert_ne!(result.intent, "не_существует");
+    }
+
+    /// Маркер режима в поручении a042 обязан приводить исполнителя к его же
+    /// специализации. Если кто-то перенаправит `sales_query` на другой тип,
+    /// делегирование начнёт молча поднимать чужой навык — ловим здесь.
+    ///
+    /// Проверяем только биективную часть таблицы: `Tester` намеренно делит
+    /// `quality_check` с аналитиком, а у координатора канонического интента нет.
+    #[test]
+    fn default_intent_round_trips_for_specialists() {
+        for agent_type in [
+            AgentType::BusinessAnalyst,
+            AgentType::SalesAnalyst,
+            AgentType::Marketer,
+            AgentType::Financier,
+            AgentType::SystemAdmin,
+            AgentType::KbAdmin,
+            AgentType::PluginAdmin,
+        ] {
+            let intent = default_intent_for_agent_type(&agent_type)
+                .unwrap_or_else(|| panic!("нет интента для {:?}", agent_type));
+            assert!(
+                KNOWN_INTENTS.contains(&intent),
+                "интент {intent} отсутствует в KNOWN_INTENTS — маркер не сработает"
+            );
+            assert_eq!(
+                intent_to_agent_type(intent),
+                agent_type,
+                "интент {intent} ведёт не к своей специализации"
+            );
+        }
+        assert!(default_intent_for_agent_type(&AgentType::CoordinatorAdmin).is_none());
+        assert_eq!(
+            default_intent_for_agent_type(&AgentType::Tester),
+            Some("quality_check")
+        );
+    }
 
     #[test]
     fn marketplace_funnel_rule_precedes_generic_marketing() {

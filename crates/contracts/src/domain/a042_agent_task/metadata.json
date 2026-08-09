@@ -1,0 +1,455 @@
+{
+  "$schema": "../../../schemas/metadata.schema.json",
+  "schema_version": "1.0",
+  "entity_type": "aggregate",
+  "entity_name": "AgentTask",
+  "entity_index": "a042",
+  "collection_name": "agent_task",
+  "table_name": "a042_agent_task",
+  "ui": {
+    "element_name": "Поручение AI-сотруднику",
+    "element_name_en": "Agent Task",
+    "list_name": "Поручения AI-сотрудникам",
+    "list_name_en": "Agent Tasks",
+    "icon": "share-2"
+  },
+  "ai": {
+    "tags": ["llm", "agents"],
+    "description": "Очередь поручений между AI-сотрудниками: один агент ставит задачу специалисту другой специализации, регламентное задание task029 исполняет её через служебный чат и записывает результат. Одна запись = одно поручение: постановка, целевая специализация, статус, учёт попыток, итоговый ответ и ссылки на чат/сообщение/артефакт прогона. Переписка исполнения живёт в связанном чате a018.",
+    "questions": [
+      "Какие поручения ожидают исполнения?",
+      "Какие поручения провалились и почему?",
+      "Сколько поручений выполнено по каждой специализации?",
+      "Есть ли зависшие поручения в статусе «исполняется»?"
+    ],
+    "related": [
+      "a017_llm_agent",
+      "a018_llm_chat",
+      "a019_llm_artifact"
+    ]
+  },
+  "fields": [
+    {
+      "name": "id",
+      "rust_type": "AgentTaskId",
+      "field_type": "primitive",
+      "source": "base",
+      "ui": {
+        "label": "ID",
+        "label_en": "ID",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": true
+      }
+    },
+    {
+      "name": "code",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "base",
+      "ui": {
+        "label": "Код",
+        "label_en": "Code",
+        "visible_in_list": true,
+        "visible_in_form": false,
+        "column_width": 150
+      },
+      "validation": {
+        "required": true,
+        "max_length": 80
+      }
+    },
+    {
+      "name": "description",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "base",
+      "ui": {
+        "label": "Заголовок",
+        "label_en": "Title",
+        "visible_in_list": true,
+        "visible_in_form": true,
+        "column_width": 280
+      },
+      "validation": {
+        "required": true,
+        "max_length": 255
+      },
+      "ai_hint": "Короткий заголовок поручения; полная постановка — в request_text."
+    },
+    {
+      "name": "comment",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "base",
+      "ui": {
+        "label": "Комментарий",
+        "label_en": "Comment",
+        "visible_in_list": false,
+        "visible_in_form": true,
+        "widget": "textarea"
+      },
+      "validation": {
+        "required": false,
+        "max_length": 1000
+      }
+    },
+    {
+      "name": "status",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Статус",
+        "label_en": "Status",
+        "visible_in_list": true,
+        "visible_in_form": false,
+        "column_width": 130
+      },
+      "validation": {
+        "required": true
+      },
+      "ai_hint": "pending — в очереди (в т.ч. ждёт повтора); processing — захвачено прогоном; done — исполнено, ответ в result_text; failed — провалено окончательно; cancelled — снято вручную."
+    },
+    {
+      "name": "target_agent_type",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Специалист",
+        "label_en": "Specialization",
+        "visible_in_list": true,
+        "visible_in_form": false,
+        "column_width": 170
+      },
+      "validation": {
+        "required": true
+      },
+      "ai_hint": "Специализация исполнителя: business_analyst | sales_analyst | marketer | financier | system_admin | kb_admin | plugin_admin | tester."
+    },
+    {
+      "name": "request_text",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Постановка задачи",
+        "label_en": "Request",
+        "visible_in_list": false,
+        "visible_in_form": true,
+        "widget": "textarea"
+      },
+      "validation": {
+        "required": true,
+        "max_length": 8000
+      },
+      "ai_hint": "Полная постановка, уходит исполнителю как есть: он не видит диалог заказчика."
+    },
+    {
+      "name": "payload_json",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Контекст (JSON)",
+        "label_en": "Context (JSON)",
+        "visible_in_list": false,
+        "visible_in_form": true,
+        "widget": "textarea"
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "Структурный контекст поручения (id, даты, ссылки) — в промпт уходит JSON-блоком."
+    },
+    {
+      "name": "requested_by_agent_ref",
+      "rust_type": "String",
+      "field_type": "aggregate_ref",
+      "source": "specific",
+      "ref_aggregate": "a017_llm_agent",
+      "ui": {
+        "label": "Заказчик (агент)",
+        "label_en": "Requested by agent",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "requested_by_chat_ref",
+      "rust_type": "String",
+      "field_type": "aggregate_ref",
+      "source": "specific",
+      "ref_aggregate": "a018_llm_chat",
+      "ui": {
+        "label": "Чат-заказчик",
+        "label_en": "Requesting chat",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "Диалог, из которого поставлено поручение. По нему же заказчик забирает результат."
+    },
+    {
+      "name": "requested_by_user_ref",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Заказчик (пользователь)",
+        "label_en": "Requesting user",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "sys_users.id человека, чей вопрос породил поручение; он же владелец чата исполнения."
+    },
+    {
+      "name": "parent_task_ref",
+      "rust_type": "String",
+      "field_type": "aggregate_ref",
+      "source": "specific",
+      "ref_aggregate": "a042_agent_task",
+      "ui": {
+        "label": "Родительское поручение",
+        "label_en": "Parent task",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "depth",
+      "rust_type": "i32",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Глубина",
+        "label_en": "Depth",
+        "visible_in_list": false,
+        "visible_in_form": false,
+        "column_width": 90
+      },
+      "validation": {
+        "required": true
+      },
+      "ai_hint": "Длина цепочки поручений; ограничена сверху, чтобы агенты не зациклились друг на друге."
+    },
+    {
+      "name": "attempts",
+      "rust_type": "i32",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Попыток",
+        "label_en": "Attempts",
+        "visible_in_list": true,
+        "visible_in_form": false,
+        "column_width": 100
+      },
+      "validation": {
+        "required": true
+      },
+      "ai_hint": "Число захватов записи прогоном. Растёт при захвате, а не при провале."
+    },
+    {
+      "name": "max_attempts",
+      "rust_type": "i32",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Лимит попыток",
+        "label_en": "Max attempts",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": true
+      }
+    },
+    {
+      "name": "next_attempt_at",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Повтор не раньше",
+        "label_en": "Next attempt at",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "RFC3339. Пока не наступил, запись не берётся в работу (бэкофф после провала)."
+    },
+    {
+      "name": "claim_session_id",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Сессия прогона",
+        "label_en": "Claim session",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "session_id прогона task029, захватившего запись — ключ связи с sys_task_runs."
+    },
+    {
+      "name": "started_at",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Начато",
+        "label_en": "Started at",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "finished_at",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Завершено",
+        "label_en": "Finished at",
+        "visible_in_list": true,
+        "visible_in_form": false,
+        "column_width": 150
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "executor_agent_ref",
+      "rust_type": "String",
+      "field_type": "aggregate_ref",
+      "source": "specific",
+      "ref_aggregate": "a017_llm_agent",
+      "ui": {
+        "label": "Исполнитель",
+        "label_en": "Executor agent",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "Сотрудник, который реально исполнял: target_agent_type — что заказывали, это — кто ответил."
+    },
+    {
+      "name": "result_chat_ref",
+      "rust_type": "String",
+      "field_type": "aggregate_ref",
+      "source": "specific",
+      "ref_aggregate": "a018_llm_chat",
+      "ui": {
+        "label": "Чат исполнения",
+        "label_en": "Execution chat",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "result_message_ref",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Сообщение-ответ",
+        "label_en": "Result message",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "result_artifact_ref",
+      "rust_type": "String",
+      "field_type": "aggregate_ref",
+      "source": "specific",
+      "ref_aggregate": "a019_llm_artifact",
+      "ui": {
+        "label": "Артефакт",
+        "label_en": "Result artifact",
+        "visible_in_list": false,
+        "visible_in_form": false
+      },
+      "validation": {
+        "required": false
+      }
+    },
+    {
+      "name": "result_text",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Результат",
+        "label_en": "Result",
+        "visible_in_list": true,
+        "visible_in_form": true,
+        "widget": "textarea",
+        "column_width": 320
+      },
+      "validation": {
+        "required": false
+      },
+      "ai_hint": "Итоговый ответ исполнителя — то, ради чего ставилось поручение."
+    },
+    {
+      "name": "error",
+      "rust_type": "String",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Ошибка",
+        "label_en": "Error",
+        "visible_in_list": false,
+        "visible_in_form": false,
+        "widget": "textarea"
+      },
+      "validation": {
+        "required": false
+      }
+    }
+  ],
+
+  "access": {
+    "scope_id": "a042_agent_task",
+    "operations": [
+      { "id": "list",   "required_mode": "read" },
+      { "id": "get",    "required_mode": "read" },
+      { "id": "cancel", "required_mode": "all" },
+      { "id": "requeue", "required_mode": "all" },
+      { "id": "delete", "required_mode": "all" }
+    ]
+  }
+}

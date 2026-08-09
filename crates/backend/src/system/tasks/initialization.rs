@@ -18,7 +18,9 @@ use super::{
         Task018YmReturnsManager, Task019YmPaymentReportManager, Task020WbProductSnapshotManager,
         Task021MailIntakeManager, Task022MailReplyManager, Task023WbSalesFunnelDailyManager,
         Task024WbSearchAnalyticsDailyManager, Task025BitrixTicketSyncManager,
-        Task026YmShowsSalesDailyManager, QualityCheckRunManager,
+        Task026YmShowsSalesDailyManager, Task027LlmJudgeManager, Task028LlmGoldenSetManager,
+        Task029AgentTaskRunnerManager,
+        QualityCheckRunManager,
         U501ImportUtManager, U502ImportOzonManager, U503ImportYandexManager,
     },
     registry::{set_global_registry, TaskManagerRegistry},
@@ -96,6 +98,14 @@ pub async fn initialize_scheduled_tasks() -> Result<ScheduledTaskWorker> {
     registry.register(Task015KbPostManager::new());
     registry.register(Task016KbIntakeManager::new());
 
+    // ---- LLM quality task managers ----
+
+    registry.register(Task027LlmJudgeManager::new());
+    registry.register(Task028LlmGoldenSetManager::new());
+
+    // ---- Agent task queue ----
+    registry.register(Task029AgentTaskRunnerManager::new());
+
     // ---- WB Returns Claims task manager ----
     registry.register(Task017WbReturnsClaimsManager::new(wb_executor!()));
 
@@ -131,6 +141,9 @@ mod tests {
             "task023_wb_sales_funnel_daily",
             "task024_wb_search_analytics_daily",
             "task025_bitrix_ticket_sync",
+            "task027_llm_judge",
+            "task028_llm_golden_set",
+            "task029_agent_task_runner",
             "quality_check_run",
         ] {
             let manager = registry

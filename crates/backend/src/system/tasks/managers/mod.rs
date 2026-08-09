@@ -30,6 +30,9 @@ pub mod task023_wb_sales_funnel_daily;
 pub mod task024_wb_search_analytics_daily;
 pub mod task025_bitrix_ticket_sync;
 pub mod task026_ym_shows_sales_daily;
+pub mod task027_llm_judge;
+pub mod task028_llm_golden_set;
+pub mod task029_agent_task_runner;
 pub mod quality_check_run;
 
 pub use u501_import_ut::U501ImportUtManager;
@@ -62,4 +65,7 @@ pub use task023_wb_sales_funnel_daily::Task023WbSalesFunnelDailyManager;
 pub use task024_wb_search_analytics_daily::Task024WbSearchAnalyticsDailyManager;
 pub use task025_bitrix_ticket_sync::Task025BitrixTicketSyncManager;
 pub use task026_ym_shows_sales_daily::Task026YmShowsSalesDailyManager;
+pub use task027_llm_judge::Task027LlmJudgeManager;
+pub use task028_llm_golden_set::Task028LlmGoldenSetManager;
+pub use task029_agent_task_runner::Task029AgentTaskRunnerManager;
 pub use quality_check_run::QualityCheckRunManager;

@@ -426,10 +426,22 @@ fn get_menu_groups() -> Vec<MenuGroup> {
                     "mail",
                 )
                 .admin_only(),
+                SidebarItem::with_scope(
+                    "a042_agent_task",
+                    tab_label_for_key("a042_agent_task"),
+                    "share-2",
+                )
+                .admin_only(),
                 SidebarItem::new("llm_skills", tab_label_for_key("llm_skills"), "list")
                     .admin_only(),
                 SidebarItem::new("llm_tools", tab_label_for_key("llm_tools"), "wrench")
                     .admin_only(),
+                SidebarItem::new(
+                    "d407_llm_quality",
+                    tab_label_for_key("d407_llm_quality"),
+                    "gauge",
+                )
+                .admin_only(),
             ],
             admin_only: false,
         },

@@ -34,6 +34,7 @@ pub fn configure_business_routes() -> Router {
         .merge(a018_routes())
         .merge(llm_skills_routes())
         .merge(llm_tools_routes())
+        .merge(llm_quality_routes())
         .merge(a019_routes())
         .merge(a020_routes())
         .merge(a021_routes())
@@ -56,6 +57,7 @@ pub fn configure_business_routes() -> Router {
         .merge(a031_routes())
         .merge(a032_routes())
         .merge(a033_routes())
+        .merge(a042_routes())
         // External integrations (API-key auth, no JWT required)
         .merge(ext_routes())
         // Usecases — each with their own scope
@@ -849,6 +851,21 @@ fn llm_tools_routes() -> Router {
     Router::new().route("/api/llm-tools", get(handlers::llm_tools::list))
 }
 
+/// Сводка качества работы агентов (дашборд d407). Скоуп тот же, что у каталога
+/// навыков: это надзорная страница по флоту сотрудников.
+fn llm_quality_routes() -> Router {
+    Router::new()
+        .route(
+            "/api/llm-quality/overview",
+            get(handlers::llm_quality::overview),
+        )
+        .layer(middleware::from_fn(
+            |req: Request<Body>, next: Next| async move {
+                check_scope("a017_llm_agent", req, next).await
+            },
+        ))
+}
+
 fn a018_routes() -> Router {
     Router::new()
         .route(
@@ -1407,6 +1424,40 @@ fn a031_routes() -> Router {
         .layer(middleware::from_fn(
             |req: Request<Body>, next: Next| async move {
                 check_scope("a031_kb_edit", req, next).await
+            },
+        ))
+}
+
+/// Очередь поручений между AI-сотрудниками.
+///
+/// Создания через HTTP нет намеренно: поручение ставит агент через LLM-инструмент
+/// `create_agent_task`, и все гарды (глубина цепочки, потолки очереди, дубли)
+/// живут там. Ручной путь оставлен только на управление уже созданным.
+fn a042_routes() -> Router {
+    Router::new()
+        .route(
+            "/api/a042-agent-task",
+            get(handlers::a042_agent_task::list_paginated),
+        )
+        .route(
+            "/api/a042-agent-task/list",
+            get(handlers::a042_agent_task::list_paginated),
+        )
+        .route(
+            "/api/a042-agent-task/:id",
+            get(handlers::a042_agent_task::get_by_id).delete(handlers::a042_agent_task::delete),
+        )
+        .route(
+            "/api/a042-agent-task/:id/cancel",
+            post(handlers::a042_agent_task::cancel),
+        )
+        .route(
+            "/api/a042-agent-task/:id/requeue",
+            post(handlers::a042_agent_task::requeue),
+        )
+        .layer(middleware::from_fn(
+            |req: Request<Body>, next: Next| async move {
+                check_scope("a042_agent_task", req, next).await
             },
         ))
 }

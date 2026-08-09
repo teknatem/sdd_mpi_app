@@ -1,0 +1,254 @@
+/* d407 «Качество работы агентов» — per-page styles.
+   Scoped under .d407-page. Uses design-system CSS variables so light/dark themes
+   are handled by the tokens. */
+
+.d407-page .d407-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    height: 100%;
+    padding: 4px 2px 24px;
+    overflow-y: auto;
+}
+
+/* ---- header ---- */
+.d407-page .d407-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.d407-page .d407-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+.d407-page .d407-subtitle {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.d407-page .d407-note {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-tertiary, var(--color-text-secondary));
+    max-width: 900px;
+}
+
+/* ---- toolbar ---- */
+.d407-page .d407-toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+.d407-page .d407-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+}
+.d407-page .d407-field label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+}
+.d407-page .d407-field select {
+    height: 34px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    padding: 0 10px;
+    background: var(--color-bg-elevated, var(--color-bg));
+    color: var(--color-text-primary);
+}
+.d407-page .d407-btn {
+    height: 34px;
+    padding: 0 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-bg-elevated, var(--color-bg));
+    color: var(--color-text-primary);
+    cursor: pointer;
+    font-size: 13px;
+}
+.d407-page .d407-btn--primary {
+    background: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
+    color: #fff;
+}
+.d407-page .d407-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+/* ---- stat tiles ---- */
+.d407-page .d407-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+}
+.d407-page .d407-tile {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    padding: 12px 14px;
+    background: var(--color-bg-elevated, var(--color-bg));
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.d407-page .d407-tile__label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+}
+.d407-page .d407-tile__value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.d407-page .d407-tile__hint {
+    font-size: 11px;
+    color: var(--color-text-tertiary, var(--color-text-secondary));
+}
+
+/* ---- sections and tables ---- */
+.d407-page .d407-section {
+    display: flex;
+    flex-direction: column;
+}
+.d407-page .d407-tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+}
+.d407-page .d407-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.d407-page .d407-table th,
+.d407-page .d407-table td {
+    padding: 7px 10px;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--color-border);
+    font-variant-numeric: tabular-nums;
+}
+.d407-page .d407-table th {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-subtle, transparent);
+    position: sticky;
+    top: 0;
+}
+.d407-page .d407-table .d407-th--left,
+.d407-page .d407-table .d407-td--left {
+    text-align: left;
+    white-space: normal;
+    font-variant-numeric: normal;
+}
+.d407-page .d407-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.d407-page .d407-row--warn td {
+    background: var(--color-warning-bg, rgba(234, 179, 8, 0.08));
+}
+.d407-page .d407-row--bad td {
+    background: var(--color-danger-bg, rgba(239, 68, 68, 0.10));
+}
+
+/* ---- chips ---- */
+.d407-page .d407-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.d407-page .d407-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    background: var(--color-bg-elevated, var(--color-bg));
+}
+
+/* ---- verdict list ---- */
+.d407-page .d407-verdicts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.d407-page .d407-verdict {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    padding: 10px 12px;
+    background: var(--color-bg-elevated, var(--color-bg));
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.d407-page .d407-verdict__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.d407-page .d407-verdict__title {
+    font-weight: 600;
+    font-size: 13px;
+}
+.d407-page .d407-verdict__date {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--color-text-tertiary, var(--color-text-secondary));
+}
+.d407-page .d407-verdict__reason {
+    font-size: 12px;
+    line-height: 1.5;
+}
+.d407-page .d407-verdict__meta {
+    font-size: 11px;
+    color: var(--color-text-tertiary, var(--color-text-secondary));
+}
+
+.d407-page .d407-badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--color-border);
+}
+.d407-page .d407-badge--ok {
+    background: var(--color-success-bg, rgba(34, 197, 94, 0.12));
+    border-color: var(--color-success, #22c55e);
+}
+.d407-page .d407-badge--warn {
+    background: var(--color-warning-bg, rgba(234, 179, 8, 0.12));
+    border-color: var(--color-warning, #eab308);
+}
+.d407-page .d407-badge--bad {
+    background: var(--color-danger-bg, rgba(239, 68, 68, 0.12));
+    border-color: var(--color-danger, #ef4444);
+}
+
+/* ---- states ---- */
+.d407-page .d407-state,
+.d407-page .d407-empty {
+    padding: 14px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md, 8px);
+}
+.d407-page .d407-state--error {
+    color: var(--color-danger, #ef4444);
+    border-style: solid;
+}

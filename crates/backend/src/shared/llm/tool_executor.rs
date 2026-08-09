@@ -371,6 +371,47 @@ pub async fn execute_tool_call(
             .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
     }
 
+    if super::llm_quality_tools::LLM_QUALITY_TOOL_NAMES.contains(&call.name.as_str()) {
+        let result =
+            super::llm_quality_tools::execute_llm_quality_tool(&call.name, &call.arguments).await;
+        let is_ok = tool_result_ok(&result);
+        let mut result = result;
+        if let serde_json::Value::Object(ref mut map) = result {
+            map.insert(
+                "_tool".to_string(),
+                serde_json::Value::String(call.name.clone()),
+            );
+            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
+        }
+        return serde_json::to_string_pretty(&result)
+            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
+    }
+
+    if super::agent_task_tools::AGENT_TASK_TOOL_NAMES.contains(&call.name.as_str()) {
+        // Гарды делегирования (глубина цепочки, самоделегирование, потолки очереди)
+        // считаются внутри по chat_id и agent_type, а не по аргументам модели.
+        let result = super::agent_task_tools::execute_agent_task_tool(
+            &call.name,
+            &call.arguments,
+            chat_id,
+            agent_id,
+            agent_type,
+            caller,
+        )
+        .await;
+        let is_ok = tool_result_ok(&result);
+        let mut result = result;
+        if let serde_json::Value::Object(ref mut map) = result {
+            map.insert(
+                "_tool".to_string(),
+                serde_json::Value::String(call.name.clone()),
+            );
+            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
+        }
+        return serde_json::to_string_pretty(&result)
+            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
+    }
+
     if WORKSPACE_TOOL_NAMES.contains(&call.name.as_str()) {
         // Шаблон анкеты приносит активный навык: у финансиста и маркетолога
         // значимые параметры задачи разные.

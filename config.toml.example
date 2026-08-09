@@ -61,6 +61,10 @@ skills_path = "skills"
 # Корень рабочих каталогов чатов: <chat_id>/<NNN-активность>/{intake.md,plan.md,notes.md,steps/}.
 # Здесь живут анкеты, планы и журнал шагов. Относительный путь — от бинарника.
 chat_files_path = "chat_files"
+# Эталонные кейсы для регрессии качества («голден-сет»): <case-id>.md с frontmatter
+# (question / expect / agent_type). Прогоняются задачей task028_llm_golden_set после
+# правок промптов и навыков. Относительный путь — от бинарника.
+golden_set_path = "golden_set"
 
 [quality]
 # Внешние MJS-проверки: <check-id>/{check.json,check.mjs,schema.json?}.

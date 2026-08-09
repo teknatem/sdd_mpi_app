@@ -19,6 +19,7 @@ use contracts::domain::a025_bi_dashboard::ENTITY_METADATA as A025;
 use contracts::domain::a027_wb_documents::ENTITY_METADATA as A027;
 use contracts::domain::a038_llm_connection::ENTITY_METADATA as A038;
 use contracts::domain::a039_mail_message::ENTITY_METADATA as A039;
+use contracts::domain::a042_agent_task::ENTITY_METADATA as A042;
 
 /// Возвращает читаемый заголовок таба для данного ключа.
 ///
@@ -38,6 +39,8 @@ pub fn tab_label_for_key(key: &str) -> &'static str {
         "a017_llm_agent" => A017.ui.list_name,
         "a038_llm_connection" => A038.ui.list_name,
         "a039_mail_message" => A039.ui.list_name,
+        "a042_agent_task" => A042.ui.list_name,
+        k if k.starts_with("a042_agent_task_details_") => A042.ui.element_name,
         "a018_llm_chat" => A018.ui.list_name,
         "llm_skills" => "Навыки LLM",
         "llm_tools" => "Инструменты LLM",
@@ -128,6 +131,7 @@ pub fn tab_label_for_key(key: &str) -> &'static str {
         "d400_monthly_summary" => "Сводка за месяц",
         "d405_metadata_dashboard" => "Метаданные",
         "d406_wb_sales_funnel" => "Воронка продаж",
+        "d407_llm_quality" => "Качество агентов",
         "d401_wb_finance" => "WB Finance",
         "d402_wb_order_flow" => "WB История заказов",
         k if k.starts_with("d402_wb_order_flow_srid_") => "Вся история",

@@ -47,6 +47,8 @@ const EMBEDDED_SKILL_FILES: &[&str] = &[
     include_str!("../../../skills/support.md"),
     include_str!("../../../skills/quality-monitoring.md"),
     include_str!("../../../skills/quality-check-authoring.md"),
+    include_str!("../../../skills/llm-quality-review.md"),
+    include_str!("../../../skills/agent-delegation.md"),
 ];
 
 // ─── Core: всегда активные инструменты ───────────────────────────────────────
@@ -1308,6 +1310,8 @@ fn tool_universe() -> Vec<ToolDefinition> {
     v.extend(super::workspace_tools::workspace_tool_definitions());
     v.extend(super::quality_tools::quality_tool_definitions());
     v.extend(super::funnel_repair_tools::funnel_repair_tool_definitions());
+    v.extend(super::llm_quality_tools::llm_quality_tool_definitions());
+    v.extend(super::agent_task_tools::agent_task_tool_definitions());
     v.extend(meta_tool_definitions());
     v
 }
@@ -1485,6 +1489,14 @@ pub fn tools_catalog() -> Value {
         ),
         ("quality", super::quality_tools::quality_tool_definitions()),
         ("funnel_repair", super::funnel_repair_tools::funnel_repair_tool_definitions()),
+        (
+            "llm_quality",
+            super::llm_quality_tools::llm_quality_tool_definitions(),
+        ),
+        (
+            "agent_task",
+            super::agent_task_tools::agent_task_tool_definitions(),
+        ),
         ("meta", meta_tool_definitions()),
     ];
 
@@ -1560,6 +1572,33 @@ mod tests {
         for expected in super::super::ticket_tools::TICKET_TOOL_NAMES {
             assert!(names.contains(*expected), "потерян инструмент {expected}");
         }
+    }
+
+    #[test]
+    fn quality_review_skill_brings_verdict_tools() {
+        // Та же тихая цепочка: без этих трёх инструментов судья не сможет ни выбрать
+        // диалоги, ни записать оценку, а задача «отработает» с пустой метрикой.
+        let tools = assemble_tools(&["llm-quality-review"]);
+        let names: HashSet<_> = tools.iter().map(|t| t.name.clone()).collect();
+        for expected in super::super::llm_quality_tools::LLM_QUALITY_TOOL_NAMES {
+            assert!(names.contains(*expected), "потерян инструмент {expected}");
+        }
+    }
+
+    #[test]
+    fn agent_delegation_skill_brings_task_tools() {
+        // Та же тихая цепочка: имя, не доехавшее до `tool_universe()`, отбрасывается
+        // при разборе навыка без ошибки сборки — и делегирование «работает», молча
+        // не имея ни одного своего инструмента.
+        let tools = assemble_tools(&["agent-delegation"]);
+        let names: HashSet<_> = tools.iter().map(|t| t.name.clone()).collect();
+        for expected in super::super::agent_task_tools::AGENT_TASK_TOOL_NAMES {
+            assert!(names.contains(*expected), "потерян инструмент {expected}");
+        }
+        // Постановка поручения тратит реальный агентный прогон — она не должна
+        // быть доступна без явного use_skill.
+        let core = active_tool_names::<&str>(&[]);
+        assert!(!core.contains("create_agent_task"));
     }
 
     #[test]
