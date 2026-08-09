@@ -231,9 +231,37 @@
   transform: rotate(90deg);
 }
 
+/* Аккордеон групп сайдбара: подменю всегда в DOM, раскрытие анимируется через
+   grid-template-rows 0fr → 1fr — так высота едет плавно, без знания её значения,
+   и закрытие одной группы не «дёргает» открывающуюся ниже. */
+.app-sidebar__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 220ms ease;
+  opacity: 0;
+}
+
+.app-sidebar__collapse--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.app-sidebar__collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .app-sidebar__children {
   margin-left: 24px;
   border-left: 1px solid var(--sidebar-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar__collapse {
+    transition: none;
+  }
 }
 
 /* App Sidebar scrollbar */

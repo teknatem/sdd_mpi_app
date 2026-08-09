@@ -674,7 +674,9 @@ pub fn Sidebar() -> impl IntoView {
             .unwrap_or(false)
     });
 
-    let expanded_groups = RwSignal::new(vec![]);
+    // Аккордеон: одновременно раскрыта максимум одна группа (включая динамическую
+    // группу плагинов, которая работает с этим же сигналом).
+    let expanded_group = RwSignal::new(None::<String>);
     let groups = get_menu_groups();
 
     view! {
@@ -727,11 +729,11 @@ pub fn Sidebar() -> impl IntoView {
                                 on:click=move |_| {
                                     if has_children {
                                         let gid = group_id_for_click.clone();
-                                        expanded_groups.update(move |items| {
-                                            if let Some(pos) = items.iter().position(|x| x == &gid) {
-                                                items.remove(pos);
+                                        expanded_group.update(move |current| {
+                                            if current.as_deref() == Some(gid.as_str()) {
+                                                *current = None;
                                             } else {
-                                                items.push(gid);
+                                                *current = Some(gid);
                                             }
                                         });
                                     } else {
@@ -748,7 +750,9 @@ pub fn Sidebar() -> impl IntoView {
                                     view! {
                                         <div
                                             class="app-sidebar__chevron"
-                                            class:app-sidebar__chevron--expanded=move || expanded_groups.get().contains(&gid_exp)
+                                            class:app-sidebar__chevron--expanded=move || {
+                                                expanded_group.with(|g| g.as_deref() == Some(gid_exp.as_str()))
+                                            }
                                         >
                                             {icon("chevron-right")}
                                         </div>
@@ -758,12 +762,18 @@ pub fn Sidebar() -> impl IntoView {
 
                             {has_children.then(|| {
                                 let gid_show = group_id.clone();
-                                let items_stored = StoredValue::new(visible_items);
+                                // Подменю всегда в DOM: раскрытие/схлопывание анимируется
+                                // через grid-template-rows, иначе соседние группы дёргаются.
                                 view! {
-                                    <Show when=move || expanded_groups.get().contains(&gid_show)>
+                                    <div
+                                        class="app-sidebar__collapse"
+                                        class:app-sidebar__collapse--open=move || {
+                                            expanded_group.with(|g| g.as_deref() == Some(gid_show.as_str()))
+                                        }
+                                    >
+                                        <div class="app-sidebar__collapse-inner">
                                         <div class="app-sidebar__children">
-                                            {items_stored
-                                                .get_value()
+                                            {visible_items
                                                 .into_iter()
                                                 .map(|item| {
                                                     let item_id = StoredValue::new(item.id.to_string());
@@ -788,7 +798,8 @@ pub fn Sidebar() -> impl IntoView {
                                                 })
                                                 .collect_view()}
                                         </div>
-                                    </Show>
+                                        </div>
+                                    </div>
                                 }
                             })}
                         </div>
@@ -797,7 +808,7 @@ pub fn Sidebar() -> impl IntoView {
                 .collect_view()}
 
             // Плагины — динамическая группа (использование доступно всем; управление — админам)
-            <crate::plugins::PluginsSidebarGroup />
+            <crate::plugins::PluginsSidebarGroup expanded_group=expanded_group />
         </div>
     }
 }

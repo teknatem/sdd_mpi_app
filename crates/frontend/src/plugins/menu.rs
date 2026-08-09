@@ -103,17 +103,30 @@ pub fn PluginsMenuCategory() -> impl IntoView {
 
 /// Группа левого сайдбара «Плагины» (использование — всем, управление — админам).
 /// В сайдбаре остаётся только ссылка на реестр; отдельные плагины открываются из реестра.
+///
+/// `expanded_group` — общий аккордеон-сигнал сайдбара: хранит id единственной раскрытой
+/// группы, поэтому раскрытие «Плагинов» закрывает любую другую группу и наоборот.
 #[component]
-pub fn PluginsSidebarGroup() -> impl IntoView {
+pub fn PluginsSidebarGroup(expanded_group: RwSignal<Option<String>>) -> impl IntoView {
     let ctx = use_context::<AppGlobalContext>().expect("AppGlobalContext not found");
-    let expanded = RwSignal::new(false);
+    const GROUP_ID: &str = "plugins";
+    let is_expanded = move || expanded_group.with(|g| g.as_deref() == Some(GROUP_ID));
 
     view! {
         <div>
             <div
                 class="app-sidebar__item"
                 style:padding-left="12px"
-                on:click=move |_| expanded.update(|v| *v = !*v)
+                on:click=move |_| {
+                    expanded_group
+                        .update(|current| {
+                            if current.as_deref() == Some(GROUP_ID) {
+                                *current = None;
+                            } else {
+                                *current = Some(GROUP_ID.to_string());
+                            }
+                        });
+                }
             >
                 <div class="app-sidebar__item-content">
                     {icon("box")}
@@ -121,26 +134,28 @@ pub fn PluginsSidebarGroup() -> impl IntoView {
                 </div>
                 <div
                     class="app-sidebar__chevron"
-                    class:app-sidebar__chevron--expanded=move || expanded.get()
+                    class:app-sidebar__chevron--expanded=is_expanded
                 >
                     {icon("chevron-right")}
                 </div>
             </div>
 
-            <Show when=move || expanded.get()>
-                <div class="app-sidebar__children">
-                    <div
-                        class="app-sidebar__item"
-                        style:padding-left="10px"
-                        on:click=move |_| ctx.open_tab("plugins", "Плагины — реестр")
-                    >
-                        <div class="app-sidebar__item-content">
-                            {icon("table")}
-                            <span>"Реестр плагинов"</span>
+            <div class="app-sidebar__collapse" class:app-sidebar__collapse--open=is_expanded>
+                <div class="app-sidebar__collapse-inner">
+                    <div class="app-sidebar__children">
+                        <div
+                            class="app-sidebar__item"
+                            style:padding-left="10px"
+                            on:click=move |_| ctx.open_tab("plugins", "Плагины — реестр")
+                        >
+                            <div class="app-sidebar__item-content">
+                                {icon("table")}
+                                <span>"Реестр плагинов"</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </Show>
+            </div>
         </div>
     }
 }
