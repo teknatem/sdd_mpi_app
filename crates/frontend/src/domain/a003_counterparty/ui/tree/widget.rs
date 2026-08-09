@@ -211,7 +211,7 @@ fn highlight_matches(text: &str, filter: &str) -> AnyView {
         // Добавляем подсвеченное совпадение
         let match_end = actual_pos + filter_lower.len();
         parts.push(view! {
-            <span style="background-color: #ff9800; color: white; padding: 1px 2px; border-radius: 2px; font-weight: 500;">
+            <span style="background-color: var(--color-warning); color: #000000; padding: 1px 2px; border-radius: 2px; font-weight: 500;">
                 {&text[actual_pos..match_end]}
             </span>
         }.into_any());
@@ -257,7 +257,7 @@ fn render_rows_with_lookup(
         view! {
             <button
                 class="tree-toggle"
-                style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; color: #666;"
+                style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; color: var(--color-text-secondary);"
                 on:click=move |_| expanded.update(|v| *v = !*v)
             >
                 {chevron_icon}
@@ -275,7 +275,7 @@ fn render_rows_with_lookup(
             view! { <span style="color: #f4b942;">{icon("folder-closed")}</span> }.into_any()
         }
     } else {
-        view! { <span style="color: #888;">{icon("item")}</span> }.into_any()
+        view! { <span style="color: var(--color-text-muted);">{icon("item")}</span> }.into_any()
     };
 
     let open = {
@@ -463,7 +463,7 @@ pub fn CounterpartyTree() -> impl IntoView {
                     {move || if !filter_text.get().is_empty() {
                         view! {
                             <button
-                                style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; color: #666; line-height: 1;"
+                                style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; color: var(--color-text-secondary); line-height: 1;"
                                 on:click=move |_| set_filter_text.set(String::new())
                                 title="Очистить"
                             >
@@ -476,18 +476,18 @@ pub fn CounterpartyTree() -> impl IntoView {
                 </div>
 
             {move || if is_loading.get() {
-                view! { <div style="text-align: center; padding: 20px; color: #666;">"Загрузка..."</div> }.into_any()
+                view! { <div style="text-align: center; padding: 20px; color: var(--color-text-secondary);">"Загрузка..."</div> }.into_any()
             } else {
                 view! {
                     <>
                         <div class="table-container">
                             <table>
                                 <thead>
-                                    <tr class="text-left" style="border-bottom: 2px solid #ddd;">
-                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid #ddd;">
+                                    <tr class="text-left" style="border-bottom: 2px solid var(--color-border);">
+                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid var(--color-border);">
                                             <input type="checkbox" style="margin: 0; cursor: pointer;"/>
                                         </th>
-                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid #ddd;">{""}</th>
+                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid var(--color-border);">{""}</th>
                                         <th class="th-w-50p p-6-8">{"Наименование"}</th>
                                         <th class="th-w-25p p-6-8">{"Код"}</th>
                                         <th class="th-w-25p p-6-8">{"ИНН / КПП"}</th>
@@ -504,7 +504,7 @@ pub fn CounterpartyTree() -> impl IntoView {
                                             } else {
                                                 "По фильтру ничего не найдено"
                                             };
-                                            view! { <tr><td colspan="5" class="text-center" style="color: #888; padding: 20px;">{msg}</td></tr> }.into_any()
+                                            view! { <tr><td colspan="5" class="text-center" style="color: var(--color-text-muted); padding: 20px;">{msg}</td></tr> }.into_any()
                                         } else {
                                             let current_filter = filter_text.get();
                                             let all_rows = roots

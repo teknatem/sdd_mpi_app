@@ -352,7 +352,7 @@ fn render_rows_with_lookup(
         view! {
             <button
                 class="tree-toggle"
-                style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; color: #666;"
+                style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; color: var(--color-text-secondary);"
                 on:click=move |_| expanded.update(|v| *v = !*v)
             >
                 {chevron_icon}
@@ -370,7 +370,7 @@ fn render_rows_with_lookup(
             view! { <span style="color: #f4b942;">{icon("folder-closed")}</span> }.into_any()
         }
     } else {
-        view! { <span style="color: #888;">{icon("item")}</span> }.into_any()
+        view! { <span style="color: var(--color-text-muted);">{icon("item")}</span> }.into_any()
     };
 
     let open = {
@@ -593,8 +593,8 @@ pub fn NomenclatureTree() -> impl IntoView {
                             type="text"
                             placeholder="Поиск (мин. 3 символа)..."
                             style=move || format!(
-                                "width: 250px; padding: 6px 32px 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 15px; background: {};",
-                                if is_filter_active() { "#fffbea" } else { "white" }
+                                "width: 250px; padding: 6px 32px 6px 10px; border: 1px solid var(--form-input-border); border-radius: 4px; font-size: 15px; background: {};",
+                                if is_filter_active() { "var(--warning-box-bg)" } else { "var(--form-input-bg)" }
                             )
                             prop:value=move || filter_input.get()
                             on:input=move |ev| {
@@ -605,7 +605,7 @@ pub fn NomenclatureTree() -> impl IntoView {
                         {move || if !filter_input.get().is_empty() {
                             view! {
                                 <button
-                                    style="position: absolute; right: 6px; background: none; border: none; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; color: #666; line-height: 1;"
+                                    style="position: absolute; right: 6px; background: none; border: none; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; color: var(--color-text-secondary); line-height: 1;"
                                     on:click=move |_| {
                                         set_filter_input.set(String::new());
                                         set_filter_text.set(String::new());
@@ -643,7 +643,7 @@ pub fn NomenclatureTree() -> impl IntoView {
             {move || error.get().map(|e| view! { <div class="error" style="background: #fee; color: #c33; padding: 8px; border-radius: 4px; margin-bottom: 8px; font-size: 15px; flex-shrink: 0;">{e}</div> })}
 
             {move || if is_loading.get() {
-                view! { <div style="text-align: center; padding: 20px; color: #666;">{"⏳ Загрузка..."}</div> }.into_any()
+                view! { <div style="text-align: center; padding: 20px; color: var(--color-text-secondary);">{"⏳ Загрузка..."}</div> }.into_any()
             } else {
                 view! {
                     <>
@@ -651,13 +651,13 @@ pub fn NomenclatureTree() -> impl IntoView {
                             <table class="tree-table">
                                 <thead>
                                     <tr class="text-left">
-                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid #ddd;">
+                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid var(--color-border);">
                                             <input type="checkbox" style="margin: 0; cursor: pointer;"/>
                                         </th>
-                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid #ddd;">{""}</th>
+                                        <th class="text-center whitespace-nowrap p-0-8" style="width: 40px; border-bottom: 2px solid var(--color-border);">{""}</th>
                                         <th
                                             class="th-w-40p whitespace-nowrap cursor-pointer user-select-none p-0-8"
-                                            style="border-bottom: 2px solid #ddd;"
+                                            style="border-bottom: 2px solid var(--color-border);"
                                             title="Сортировать"
                                             on:click=toggle_sort("description")
                                         >
@@ -665,7 +665,7 @@ pub fn NomenclatureTree() -> impl IntoView {
                                         </th>
                                         <th
                                             class="th-w-20p whitespace-nowrap cursor-pointer user-select-none p-0-8"
-                                            style="border-bottom: 2px solid #ddd;"
+                                            style="border-bottom: 2px solid var(--color-border);"
                                             title="Сортировать"
                                             on:click=toggle_sort("article")
                                         >
@@ -673,7 +673,7 @@ pub fn NomenclatureTree() -> impl IntoView {
                                         </th>
                                         <th
                                             class="th-w-40p whitespace-nowrap cursor-pointer user-select-none p-0-8"
-                                            style="border-bottom: 2px solid #ddd;"
+                                            style="border-bottom: 2px solid var(--color-border);"
                                             title="Сортировать"
                                             on:click=toggle_sort("code")
                                         >
@@ -693,7 +693,7 @@ pub fn NomenclatureTree() -> impl IntoView {
                                             } else {
                                                 "По фильтру ничего не найдено"
                                             };
-                                            view! { <tr><td colspan="5" class="text-center" style="color: #888; padding: 20px;">{msg}</td></tr> }.into_any()
+                                            view! { <tr><td colspan="5" class="text-center" style="color: var(--color-text-muted); padding: 20px;">{msg}</td></tr> }.into_any()
                                         } else {
                                             let all_rows = roots
                                                 .into_iter()

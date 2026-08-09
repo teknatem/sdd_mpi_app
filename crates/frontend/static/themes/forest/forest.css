@@ -1,6 +1,17 @@
 /* ============================================
    Forest Theme (Green Nature)
    Only color variable overrides
+
+   Fancy-тема (kind=fancy, base=dark): фоновая картинка + «стекло».
+   Правила читаемости поверх картинки:
+   - контентные поверхности (карточки, таблицы, модалки) — тёмные,
+     почти непрозрачные (alpha >= 0.88), текст светлый;
+   - shell-хром (sidebar, header) — полупрозрачный + blur/scrim
+     (эффект-токены в конце файла);
+   - тёмный текст допустим ТОЛЬКО на непрозрачных светлых поверхностях
+     (сейчас это лишь бейджи badge-*-bg). Всё, что полупрозрачно или
+     лежит прямо на картинке, обязано иметь СВЕТЛЫЙ текст — иначе фото
+     просвечивает и текст пропадает.
    ============================================ */
 
 :root {
@@ -13,7 +24,7 @@
 
   /* Text Colors */
   --color-text-primary: #f1f2f5;
-  --color-text-secondary: #6b7280;
+  --color-text-secondary: #b7c4bb;
   --color-text-tertiary: #9ca3af;
   --color-text-muted: #9ca3af;
 
@@ -21,7 +32,9 @@
   /*--color-bg-primary: rgba(2, 40, 15, 0.9);*/
   --color-bg-primary: rgba(2, 40, 15, 0.20);
   --color-bg-secondary: rgba(10, 66, 12, 0.5);
-  --color-surface: rgba(55, 75, 55, 0.8);
+  /* Поверхность дропдаунов/панелей — почти непрозрачная, иначе сквозь
+     меню просвечивает картинка и текст пунктов теряется */
+  --color-surface: rgba(30, 50, 34, 0.94);
   /* Непрозрачный фон выпадающих меню («Ещё»): тёмно-зелёный без прозрачности. */
   --color-menu-surface: #103018;
   --color-code-bg: rgba(200, 230, 201, 0.2);
@@ -35,19 +48,21 @@
   --color-hover: rgba(76, 175, 80, 0.08);
   --color-hover-bg: rgba(76, 175, 80, 0.1);
   --color-active: rgba(76, 175, 80, 0.15);
-  --color-disabled: rgba(0, 0, 0, 0.38);
+  --color-disabled: rgba(255, 255, 255, 0.38);
 
-  /* Link Colors */
-  --color-link: #388e3c;
-  --color-link-hover: #2e7d32;
+  /* Link Colors — светлые: ссылки лежат на тёмных поверхностях/картинке */
+  --color-link: #8bdc8f;
+  --color-link-hover: #b9f2bc;
 
   /* Table Colors */
   --table-header-bg: rgba(10, 66, 12, 0.75);
   --table-header-fg: #ffffff;
-  --table-row-odd: #ffffff;
-  --table-row-even: rgba(200, 230, 201, 0.3);
+  /* Строки — лёгкие светлые подсветки поверх тёмной поверхности таблицы
+     (--card-bg), текст остаётся светлым */
+  --table-row-odd: rgba(255, 255, 255, 0.04);
+  --table-row-even: rgba(200, 230, 201, 0.10);
   --color-surface-alt: rgba(48, 68, 48, 0.85);
-  --table-row-hover: rgba(200, 230, 201, 0.5);
+  --table-row-hover: rgba(200, 230, 201, 0.22);
   --table-row-selected: rgba(255, 235, 59, 0.3);
   
   /* Table Crosshair Highlight Colors */
@@ -66,7 +81,8 @@
 
   --btn-ghost-bg: transparent;
   --btn-ghost-hover: rgba(76, 175, 80, 0.08);
-  --btn-ghost-text: #424242;
+  /* ghost-кнопка лежит на прозрачном фоне поверх картинки — текст светлый */
+  --btn-ghost-text: #e8f5e9;
 
   /* Badge Colors */
   --badge-primary-bg: #c8e6c9;
@@ -93,27 +109,14 @@
   --badge-accent-text: #d1c4e9;
   --badge-accent-border: rgba(179, 157, 219, 0.35);
 
-  /* Tab Colors */
-  --tab-text: rgba(255, 255, 255, 0.70);
-  --tab-text-hover: #ffffff;
-  --tab-text-active: #2e7d32;
-  --tab-border-active: #43a047;
-  --tab-bg: rgba(255, 255, 255, 0.5);
-  --tab-bg-hover: rgba(8, 53, 9, 0.5);
-  --tab-bg-active: rgba(76, 175, 80, 0.15);
-  --tab-close-bg: #bdbdbd;
-  --tab-close-text: #616161;
-  --tab-close-hover: #ff69b4;
-  --tab-close-active: #90EE90;
-
-  /* Modal Colors */
+  /* Modal Colors — тёмное «стекло», шапка чуть светлее тела (не белая!) */
   --modal-overlay: rgba(0, 0, 0, 0.5);
-  --modal-bg: rgba(50, 50, 50, 0.75);
+  --modal-bg: rgba(10, 30, 16, 0.88);
   --modal-border: rgba(165, 214, 167, 0.5);
-  --modal-header-bg: #f5f5f5;
+  --modal-header-bg: rgba(255, 255, 255, 0.08);
 
-  /* Sidebar Colors */
-  --sidebar-bg: rgba(27, 94, 32, 0.10);
+  /* Sidebar Colors — заливка плотнее, поверх неё работают scrim + blur */
+  --sidebar-bg: rgba(6, 26, 12, 0.45);
   --sidebar-text: #ffffff;
   --sidebar-text-active: #ffffff;
   --sidebar-item-hover: rgba(118, 255, 3, 0.15);
@@ -128,33 +131,36 @@
   --page-header-bg-solid: rgba(4, 84, 4, 0.45);
   --header-text: #ffffff;
   --header-border: rgba(255, 255, 255, 0.15);
-  --header-noise-opacity: 0.05;
+  --header-noise-opacity: 0.03;
 
-  /* Top Header Colors */
-  --top-header-bg: rgba(232, 245, 233, 0.25);
-  --top-header-text: #212121;
+  /* Top Header Colors — тёмное стекло со светлым текстом
+     (прежний тёмный текст на 25%-светлом фоне нечитаем поверх картинки) */
+  --top-header-bg: rgba(8, 28, 13, 0.55);
+  --top-header-text: #ffffff;
   --top-header-border: rgba(76, 175, 80, 0.2);
-  --top-header-btn-hover: rgba(76, 175, 80, 0.1);
+  --top-header-btn-hover: rgba(76, 175, 80, 0.25);
 
   /* Panel Colors */
   --panel-bg: rgba(0, 50, 0, 0.75);
   --panel-border: rgba(36, 170, 40, 0.2);
   --panel-resizer-hover: rgba(15, 241, 23, 0.76);
 
-  /* Card Colors */
-  --card-bg: rgba(255, 255, 255, 0.85);
+  /* Card Colors — тёмная почти непрозрачная контент-поверхность:
+     .card/.table наследуют светлый текст от body, фон обязан быть тёмным */
+  --card-bg: rgba(8, 30, 14, 0.92);
   --card-border: rgba(165, 214, 167, 0.2);
-  --card-hover-bg: rgba(0, 60, 0, 0.5);
+  --card-hover-bg: rgba(12, 40, 18, 0.95);
   --card-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.80);
 
-  /* Form Colors */
+  /* Form Colors — поля тёмные: текст в них наследует светлый
+     --color-text-primary, поэтому белая заливка давала белое на белом */
   --form-label-text: #ffffff;
-  --form-input-bg: rgba(255, 255, 255, 0.98);
-  --form-input-border: #a5d6a7;
-  --form-input-focus-border: #43a047;
-  --form-input-focus-shadow: rgba(67, 160, 71, 0.15);
-  --form-placeholder: #9e9e9e;
-  --form-group-bg: rgba(255, 255, 255, 0.25);
+  --form-input-bg: rgba(255, 255, 255, 0.10);
+  --form-input-border: rgba(165, 214, 167, 0.45);
+  --form-input-focus-border: #76ff03;
+  --form-input-focus-shadow: rgba(118, 255, 3, 0.20);
+  --form-placeholder: rgba(255, 255, 255, 0.40);
+  --form-group-bg: rgba(255, 255, 255, 0.06);
   --form-group-border: rgba(76, 175, 80, 0.2);
 
   /* Info/Warning/Code Box Colors */
@@ -163,19 +169,27 @@
 
   --warning-box-bg: rgba(255, 193, 7, 0.1);
   --warning-box-border: rgba(255, 193, 7, 0.35);
-  --warning-box-text-color: #f57f17;
+  --warning-box-text-color: #ffb74d;
 
-  --code-box-bg: rgba(200, 230, 201, 0.3);
+  /* code-box — тёмная подложка со светлым моно-текстом */
+  --code-box-bg: rgba(0, 0, 0, 0.35);
   --code-box-border: rgba(76, 175, 80, 0.3);
-  --code-box-text: #424242;
+  --code-box-text: #c8e6c9;
 
   /* Cross-theme behavior tokens */
   --app-bg-color: var(--color-bg-primary);
   --app-bg-image: url("/static/themes/forest/background.jpg");
   --app-main-bg: rgba(0, 0, 0, 0.02);
-  --header-backdrop-blur: 12px;
-  --right-backdrop-blur: 2px;
-  --form-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23424242' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+
+  /* Fancy readability system (см. themes/core/variables.css) —
+     в строгом режиме всё это обнуляет strict-guard.css */
+  --glass-filter: blur(14px) saturate(130%);
+  --header-filter: blur(12px) saturate(120%);
+  --right-panel-filter: blur(4px);
+  --scrim-side: linear-gradient(180deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.18));
+  --scrim-top: linear-gradient(180deg, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0.12));
+  --text-on-image-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  --form-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
 
   /* Color scale tokens used by core utilities */
   --color-primary-50: rgba(67, 160, 71, 0.08);
@@ -199,12 +213,13 @@
   --color-neutral-200: rgba(255, 255, 255, 0.16);
   --color-neutral-600: #6b7280;
 
-  /* Status badge colors */
+  /* Status badge colors — фон полупрозрачный (просвечивает тёмное),
+     поэтому текст светлый */
   --badge-status-posted-bg: rgba(76, 175, 80, 0.22);
-  --badge-status-posted-text: #2e7d32;
+  --badge-status-posted-text: #a5d6a7;
   --badge-status-posted-border: rgba(76, 175, 80, 0.4);
   --badge-status-not-posted-bg: rgba(255, 193, 7, 0.22);
-  --badge-status-not-posted-text: #f57f17;
+  --badge-status-not-posted-text: #ffd54f;
   --badge-status-not-posted-border: rgba(255, 193, 7, 0.4);
 
   /* Component tokens */
@@ -216,20 +231,23 @@
   /* Layout tokens */
 
 
+  /* Пагинация: --pagination-text используется и на кнопках, и на голом
+     .pagination-info поверх картинки → только светлый текст */
   --pagination-controls-bg: rgba(76, 175, 80, 0.08);
   --pagination-controls-border: rgba(76, 175, 80, 0.25);
-  --pagination-btn-bg: rgba(255, 255, 255, 0.95);
-  --pagination-btn-border: rgba(76, 175, 80, 0.3);
-  --pagination-btn-hover-bg: rgba(67, 160, 71, 0.15);
-  --pagination-btn-hover-border: rgba(67, 160, 71, 0.5);
-  --pagination-text: #2e7d32;
+  --pagination-btn-bg: rgba(255, 255, 255, 0.12);
+  --pagination-btn-border: rgba(165, 214, 167, 0.35);
+  --pagination-btn-hover-bg: rgba(118, 255, 3, 0.25);
+  --pagination-btn-hover-border: rgba(118, 255, 3, 0.5);
+  --pagination-text: #ffffff;
 
-  --page-size-select-bg: rgba(255, 255, 255, 0.95);
-  --page-size-select-border: rgba(76, 175, 80, 0.3);
-  --page-size-select-hover-bg: rgba(67, 160, 71, 0.15);
-  --page-size-select-hover-border: rgba(67, 160, 71, 0.5);
-  --page-size-option-bg: #ffffff;
-  --page-size-option-fg: #333333;
+  --page-size-select-bg: rgba(255, 255, 255, 0.12);
+  --page-size-select-border: rgba(165, 214, 167, 0.35);
+  --page-size-select-hover-bg: rgba(118, 255, 3, 0.25);
+  --page-size-select-hover-border: rgba(118, 255, 3, 0.5);
+  /* Нативный список <option> не поддерживает прозрачность — непрозрачный тёмный */
+  --page-size-option-bg: #103018;
+  --page-size-option-fg: #f1f2f5;
 
   --sidebar-scrollbar-thumb: rgba(0, 0, 0, 0.2);
   --sidebar-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);

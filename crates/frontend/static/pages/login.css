@@ -8,7 +8,8 @@
    Identity: a "grid + glow" backdrop (dark void + 64px grid + dual radial
    glow) with NO frame — the form sits directly on the grid. The light theme
    gets an analogous light backdrop (light grid + soft tinted glow) via the
-   body[data-theme="light"] overrides at the bottom of this file.
+   body[data-theme-base="light"] overrides at the bottom of this file
+   (по базе темы, а не по id — новые светлые темы подхватят автоматически).
    Tokens: themes/core/variables.css (--login-*).
    ============================================================ */
 
@@ -223,7 +224,7 @@
    Light theme — same "grid + glow" identity, frameless, inverted to light.
    Only overrides; everything else inherits the base rules above.
    ============================================================ */
-body[data-theme="light"] {
+body[data-theme-base="light"] {
   --login-bg: #eef1f5;
   --login-grid-line: rgba(20, 30, 45, 0.045); /* faint dark grid on light ground */
   --login-glow-1: rgba(37, 99, 235, 0.08);    /* soft blue */
@@ -239,17 +240,17 @@ body[data-theme="light"] {
 }
 
 /* Light inputs — override the dark-glass pinning from the base rules */
-body[data-theme="light"] .login .form__input {
+body[data-theme-base="light"] .login .form__input {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid var(--form-input-border);
   color: var(--color-text-primary);
 }
 
-body[data-theme="light"] .login .form__input::placeholder {
+body[data-theme-base="light"] .login .form__input::placeholder {
   color: var(--form-placeholder);
 }
 
-body[data-theme="light"] .login .form__input:focus {
+body[data-theme-base="light"] .login .form__input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }

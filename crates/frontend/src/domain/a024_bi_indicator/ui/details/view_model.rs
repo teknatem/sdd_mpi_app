@@ -11,21 +11,19 @@ use leptos::prelude::*;
 
 pub const GL_TURNOVER_DATA_VIEW_ID: &str = "dv004_general_ledger_turnovers";
 
-/// Read the current app theme from localStorage (key "app_theme").
-/// Falls back to "dark". Maps "forest" → "dark" since it is a dark-based theme.
+/// Read the current app theme from localStorage (key "app_theme")
+/// and collapse it to its base ("dark" | "light") via the theme registry.
 fn get_app_theme() -> String {
     #[cfg(target_arch = "wasm32")]
     {
         let theme = web_sys::window()
             .and_then(|w| w.local_storage().ok().flatten())
             .and_then(|s| s.get_item("app_theme").ok().flatten())
-            .unwrap_or_else(|| "dark".to_string());
-        // forest is a dark-base theme
-        if theme == "light" {
-            "light".to_string()
-        } else {
-            "dark".to_string()
-        }
+            .unwrap_or_default();
+        crate::shared::theme::registry::theme_by_id(&theme)
+            .base
+            .as_str()
+            .to_string()
     }
     #[cfg(not(target_arch = "wasm32"))]
     {

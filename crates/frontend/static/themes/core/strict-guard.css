@@ -1,0 +1,40 @@
+/* ============================================================
+   Strict-mode gate
+   ============================================================
+   Гарантия читаемости строгих тем: один флаг data-theme-kind="strict"
+   отключает ВСЕ рискованные визуальные эффекты, что бы ни определял
+   файл темы.
+
+   Каскад (не ломать!):
+   - этот файл обязан быть UNLAYERED и стоять в <head> ПОСЛЕ
+     <link id="theme-stylesheet"> — тогда он побеждает файл темы
+     по source order + специфичности (html[...] 0-1-1 > :root 0-1-0),
+     без !important;
+   - не переносить в index.css: правило внутри @layer проиграет
+     unlayered-файлу темы.
+
+   Атрибут ставится на <html> И <body> (см. index.html anti-FOUC и
+   shared/theme/theme_select.rs); дубль по body страхует старые кэши,
+   где атрибут успел встать только на body.
+   ============================================================ */
+
+html[data-theme-kind="strict"],
+body[data-theme-kind="strict"] {
+  /* Фоновая картинка приложения */
+  --app-bg-image: none;
+
+  /* NB: --header-noise-opacity здесь НЕ гасится намеренно. Каменная текстура
+     (.app-layout::after, pattern5.jpg) — ровная поверхность, одинаковая по
+     всей площади; она не создаёт неоднородности под текстом, в отличие от
+     фотофона. Её плотностью управляет сама тема. */
+
+  /* Система читаемости fancy-тем (glass/scrim/text-shadow).
+     `none` вместо blur(0px) — иначе браузер всё равно заводит
+     stacking context и слой композитинга. */
+  --glass-filter: none;
+  --header-filter: none;
+  --right-panel-filter: none;
+  --scrim-side: none;
+  --scrim-top: none;
+  --text-on-image-shadow: none;
+}

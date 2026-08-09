@@ -10,7 +10,11 @@
     
     <!-- Theme stylesheet placeholder (will be set by ThemeContext) -->
     <link id="theme-stylesheet" rel="stylesheet" href="static/themes/dark/dark.css">
-    
+
+    <!-- Strict-mode gate: MUST stay unlayered and AFTER #theme-stylesheet
+         (wins by source order over any theme file, no !important needed) -->
+    <link rel="stylesheet" href="static/themes/core/strict-guard.css">
+
     <!-- Dashboard specific styles -->
     <link rel="stylesheet" href="static/dashboards/d401.css">
     
@@ -144,16 +148,24 @@
     <!-- Load saved theme immediately to prevent flash -->
     <script>
         (function() {
-            const savedTheme = localStorage.getItem('app_theme') || 'dark';
-            
-            // Set data-theme attribute on body
-            document.body.setAttribute('data-theme', savedTheme);
-            
+            const t = localStorage.getItem('app_theme') || 'dark';
+            // kind/base записываются Rust-кодом (shared/theme/registry.rs — источник истины)
+            // при каждом сохранении темы; фолбэк — конвенция для первого визита.
+            const kind = localStorage.getItem('app_theme_kind')
+                || ((t === 'dark' || t === 'light') ? 'strict' : 'fancy');
+            const base = localStorage.getItem('app_theme_base')
+                || (t === 'light' ? 'light' : 'dark');
+            for (const el of [document.documentElement, document.body]) {
+                el.setAttribute('data-theme', t);
+                el.setAttribute('data-theme-kind', kind);
+                el.setAttribute('data-theme-base', base);
+            }
+
             // Update theme stylesheet
             const link = document.getElementById('theme-stylesheet');
             if (link) {
                 link.disabled = false;
-                link.href = 'static/themes/' + savedTheme + '/' + savedTheme + '.css';
+                link.href = 'static/themes/' + t + '/' + t + '.css';
             }
         })();
     </script>

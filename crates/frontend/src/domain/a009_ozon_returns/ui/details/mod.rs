@@ -185,7 +185,7 @@ pub fn OzonReturnsDetail(
                 <h2 style="margin: 0;">"Возврат OZON"</h2>
                 <button
                     on:click=move |_| on_close.run(())
-                    style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                    style="padding: 8px 16px; background: var(--color-error); color: #ffffff; border: none; border-radius: 4px; cursor: pointer;"
                 >
                     "✕ Закрыть"
                 </button>
@@ -201,7 +201,7 @@ pub fn OzonReturnsDetail(
                         }.into_any()
                     } else if let Some(err) = error.get() {
                         view! {
-                            <div style="padding: 20px; background: #ffebee; border: 1px solid #ffcdd2; border-radius: 4px; color: #c62828;">
+                            <div style="padding: 20px; background: var(--badge-error-bg); border: 1px solid var(--badge-error-border); border-radius: 4px; color: var(--badge-error-text);">
                                 <strong>"Ошибка: "</strong>{err}
                             </div>
                         }.into_any()
@@ -209,15 +209,15 @@ pub fn OzonReturnsDetail(
                         view! {
                             <div style="height: 100%; display: flex; flex-direction: column;">
                                 // Tabs
-                                <div class="page__tabs" style="border-bottom: 2px solid #ddd; margin-bottom: 20px; flex-shrink: 0; background: white; position: sticky; top: 0; z-index: 10;">
+                                <div class="page__tabs" style="border-bottom: 2px solid var(--color-border); margin-bottom: 20px; flex-shrink: 0; background: var(--color-bg-primary); position: sticky; top: 0; z-index: 10;">
                                     <button
                                         on:click=move |_| set_active_tab.set("general")
                                         style=move || format!(
                                             "padding: 10px 20px; border: none; border-radius: 4px 4px 0 0; cursor: pointer; margin-right: 5px; font-weight: 500; {}",
                                             if active_tab.get() == "general" {
-                                                "background: #2196F3; color: white; border-bottom: 2px solid #2196F3;"
+                                                "background: var(--btn-primary-bg); color: var(--btn-primary-text); border-bottom: 2px solid var(--btn-primary-bg);"
                                             } else {
-                                                "background: #f5f5f5; color: #666;"
+                                                "background: var(--color-bg-secondary); color: var(--color-text-secondary);"
                                             }
                                         )
                                     >
@@ -228,9 +228,9 @@ pub fn OzonReturnsDetail(
                                         style=move || format!(
                                             "padding: 10px 20px; border: none; border-radius: 4px 4px 0 0; cursor: pointer; margin-right: 5px; font-weight: 500; {}",
                                             if active_tab.get() == "product" {
-                                                "background: #2196F3; color: white; border-bottom: 2px solid #2196F3;"
+                                                "background: var(--btn-primary-bg); color: var(--btn-primary-text); border-bottom: 2px solid var(--btn-primary-bg);"
                                             } else {
-                                                "background: #f5f5f5; color: #666;"
+                                                "background: var(--color-bg-secondary); color: var(--color-text-secondary);"
                                             }
                                         )
                                     >
@@ -241,9 +241,9 @@ pub fn OzonReturnsDetail(
                                         style=move || format!(
                                             "padding: 10px 20px; border: none; border-radius: 4px 4px 0 0; cursor: pointer; margin-right: 5px; font-weight: 500; {}",
                                             if active_tab.get() == "metadata" {
-                                                "background: #2196F3; color: white; border-bottom: 2px solid #2196F3;"
+                                                "background: var(--btn-primary-bg); color: var(--btn-primary-text); border-bottom: 2px solid var(--btn-primary-bg);"
                                             } else {
-                                                "background: #f5f5f5; color: #666;"
+                                                "background: var(--color-bg-secondary); color: var(--color-text-secondary);"
                                             }
                                         )
                                     >
@@ -254,9 +254,9 @@ pub fn OzonReturnsDetail(
                                         style=move || format!(
                                             "padding: 10px 20px; border: none; border-radius: 4px 4px 0 0; cursor: pointer; margin-right: 5px; font-weight: 500; {}",
                                             if active_tab.get() == "projections" {
-                                                "background: #2196F3; color: white; border-bottom: 2px solid #2196F3;"
+                                                "background: var(--btn-primary-bg); color: var(--btn-primary-text); border-bottom: 2px solid var(--btn-primary-bg);"
                                             } else {
-                                                "background: #f5f5f5; color: #666;"
+                                                "background: var(--color-bg-secondary); color: var(--color-text-secondary);"
                                             }
                                         )
                                     >
@@ -265,7 +265,7 @@ pub fn OzonReturnsDetail(
                                 </div>
 
                                 // Tab content
-                                <div style="flex: 1; overflow-y: auto; padding: 20px; background: #fafafa;">
+                                <div style="flex: 1; overflow-y: auto; padding: 20px; background: var(--color-bg-secondary);">
                                     {
                                         let id_clone = id_for_view.clone();
                                         move || {
@@ -300,36 +300,36 @@ fn render_general_tab(data: OzonReturnsDetailDto) -> impl IntoView {
 
     view! {
         <div style="display: flex; flex-direction: column; gap: 20px;">
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #2196F3; padding-bottom: 8px;">"Информация о возврате"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-primary); padding-bottom: 8px;">"Информация о возврате"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 15px 20px; align-items: center;">
-                    <div style="font-weight: 600; color: #555;">"ID возврата:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"ID возврата:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.return_id.clone()}</div>
 
-                    <div style="font-weight: 600; color: #555;">"Дата возврата:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Дата возврата:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.return_date.clone()}</div>
 
-                    <div style="font-weight: 600; color: #555;">"Тип возврата:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Тип возврата:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">
-                        <span style="padding: 2px 8px; background: #e3f2fd; color: #1976d2; border-radius: 3px; font-weight: 500;">
+                        <span style="padding: 2px 8px; background: var(--badge-primary-bg); color: var(--badge-primary-text); border-radius: 3px; font-weight: 500;">
                             {data.return_type.clone()}
                         </span>
                     </div>
 
-                    <div style="font-weight: 600; color: #555;">"Причина возврата:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Причина возврата:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.return_reason_name.clone()}</div>
 
-                    <div style="font-weight: 600; color: #555;">"Проведен:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Проведен:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">
                         {if is_posted {
                             view! {
-                                <span style="padding: 2px 8px; background: #c8e6c9; color: #2e7d32; border-radius: 3px; font-weight: 500;">
+                                <span style="padding: 2px 8px; background: var(--badge-success-bg); color: var(--badge-success-text); border-radius: 3px; font-weight: 500;">
                                     "✓ Да"
                                 </span>
                             }
                         } else {
                             view! {
-                                <span style="padding: 2px 8px; background: #f5f5f5; color: #999; border-radius: 3px; font-weight: 500;">
+                                <span style="padding: 2px 8px; background: var(--badge-neutral-bg); color: var(--badge-neutral-text); border-radius: 3px; font-weight: 500;">
                                     "○ Нет"
                                 </span>
                             }
@@ -338,42 +338,42 @@ fn render_general_tab(data: OzonReturnsDetailDto) -> impl IntoView {
                 </div>
             </div>
 
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #2196F3; padding-bottom: 8px;">"Информация о заказе"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-primary); padding-bottom: 8px;">"Информация о заказе"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 15px 20px; align-items: center;">
-                    <div style="font-weight: 600; color: #555;">"ID заказа:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"ID заказа:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.order_id.clone()}</div>
 
-                    <div style="font-weight: 600; color: #555;">"Номер заказа:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Номер заказа:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.order_number.clone()}</div>
 
-                    <div style="font-weight: 600; color: #555;">"Номер отправления:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Номер отправления:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.posting_number.clone()}</div>
                 </div>
             </div>
 
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #4caf50; padding-bottom: 8px;">"Финансовая информация"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-success); padding-bottom: 8px;">"Финансовая информация"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 15px 20px; align-items: center;">
-                    <div style="font-weight: 600; color: #555;">"Сумма возврата:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Сумма возврата:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">
-                        <span style="color: #f44336; font-weight: 600; font-size: 18px;">{format!("−{:.2} ₽", total_amount)}</span>
+                        <span style="color: var(--color-error); font-weight: 600; font-size: 18px;">{format!("−{:.2} ₽", total_amount)}</span>
                     </div>
 
-                    <div style="font-weight: 600; color: #555;">"Clearing ID:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Clearing ID:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.clearing_id.clone().unwrap_or_else(|| "—".to_string())}</div>
 
-                    <div style="font-weight: 600; color: #555;">"Return Clearing ID:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Return Clearing ID:"</div>
                     <div style="font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;">{data.return_clearing_id.clone().unwrap_or_else(|| "—".to_string())}</div>
                 </div>
             </div>
 
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #ff9800; padding-bottom: 8px;">"UUID связей"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-warning); padding-bottom: 8px;">"UUID связей"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 15px 20px; align-items: center;">
-                    <div style="font-weight: 600; color: #555;">"Connection ID:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Connection ID:"</div>
                     <div style="display: flex; align-items: center; gap: 8px; font-family: monospace; font-size: 14px;">
-                        <span style="color: #666;" title={data.connection_id.clone()}>{format!("{}...", data.connection_id.chars().take(8).collect::<String>())}</span>
+                        <span style="color: var(--color-text-secondary);" title={data.connection_id.clone()}>{format!("{}...", data.connection_id.chars().take(8).collect::<String>())}</span>
                         <button
                             on:click={
                                 let conn_id = data.connection_id.clone();
@@ -387,16 +387,16 @@ fn render_general_tab(data: OzonReturnsDetailDto) -> impl IntoView {
                                     });
                                 }
                             }
-                            style="padding: 2px 6px; font-size: 11px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer;"
+                            style="padding: 2px 6px; font-size: 11px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); border-radius: 3px; cursor: pointer;"
                             title="Copy to clipboard"
                         >
                             "📋"
                         </button>
                     </div>
 
-                    <div style="font-weight: 600; color: #555;">"Organization ID:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Organization ID:"</div>
                     <div style="display: flex; align-items: center; gap: 8px; font-family: monospace; font-size: 14px;">
-                        <span style="color: #666;" title={data.organization_id.clone()}>{format!("{}...", data.organization_id.chars().take(8).collect::<String>())}</span>
+                        <span style="color: var(--color-text-secondary);" title={data.organization_id.clone()}>{format!("{}...", data.organization_id.chars().take(8).collect::<String>())}</span>
                         <button
                             on:click={
                                 let org_id = data.organization_id.clone();
@@ -410,16 +410,16 @@ fn render_general_tab(data: OzonReturnsDetailDto) -> impl IntoView {
                                     });
                                 }
                             }
-                            style="padding: 2px 6px; font-size: 11px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer;"
+                            style="padding: 2px 6px; font-size: 11px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); border-radius: 3px; cursor: pointer;"
                             title="Copy to clipboard"
                         >
                             "📋"
                         </button>
                     </div>
 
-                    <div style="font-weight: 600; color: #555;">"Marketplace ID:"</div>
+                    <div style="font-weight: 600; color: var(--color-text-secondary);">"Marketplace ID:"</div>
                     <div style="display: flex; align-items: center; gap: 8px; font-family: monospace; font-size: 14px;">
-                        <span style="color: #666;" title={data.marketplace_id.clone()}>{format!("{}...", data.marketplace_id.chars().take(8).collect::<String>())}</span>
+                        <span style="color: var(--color-text-secondary);" title={data.marketplace_id.clone()}>{format!("{}...", data.marketplace_id.chars().take(8).collect::<String>())}</span>
                         <button
                             on:click={
                                 let mp_id = data.marketplace_id.clone();
@@ -433,7 +433,7 @@ fn render_general_tab(data: OzonReturnsDetailDto) -> impl IntoView {
                                     });
                                 }
                             }
-                            style="padding: 2px 6px; font-size: 11px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer;"
+                            style="padding: 2px 6px; font-size: 11px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); border-radius: 3px; cursor: pointer;"
                             title="Copy to clipboard"
                         >
                             "📋"
@@ -445,9 +445,9 @@ fn render_general_tab(data: OzonReturnsDetailDto) -> impl IntoView {
             {data.comment.clone().map(|comment| {
                 if !comment.is_empty() {
                     view! {
-                        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #9c27b0; padding-bottom: 8px;">"Комментарий"</h3>
-                            <p style="color: #555; line-height: 1.6; margin: 0;">{comment}</p>
+                        <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-accent); padding-bottom: 8px;">"Комментарий"</h3>
+                            <p style="color: var(--color-text-secondary); line-height: 1.6; margin: 0;">{comment}</p>
                         </div>
                     }.into_any()
                 } else {
@@ -464,31 +464,31 @@ fn render_product_tab(data: OzonReturnsDetailDto) -> impl IntoView {
 
     view! {
         <div style="display: flex; flex-direction: column; gap: 20px;">
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #2196F3; padding-bottom: 8px;">"Информация о товаре"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-primary); padding-bottom: 8px;">"Информация о товаре"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"SKU:"</label>
-                    <span style="color: #333;">{data.sku.clone()}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"SKU:"</label>
+                    <span style="color: var(--color-text-primary);">{data.sku.clone()}</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Название:"</label>
-                    <span style="color: #333;">{data.product_name.clone()}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Название:"</label>
+                    <span style="color: var(--color-text-primary);">{data.product_name.clone()}</span>
                 </div>
             </div>
 
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #4caf50; padding-bottom: 8px;">"Количество и цена"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-success); padding-bottom: 8px;">"Количество и цена"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Количество:"</label>
-                    <span style="color: #333;">{data.quantity}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Количество:"</label>
+                    <span style="color: var(--color-text-primary);">{data.quantity}</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Цена за единицу:"</label>
-                    <span style="color: #333;">{format!("{:.2} ₽", data.price)}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Цена за единицу:"</label>
+                    <span style="color: var(--color-text-primary);">{format!("{:.2} ₽", data.price)}</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Общая сумма:"</label>
-                    <span style="color: #4caf50; font-weight: 600; font-size: 18px;">{format!("{:.2} ₽", total_amount)}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Общая сумма:"</label>
+                    <span style="color: var(--color-success); font-weight: 600; font-size: 18px;">{format!("{:.2} ₽", total_amount)}</span>
                 </div>
             </div>
         </div>
@@ -499,59 +499,59 @@ fn render_product_tab(data: OzonReturnsDetailDto) -> impl IntoView {
 fn render_metadata_tab(data: OzonReturnsDetailDto) -> impl IntoView {
     view! {
         <div style="display: flex; flex-direction: column; gap: 20px;">
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #2196F3; padding-bottom: 8px;">"Системная информация"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-primary); padding-bottom: 8px;">"Системная информация"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"ID записи:"</label>
-                    <code style="font-size: 12px; background: #f5f5f5; padding: 4px 8px; border-radius: 4px; font-family: monospace;">{data.id.clone()}</code>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"ID записи:"</label>
+                    <code style="font-size: 12px; background: var(--color-code-bg); color: var(--code-box-text); padding: 4px 8px; border-radius: 4px; font-family: monospace;">{data.id.clone()}</code>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Код:"</label>
-                    <span style="color: #333;">{data.code.clone()}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Код:"</label>
+                    <span style="color: var(--color-text-primary);">{data.code.clone()}</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Описание:"</label>
-                    <span style="color: #333;">{data.description.clone()}</span>
-                </div>
-            </div>
-
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #ff9800; padding-bottom: 8px;">"Временные метки"</h3>
-                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Создано:"</label>
-                    <span style="color: #333;">{format_datetime(&data.metadata.created_at)}</span>
-                </div>
-                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Обновлено:"</label>
-                    <span style="color: #333;">{format_datetime(&data.metadata.updated_at)}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Описание:"</label>
+                    <span style="color: var(--color-text-primary);">{data.description.clone()}</span>
                 </div>
             </div>
 
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #9c27b0; padding-bottom: 8px;">"Статусы"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-warning); padding-bottom: 8px;">"Временные метки"</h3>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Версия:"</label>
-                    <span style="color: #333;">{data.metadata.version}</span>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Создано:"</label>
+                    <span style="color: var(--color-text-primary);">{format_datetime(&data.metadata.created_at)}</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Проведен:"</label>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Обновлено:"</label>
+                    <span style="color: var(--color-text-primary);">{format_datetime(&data.metadata.updated_at)}</span>
+                </div>
+            </div>
+
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-accent); padding-bottom: 8px;">"Статусы"</h3>
+                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Версия:"</label>
+                    <span style="color: var(--color-text-primary);">{data.metadata.version}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Проведен:"</label>
                     <span style=move || {
                         if data.metadata.is_posted {
-                            "display: inline-block; padding: 4px 12px; background: #c8e6c9; color: #2e7d32; border-radius: 12px; font-size: 13px;"
+                            "display: inline-block; padding: 4px 12px; background: var(--badge-success-bg); color: var(--badge-success-text); border-radius: 12px; font-size: 13px;"
                         } else {
-                            "display: inline-block; padding: 4px 12px; background: #e0e0e0; color: #616161; border-radius: 12px; font-size: 13px;"
+                            "display: inline-block; padding: 4px 12px; background: var(--badge-neutral-bg); color: var(--badge-neutral-text); border-radius: 12px; font-size: 13px;"
                         }
                     }>
                         {if data.metadata.is_posted { "Да" } else { "Нет" }}
                     </span>
                 </div>
                 <div style="display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center;">
-                    <label style="font-weight: 500; color: #666;">"Удален:"</label>
+                    <label style="font-weight: 500; color: var(--color-text-secondary);">"Удален:"</label>
                     <span style=move || {
                         if data.metadata.is_deleted {
-                            "display: inline-block; padding: 4px 12px; background: #ffcdd2; color: #c62828; border-radius: 12px; font-size: 13px;"
+                            "display: inline-block; padding: 4px 12px; background: var(--badge-error-bg); color: var(--badge-error-text); border-radius: 12px; font-size: 13px;"
                         } else {
-                            "display: inline-block; padding: 4px 12px; background: #c8e6c9; color: #2e7d32; border-radius: 12px; font-size: 13px;"
+                            "display: inline-block; padding: 4px 12px; background: var(--badge-success-bg); color: var(--badge-success-text); border-radius: 12px; font-size: 13px;"
                         }
                     }>
                         {if data.metadata.is_deleted { "Да" } else { "Нет" }}
@@ -576,8 +576,8 @@ fn render_projections_tab(
     view! {
         <div class="projections-info" style="display: flex; flex-direction: column; gap: 20px;">
             // Управление проведением
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px; font-weight: 600; border-bottom: 2px solid #ff9800; padding-bottom: 8px;">"Управление проведением"</h3>
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: var(--color-text-primary); font-size: 16px; font-weight: 600; border-bottom: 2px solid var(--color-warning); padding-bottom: 8px;">"Управление проведением"</h3>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     {if is_posted {
                         view! {
@@ -605,11 +605,11 @@ fn render_projections_tab(
                                     });
                                 }
                                 disabled=move || posting_in_progress.get()
-                                style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px;"
+                                style="padding: 10px 20px; background: var(--color-error); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px;"
                             >
                                 {move || if posting_in_progress.get() { "⏳ Отмена..." } else { "✕ Отменить проведение" }}
                             </button>
-                            <span style="padding: 4px 12px; background: #c8e6c9; color: #2e7d32; border-radius: 3px; font-weight: 500;">"✓ Проведен"</span>
+                            <span style="padding: 4px 12px; background: var(--badge-success-bg); color: var(--badge-success-text); border-radius: 3px; font-weight: 500;">"✓ Проведен"</span>
                         }.into_any()
                     } else {
                         view! {
@@ -637,11 +637,11 @@ fn render_projections_tab(
                                     });
                                 }
                                 disabled=move || posting_in_progress.get()
-                                style="padding: 10px 20px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px;"
+                                style="padding: 10px 20px; background: var(--color-success); color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px;"
                             >
                                 {move || if posting_in_progress.get() { "⏳ Проведение..." } else { "✓ Провести" }}
                             </button>
-                            <span style="padding: 4px 12px; background: #f5f5f5; color: #999; border-radius: 3px; font-weight: 500;">"○ Не проведен"</span>
+                            <span style="padding: 4px 12px; background: var(--badge-neutral-bg); color: var(--badge-neutral-text); border-radius: 3px; font-weight: 500;">"○ Не проведен"</span>
                         }.into_any()
                     }}
                 </div>
@@ -651,7 +651,7 @@ fn render_projections_tab(
             {move || {
                 if projections_loading.get() {
                     view! {
-                        <div style="padding: 20px; text-align: center; color: #999;">
+                        <div style="padding: 20px; text-align: center; color: var(--color-text-muted);">
                             "Загрузка проекций..."
                         </div>
                     }.into_any()
@@ -659,61 +659,61 @@ fn render_projections_tab(
                     let items = projections.get();
                     if items.is_empty() {
                         view! {
-                            <div style="padding: 20px; text-align: center; color: #999;">
+                            <div style="padding: 20px; text-align: center; color: var(--color-text-muted);">
                                 "Нет записей в проекции p900"
                             </div>
                         }.into_any()
                     } else {
                         view! {
-                            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <div style="margin-bottom: 10px; padding: 10px; background: #e3f2fd; border-radius: 4px;">
+                            <div style="background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="margin-bottom: 10px; padding: 10px; background: var(--info-box-bg); border: 1px solid var(--info-box-border); border-radius: 4px;">
                                     <strong>"Записи Sales Register (p900)"</strong>
-                                    <span style="margin-left: 10px; color: #666;">{format!("Всего: {}", items.len())}</span>
+                                    <span style="margin-left: 10px; color: var(--color-text-secondary);">{format!("Всего: {}", items.len())}</span>
                                 </div>
                                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
                                     <thead>
-                                        <tr style="background: #f5f5f5;">
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"#"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"Marketplace"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"Document №"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"SKU"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"Title"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">"Qty"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">"Amount"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"Sale Date"</th>
-                                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">"Status"</th>
+                                        <tr style="background: var(--table-header-bg); color: var(--table-header-fg);">
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"#"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"Marketplace"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"Document №"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"SKU"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"Title"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: right;">"Qty"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: right;">"Amount"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"Sale Date"</th>
+                                            <th style="border: 1px solid var(--color-border); padding: 8px; text-align: left;">"Status"</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {items.iter().enumerate().map(|(idx, item)| {
                                             // Отрицательные значения - подсветим красным
                                             let qty_style = if item.qty < 0.0 {
-                                                "border: 1px solid #ddd; padding: 8px; text-align: right; color: #f44336; font-weight: bold;"
+                                                "border: 1px solid var(--color-border); padding: 8px; text-align: right; color: var(--color-error); font-weight: bold;"
                                             } else {
-                                                "border: 1px solid #ddd; padding: 8px; text-align: right;"
+                                                "border: 1px solid var(--color-border); padding: 8px; text-align: right;"
                                             };
 
                                             let amount_style = if item.amount_line.unwrap_or(0.0) < 0.0 {
-                                                "border: 1px solid #ddd; padding: 8px; text-align: right; color: #f44336; font-weight: bold;"
+                                                "border: 1px solid var(--color-border); padding: 8px; text-align: right; color: var(--color-error); font-weight: bold;"
                                             } else {
-                                                "border: 1px solid #ddd; padding: 8px; text-align: right;"
+                                                "border: 1px solid var(--color-border); padding: 8px; text-align: right;"
                                             };
 
                                             view! {
                                                 <tr>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;">{idx + 1}</td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;">{item.marketplace.clone()}</td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;"><code style="font-size: 0.85em;">{item.document_no.clone()}</code></td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;"><code style="font-size: 0.85em;">{item.seller_sku.clone().unwrap_or("-".to_string())}</code></td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;">{item.title.clone().unwrap_or("-".to_string())}</td>
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;">{idx + 1}</td>
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;">{item.marketplace.clone()}</td>
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;"><code style="font-size: 0.85em;">{item.document_no.clone()}</code></td>
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;"><code style="font-size: 0.85em;">{item.seller_sku.clone().unwrap_or("-".to_string())}</code></td>
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;">{item.title.clone().unwrap_or("-".to_string())}</td>
                                                     <td style={qty_style}>{format!("{:.2}", item.qty)}</td>
                                                     <td style={amount_style}>
                                                         {item.amount_line.map(|a| format!("{:.2}", a)).unwrap_or("-".to_string())}
                                                         {item.currency_code.as_ref().map(|c| format!(" {}", c)).unwrap_or_default()}
                                                     </td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;">{item.sale_date.clone()}</td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px;">
-                                                        <span style="padding: 2px 8px; background: #ffebee; color: #c62828; border-radius: 3px; font-weight: 500;">
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;">{item.sale_date.clone()}</td>
+                                                    <td style="border: 1px solid var(--color-border); padding: 8px;">
+                                                        <span style="padding: 2px 8px; background: var(--badge-error-bg); color: var(--badge-error-text); border-radius: 3px; font-weight: 500;">
                                                             {item.status_norm.clone()}
                                                         </span>
                                                     </td>

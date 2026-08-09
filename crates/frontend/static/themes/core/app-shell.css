@@ -40,7 +40,12 @@
   align-items: center;
   padding: 0 var(--spacing-lg);
   z-index: var(--z-top-header);
-  background: var(--top-header-bg);
+  background-color: var(--top-header-bg);
+  /* Fancy: scrim-градиент + blur обеспечивают читаемость поверх картинки;
+     в строгом режиме оба обнулены (strict-guard.css). */
+  background-image: var(--scrim-top);
+  backdrop-filter: var(--header-filter);
+  -webkit-backdrop-filter: var(--header-filter);
   color: var(--top-header-text);
   box-shadow: var(--shadow-md);
   border-bottom: 1px solid var(--top-header-border);
@@ -63,7 +68,9 @@
   position: absolute;
   inset: 0;
   background-image: url('/assets/images/pattern5.jpg');
-  /*background-size: 180px;*/
+  /* Текстура бесшовная — тайлим в натуральном размере (960x540).
+     Если менять файл, он тоже должен быть бесшовным: несшивающаяся
+     фотография плиты даёт видимые швы на каждой границе повтора. */
   background-repeat: repeat;
   opacity: var(--header-noise-opacity, 0);
   z-index: 1;
@@ -149,7 +156,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--sidebar-bg);
+  background-color: var(--sidebar-bg);
+  /* Fancy: scrim + «стекло» — blur локально усредняет картинку под текстом
+     меню; в строгом режиме эффекты обнулены (strict-guard.css). */
+  background-image: var(--scrim-side);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
   color: var(--sidebar-text);
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
   border-right: 1px solid var(--sidebar-border);
@@ -167,6 +179,7 @@
   font-size: var(--font-size-lg);
   font-weight: 500;
   color: var(--sidebar-text-active);
+  text-shadow: var(--text-on-image-shadow);
 }
 
 .app-sidebar__content {
@@ -182,11 +195,12 @@
   padding-left: 10px;
   padding-top: 4px;
   padding-bottom: 4px;
-  padding-right: 10px;  
+  padding-right: 10px;
   cursor: pointer;
   transition: all var(--transition-fast);
   user-select: none;
   color: var(--sidebar-text);
+  text-shadow: var(--text-on-image-shadow);
 }
 
 .app-sidebar__item:hover {
@@ -256,8 +270,8 @@
   padding-left: 0;
   padding-right: 0;
   background: var(--panel-bg);
-  backdrop-filter: blur(var(--right-backdrop-blur));
-  -webkit-backdrop-filter: blur(var(--right-backdrop-blur));
+  backdrop-filter: var(--right-panel-filter);
+  -webkit-backdrop-filter: var(--right-panel-filter);
   max-width: 50vw; /* Не даём перекрыть центр */
 }
 

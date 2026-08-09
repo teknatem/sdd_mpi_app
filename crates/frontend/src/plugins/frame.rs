@@ -6,7 +6,7 @@ mod theme;
 
 use self::bridge::{event_source_matches_iframe, post_json, string_property, MessageListenerGuard};
 use self::srcdoc::build_srcdoc;
-use self::theme::current_theme_name;
+use self::theme::current_theme;
 use crate::plugins::api;
 use contracts::plugins::{PluginDataMode, PluginInvokeRequest, PluginRunContext};
 use leptos::prelude::*;
@@ -95,7 +95,7 @@ pub fn PluginFrame(
                     "secret": bridge_secret,
                     "clientScript": client_src.get_untracked(),
                     "styles": styles_src.get_untracked(),
-                    "themeName": current_theme_name(),
+                    "themeName": current_theme().id,
                     "context": context_value,
                 }),
             );
@@ -181,7 +181,7 @@ pub fn PluginFrame(
                 iframe.set_srcdoc(&build_srcdoc(
                     &restart_instance,
                     &restart_secret,
-                    &current_theme_name(),
+                    current_theme(),
                 ));
             }
         }
@@ -205,7 +205,7 @@ pub fn PluginFrame(
                                 "type": "plugin_theme",
                                 "instanceId": instance,
                                 "secret": secret,
-                                "themeName": current_theme_name(),
+                                "themeName": current_theme().id,
                             }),
                         );
                     })
@@ -222,7 +222,7 @@ pub fn PluginFrame(
         events.set(Vec::new());
         restart.update(|value| *value += 1);
     };
-    let srcdoc = build_srcdoc(&instance_id, &bridge_secret, &current_theme_name());
+    let srcdoc = build_srcdoc(&instance_id, &bridge_secret, current_theme());
 
     view! {
         <div class="plugin-host__frame">

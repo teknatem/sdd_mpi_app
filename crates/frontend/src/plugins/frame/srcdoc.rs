@@ -53,11 +53,15 @@ function showError(error) {
   root.append(box);
 }
 
-const THEME_FILES = { dark: 1, light: 1, forest: 1 };
 function applyTheme(message) {
-  const themeName = THEME_FILES[message.themeName] ? message.themeName : "dark";
-  document.documentElement.dataset.theme = themeName;
-  document.body.dataset.theme = themeName;
+  // THEME_INFO инжектится хостом из реестра тем (shared::theme::registry).
+  const themeName = THEME_INFO[message.themeName] ? message.themeName : "dark";
+  const info = THEME_INFO[themeName];
+  for (const el of [document.documentElement, document.body]) {
+    el.dataset.theme = themeName;
+    el.dataset.themeKind = info.kind;
+    el.dataset.themeBase = info.base;
+  }
   // Тема приложения и плагина — один источник: подменяем href темы, как делает index.html.
   const link = document.getElementById("plugin-theme");
   if (link) {
@@ -122,23 +126,22 @@ window.addEventListener("message", async event => {
 window.parent.postMessage({ type: "plugin_ready", instanceId: INSTANCE_ID, secret: BRIDGE_SECRET }, "*");
 "#;
 
-pub(super) fn build_srcdoc(instance_id: &str, bridge_secret: &str, theme_name: &str) -> String {
+pub(super) fn build_srcdoc(
+    instance_id: &str,
+    bridge_secret: &str,
+    theme: &crate::shared::theme::registry::ThemeDef,
+) -> String {
     let instance_json = serde_json::to_string(instance_id).unwrap_or_else(|_| "\"plugin\"".into());
     let secret_json = serde_json::to_string(bridge_secret).unwrap_or_else(|_| "\"secret\"".into());
-    let theme_attr = match theme_name {
-        "light" => "light",
-        "forest" => "forest",
-        _ => "dark",
-    };
+    let theme_attr = theme.id;
+    let theme_kind = theme.kind.as_str();
+    let theme_base = theme.base.as_str();
+    let themes_json = crate::shared::theme::registry::themes_json();
     // Ранний фон до загрузки <link> темы — чтобы не было белой вспышки в тёмной теме.
-    let bg_fallback = if theme_attr == "light" {
-        "#f9fafb"
-    } else {
-        "#292929"
-    };
+    let bg_fallback = theme.base.iframe_bg_fallback();
     format!(
         r#"<!doctype html>
-<html data-theme="{theme_attr}">
+<html data-theme="{theme_attr}" data-theme-kind="{theme_kind}" data-theme-base="{theme_base}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -158,6 +161,8 @@ pub(super) fn build_srcdoc(instance_id: &str, bridge_secret: &str, theme_name: &
   <!-- Единый источник стилей: те же токены/темы, что и у приложения, + снапшот компонентов. -->
   <link rel="stylesheet" href="/static/themes/core/variables.css">
   <link id="plugin-theme" rel="stylesheet" href="/static/themes/{theme_attr}/{theme_attr}.css">
+  <!-- Строгий гейт: обязан идти ПОСЛЕ файла темы (см. strict-guard.css) -->
+  <link rel="stylesheet" href="/static/themes/core/strict-guard.css">
   <link rel="stylesheet" href="/static/plugin-sdk.css">
   <!-- Charting-рантайм: Chart.js (UMD ставит window.Chart) + тема-aware обёртка PluginCharts.
        Классические <script> исполняются до module-bootstrap ниже → доступны внутри mount(). -->
@@ -167,11 +172,12 @@ pub(super) fn build_srcdoc(instance_id: &str, bridge_secret: &str, theme_name: &
   <script src="/static/plugin-tables.js"></script>
   <style id="plugin-styles"></style>
 </head>
-<body data-theme="{theme_attr}">
+<body data-theme="{theme_attr}" data-theme-kind="{theme_kind}" data-theme-base="{theme_base}">
   <div id="plugin-root"></div>
   <script type="module">
     const INSTANCE_ID = {instance_json};
     const BRIDGE_SECRET = {secret_json};
+    const THEME_INFO = {themes_json};
     {IFRAME_BOOTSTRAP}
   </script>
 </body>

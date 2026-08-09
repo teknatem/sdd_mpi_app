@@ -4,7 +4,38 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>D400 Monthly Summary Dashboard</title>
+  <!-- Токены темы приложения: variables.css + активная тема + строгий гейт.
+       Iframe same-origin — localStorage общий с приложением. -->
+  <link rel="stylesheet" href="/static/themes/core/variables.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="/static/themes/dark/dark.css">
+  <link rel="stylesheet" href="/static/themes/core/strict-guard.css">
   <link rel="stylesheet" href="dashboard.css">
+  <script>
+    (function() {
+      function applyTheme() {
+        var t = localStorage.getItem('app_theme') || 'dark';
+        var kind = localStorage.getItem('app_theme_kind')
+          || ((t === 'dark' || t === 'light') ? 'strict' : 'fancy');
+        var base = localStorage.getItem('app_theme_base')
+          || (t === 'light' ? 'light' : 'dark');
+        var els = [document.documentElement];
+        if (document.body) els.push(document.body);
+        for (var i = 0; i < els.length; i++) {
+          els[i].setAttribute('data-theme', t);
+          els[i].setAttribute('data-theme-kind', kind);
+          els[i].setAttribute('data-theme-base', base);
+        }
+        var link = document.getElementById('theme-stylesheet');
+        if (link) link.href = '/static/themes/' + t + '/' + t + '.css';
+      }
+      applyTheme();
+      document.addEventListener('DOMContentLoaded', applyTheme);
+      // Смена темы в приложении → событие storage в этом iframe
+      window.addEventListener('storage', function(e) {
+        if (e.key && e.key.indexOf('app_theme') === 0) applyTheme();
+      });
+    })();
+  </script>
 </head>
 <body>
   <div id="bolt-root"></div>

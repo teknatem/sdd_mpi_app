@@ -322,8 +322,8 @@ pub fn OzonFbsPostingDetail(
 
     view! {
         <div class="posting-detail" style="padding: var(--spacing-xl); height: 100%; display: flex; flex-direction: column; background: var(--color-bg-primary); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);">
-            <div style="background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%); padding: var(--spacing-md) var(--spacing-xl); border-radius: var(--radius-md) var(--radius-md) 0 0; margin: calc(-1 * var(--spacing-xl)) calc(-1 * var(--spacing-xl)) 0 calc(-1 * var(--spacing-xl)); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
-                <h2 style="margin: 0; font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: #ffffff;">"OZON FBS Posting Details"</h2>
+            <div style="background: var(--detail-form-header-bg); padding: var(--spacing-md) var(--spacing-xl); border-radius: var(--radius-md) var(--radius-md) 0 0; margin: calc(-1 * var(--spacing-xl)) calc(-1 * var(--spacing-xl)) 0 calc(-1 * var(--spacing-xl)); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                <h2 style="margin: 0; font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--detail-form-header-text);">"OZON FBS Posting Details"</h2>
                 <button
                     class="button--ghost"
                     on:click=move |_| on_close.run(())

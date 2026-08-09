@@ -57,18 +57,18 @@
   cursor: pointer;
 }
 
-/* Темы */
-[data-theme="dark"] .thaw-config-provider,
-[data-theme="forest"] .thaw-config-provider {
+/* Шрифты Thaw — одинаковы для всех тем */
+.thaw-config-provider {
   --fontFamilyBase: "Roboto", sans-serif !important;
   --fontSizeBase200: 13px;
   --fontSizeBase300: 13px;
 }
 
-[data-theme="light"] .thaw-config-provider {
-  --fontFamilyBase: "Roboto", sans-serif !important;
-  --fontSizeBase200: 13px;
-  --fontSizeBase300: 13px;
+/* Fancy-темы: поверхности Thaw прозрачны, чтобы была видна фоновая картинка.
+   Заменяет прежний императивный DOM-хак set_thaw_background() в theme_select.rs.
+   !important нужен: CSS Thaw инжектится из WASM после index.css. */
+body[data-theme-kind="fancy"] .thaw-config-provider {
+  --colorNeutralBackground1: transparent !important;
 }
 
 .thaw-table-row {
@@ -147,20 +147,16 @@
   opacity: 0.5;
 }
 
-/* THAW Input/Textarea placeholder for different themes */
-[data-theme="light"] .thaw-input__input::placeholder,
-[data-theme="light"] .thaw-textarea__textarea::placeholder {
+/* THAW Input/Textarea placeholder — по базе темы (light/dark),
+   новые тёмные fancy-темы получают тёмную ветку автоматически */
+[data-theme-base="light"] .thaw-input__input::placeholder,
+[data-theme-base="light"] .thaw-textarea__textarea::placeholder {
   color: #9ca3af;
 }
 
-[data-theme="dark"] .thaw-input__input::placeholder,
-[data-theme="dark"] .thaw-textarea__textarea::placeholder {
+[data-theme-base="dark"] .thaw-input__input::placeholder,
+[data-theme-base="dark"] .thaw-textarea__textarea::placeholder {
   color: rgba(255, 255, 255, 0.35);
-}
-
-[data-theme="forest"] .thaw-input__input::placeholder,
-[data-theme="forest"] .thaw-textarea__textarea::placeholder {
-  color: #8d8d8d;
 }
 
 /* THAW Input readonly styling - visually distinct from editable */
@@ -170,19 +166,14 @@
   cursor: default;
 }
 
-[data-theme="light"] .thaw-input__input:read-only,
-[data-theme="light"] .thaw-textarea__textarea:read-only {
+[data-theme-base="light"] .thaw-input__input:read-only,
+[data-theme-base="light"] .thaw-textarea__textarea:read-only {
   background-color: #f9fafb;
 }
 
-[data-theme="dark"] .thaw-input__input:read-only,
-[data-theme="dark"] .thaw-textarea__textarea:read-only {
+[data-theme-base="dark"] .thaw-input__input:read-only,
+[data-theme-base="dark"] .thaw-textarea__textarea:read-only {
   background-color: rgba(255, 255, 255, 0.05);
-}
-
-[data-theme="forest"] .thaw-input__input:read-only,
-[data-theme="forest"] .thaw-textarea__textarea:read-only {
-  background-color: rgba(255, 255, 255, 0.03);
 }
 
 /* Override Thaw Card default width for details forms */

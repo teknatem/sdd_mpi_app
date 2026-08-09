@@ -1055,12 +1055,11 @@ fn get_app_theme() -> String {
         let theme = web_sys::window()
             .and_then(|w| w.local_storage().ok().flatten())
             .and_then(|s| s.get_item("app_theme").ok().flatten())
-            .unwrap_or_else(|| "dark".to_string());
-        if theme == "light" {
-            "light".to_string()
-        } else {
-            "dark".to_string()
-        }
+            .unwrap_or_default();
+        crate::shared::theme::registry::theme_by_id(&theme)
+            .base
+            .as_str()
+            .to_string()
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -1707,7 +1706,7 @@ html,body{{margin:0;padding:0;}}
   --bi-bg-secondary:#f8fafc;
   --bi-border:#e2e8f0;
 }}
-body[data-theme="dark"]{{
+body[data-theme-base="dark"]{{
   --bi-text:#e5e7eb;
   --bi-text-secondary:#9aa4b2;
   --bi-bg:#0b1220;
@@ -1813,7 +1812,10 @@ html::-webkit-scrollbar-thumb:hover{{
         "});",
         "})();</script></head><body data-theme=\""
     ));
-    html.push_str(if theme == "light" { "light" } else { "dark" });
+    let base = if theme == "light" { "light" } else { "dark" };
+    html.push_str(base);
+    html.push_str("\" data-theme-base=\"");
+    html.push_str(base);
     html.push_str("\"><div class=\"dashboard\">");
     html.push_str(&groups_html);
     html.push_str("</div></body></html>");

@@ -1,10 +1,11 @@
 use crate::app::ThawThemeContext;
+use crate::shared::theme::registry::{theme_by_id, ThemeDef, DEFAULT_THEME_ID, THEMES};
 use leptos::prelude::*;
-use thaw::Theme;
 use wasm_bindgen::JsCast;
 
 const THEME_STORAGE_KEY: &str = "app_theme";
-const DEFAULT_THEME: &str = "dark";
+const THEME_KIND_STORAGE_KEY: &str = "app_theme_kind";
+const THEME_BASE_STORAGE_KEY: &str = "app_theme_base";
 
 /// Get saved theme from localStorage
 fn get_saved_theme() -> String {
@@ -15,25 +16,38 @@ fn get_saved_theme() -> String {
             }
         }
     }
-    DEFAULT_THEME.to_string()
+    DEFAULT_THEME_ID.to_string()
 }
 
-/// Save theme to localStorage
-fn save_theme(theme: &str) {
+/// Save theme to localStorage. kind/base сохраняются рядом — их читает
+/// anti-FOUC скрипт в index.html до старта WASM.
+fn save_theme(def: &ThemeDef) {
     if let Some(window) = web_sys::window() {
         if let Ok(Some(storage)) = window.local_storage() {
-            let _ = storage.set_item(THEME_STORAGE_KEY, theme);
+            let _ = storage.set_item(THEME_STORAGE_KEY, def.id);
+            let _ = storage.set_item(THEME_KIND_STORAGE_KEY, def.kind.as_str());
+            let _ = storage.set_item(THEME_BASE_STORAGE_KEY, def.base.as_str());
         }
     }
 }
 
-/// Apply theme to the document
-fn apply_theme(theme: &str) {
+/// Apply theme to the document.
+/// Атрибуты ставятся на `<html>` И `<body>`: фон задан на html (base.css),
+/// а CSS-гейт строгого режима (strict-guard.css) матчит оба элемента.
+fn apply_theme(def: &ThemeDef) {
     if let Some(window) = web_sys::window() {
         if let Some(document) = window.document() {
-            // Set data-theme attribute on body for CSS selectors
+            let mut targets: Vec<web_sys::Element> = Vec::with_capacity(2);
+            if let Some(root) = document.document_element() {
+                targets.push(root);
+            }
             if let Some(body) = document.body() {
-                let _ = body.set_attribute("data-theme", theme);
+                targets.push(body.into());
+            }
+            for el in targets {
+                let _ = el.set_attribute("data-theme", def.id);
+                let _ = el.set_attribute("data-theme-kind", def.kind.as_str());
+                let _ = el.set_attribute("data-theme-base", def.base.as_str());
             }
 
             // Update theme stylesheet link
@@ -41,35 +55,7 @@ fn apply_theme(theme: &str) {
                 if let Ok(link_element) = link.dyn_into::<web_sys::HtmlLinkElement>() {
                     link_element.set_disabled(false);
                     let _ =
-                        link_element.set_href(&format!("static/themes/{}/{}.css", theme, theme));
-                }
-            }
-        }
-    }
-}
-
-/// Set CSS variable for Thaw ConfigProvider
-fn set_thaw_background(value: &str) {
-    if let Some(window) = web_sys::window() {
-        if let Some(document) = window.document() {
-            // Find .thaw-config-provider element
-            if let Some(element) = document
-                .query_selector(".thaw-config-provider")
-                .ok()
-                .flatten()
-            {
-                if let Some(html_element) = element.dyn_ref::<web_sys::HtmlElement>() {
-                    // NOTE: This is intentionally a programmatic override for the forest theme.
-                    // We use remove_property to restore Thaw defaults when leaving forest.
-                    if value.is_empty() {
-                        let _ = html_element
-                            .style()
-                            .remove_property("--colorNeutralBackground1");
-                    } else {
-                        let _ = html_element
-                            .style()
-                            .set_property("--colorNeutralBackground1", value);
-                    }
+                        link_element.set_href(&format!("static/themes/{}/{}.css", def.id, def.id));
                 }
             }
         }
@@ -89,53 +75,25 @@ pub fn ThemeSelect() -> impl IntoView {
 
     // Apply saved theme on mount (including Thaw theme)
     Effect::new(move |_| {
-        apply_theme(&saved_theme);
+        let def = theme_by_id(&saved_theme);
+        apply_theme(def);
+        // Записать kind/base даже при первом визите — anti-FOUC скрипту на будущее.
+        save_theme(def);
         if let Some(ctx) = thaw_theme_ctx {
-            // Sync Thaw theme with app theme
-            let thaw_theme = match saved_theme.as_str() {
-                "light" => Theme::light(),
-                "dark" => Theme::dark(),
-                "forest" => Theme::dark(), // forest uses dark Thaw theme
-                _ => Theme::dark(),
-            };
-            ctx.0.set(thaw_theme);
-
-            // Forest theme: make Thaw surfaces transparent so background image is visible.
-            if saved_theme == "forest" {
-                set_thaw_background("transparent");
-            } else {
-                set_thaw_background("");
-            }
+            ctx.0.set(def.base.thaw_theme());
         }
     });
 
-    let change_theme = move |theme: String| {
-        // Update theme stylesheet
-        apply_theme(&theme);
+    let change_theme = move |theme_id: &'static str| {
+        let def = theme_by_id(theme_id);
+        apply_theme(def);
+        save_theme(def);
 
-        // Save theme to localStorage
-        save_theme(&theme);
-
-        // Update Thaw theme
         if let Some(ctx) = thaw_theme_ctx {
-            let thaw_theme = match theme.as_str() {
-                "light" => Theme::light(),
-                "dark" => Theme::dark(),
-                "forest" => Theme::dark(), // forest uses dark Thaw theme
-                _ => Theme::dark(),
-            };
-            ctx.0.set(thaw_theme);
-
-            // Forest theme: make Thaw surfaces transparent so background image is visible.
-            if theme == "forest" {
-                set_thaw_background("transparent");
-            } else {
-                set_thaw_background("");
-            }
+            ctx.0.set(def.base.thaw_theme());
         }
 
-        // Update current theme signal
-        current_theme.set(theme);
+        current_theme.set(def.id.to_string());
         is_open.set(false);
     };
 
@@ -162,16 +120,10 @@ pub fn ThemeSelect() -> impl IntoView {
             <Show when=move || is_open.get()>
                 <div class="theme-dropdown">
                     <For
-                        each=move || vec![
-                            ("dark", "Темная"),
-                            ("light", "Светлая"),
-                            ("forest", "Лесная"),
-                        ]
-                        key=|(id, _)| *id
-                        children=move |(theme_id, theme_name)| {
-                            let theme_id_str = theme_id.to_string();
-                            let is_active = move || current_theme.get() == theme_id;
-                            let theme_id_clone = theme_id_str.clone();
+                        each=move || THEMES.iter()
+                        key=|def| def.id
+                        children=move |def: &'static ThemeDef| {
+                            let is_active = move || current_theme.get() == def.id;
 
                             view! {
                                 <button
@@ -182,9 +134,9 @@ pub fn ThemeSelect() -> impl IntoView {
                                             "theme-dropdown__item"
                                         }
                                     }
-                                    on:click=move |_| change_theme(theme_id_clone.clone())
+                                    on:click=move |_| change_theme(def.id)
                                 >
-                                    {theme_name}
+                                    {def.label}
                                 </button>
                             }
                         }

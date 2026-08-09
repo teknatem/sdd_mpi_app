@@ -112,7 +112,11 @@ fn render_base_card_html(p: &IndicatorCardParams, style_name: &str) -> String {
 }
 
 fn wrap_in_page(css: &str, card: &str, theme: &str, extra_css: Option<&str>) -> String {
-    let theme = if theme.is_empty() { "dark" } else { theme };
+    // theme приходит уже схлопнутым до базы ("dark"|"light"), см. get_app_theme
+    // у вызывающих; резолв через реестр страхует от сырых имён тем.
+    let theme = crate::shared::theme::registry::theme_by_id(theme)
+        .base
+        .as_str();
     let extra_css = extra_css
         .map(str::trim)
         .filter(|v| !v.is_empty())
@@ -126,7 +130,7 @@ fn wrap_in_page(css: &str, card: &str, theme: &str, extra_css: Option<&str>) -> 
 <style>{css}</style>
 <style>{extra_css}</style>
 </head>
-<body data-theme="{theme}">
+<body data-theme="{theme}" data-theme-base="{theme}">
 <div style="width:min(280px,100%)">
 {card}
 </div>
