@@ -464,9 +464,7 @@ pub async fn build_for_page_key_with_session(
         }
     }
     if !recent_pages.is_empty() {
-        text.push_str(
-            "Страницы, открытые пользователем перед обращением (свежие сверху):\n",
-        );
+        text.push_str("Страницы, открытые пользователем перед обращением (свежие сверху):\n");
         for (key, title) in recent_pages.iter().take(10) {
             text.push_str(&format!("  {} [{}]\n", title, key));
         }

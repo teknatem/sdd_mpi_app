@@ -4,6 +4,7 @@ pub mod u502_import_ozon;
 pub mod u503_import_yandex;
 
 // WB atomic task managers
+pub mod quality_check_run;
 pub mod task001_wb_orders_fbs_polling;
 pub mod task002_wb_orders_stats_hourly;
 pub mod task003_wb_products;
@@ -33,12 +34,12 @@ pub mod task026_ym_shows_sales_daily;
 pub mod task027_llm_judge;
 pub mod task028_llm_golden_set;
 pub mod task029_agent_task_runner;
-pub mod quality_check_run;
 
 pub use u501_import_ut::U501ImportUtManager;
 pub use u502_import_ozon::U502ImportOzonManager;
 pub use u503_import_yandex::U503ImportYandexManager;
 
+pub use quality_check_run::QualityCheckRunManager;
 pub use task001_wb_orders_fbs_polling::Task001WbOrdersFbsPollingManager;
 pub use task002_wb_orders_stats_hourly::Task002WbOrdersStatsHourlyManager;
 pub use task003_wb_products::Task003WbProductsManager;
@@ -68,4 +69,3 @@ pub use task026_ym_shows_sales_daily::Task026YmShowsSalesDailyManager;
 pub use task027_llm_judge::Task027LlmJudgeManager;
 pub use task028_llm_golden_set::Task028LlmGoldenSetManager;
 pub use task029_agent_task_runner::Task029AgentTaskRunnerManager;
-pub use quality_check_run::QualityCheckRunManager;

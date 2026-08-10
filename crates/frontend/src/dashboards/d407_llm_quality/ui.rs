@@ -8,7 +8,7 @@
 use crate::dashboards::d407_llm_quality::api;
 use crate::shared::page_frame::PageFrame;
 use contracts::dashboards::d407_llm_quality::{
-    LlmQualityOverview, RecentVerdict, SkillVerdictStat, ToolStat,
+    CostStat, LlmQualityOverview, RecentVerdict, SkillVerdictStat, ToolStat,
 };
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -152,6 +152,56 @@ fn SkillTable(rows: Vec<SkillVerdictStat>) -> impl IntoView {
                                     <td>{row.solved}</td>
                                     <td>{row.failed}</td>
                                     <td>{fmt_pct(share)}</td>
+                                </tr>
+                            }
+                        })
+                        .collect_view()}
+                </tbody>
+            </table>
+        </div>
+    }
+    .into_any()
+}
+
+/// Стоимость по валютам. Отдельной таблицей, а не плиткой: валюты не
+/// складываются, и одной цифрой сводку честно не показать.
+#[component]
+fn CostTable(rows: Vec<CostStat>) -> impl IntoView {
+    if rows.is_empty() {
+        return view! {
+            <div class="d407-empty">
+                "Стоимость не считается: у подключений (a038) не заполнен прайс за 1M токенов."
+            </div>
+        }
+        .into_any();
+    }
+    view! {
+        <div class="d407-tablewrap">
+            <table class="d407-table">
+                <thead>
+                    <tr>
+                        <th class="d407-th--left">"Валюта"</th>
+                        <th>"Всего"</th>
+                        <th>"Ответов"</th>
+                        <th>"Средняя за ответ"</th>
+                        <th>"Средняя за решённую"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows
+                        .into_iter()
+                        .map(|row| {
+                            let per_solved = row
+                                .avg_per_solved()
+                                .map(|value| format!("{value:.4}"))
+                                .unwrap_or_else(|| "—".to_string());
+                            view! {
+                                <tr>
+                                    <td class="d407-td--left">{row.currency.clone()}</td>
+                                    <td>{format!("{:.2}", row.total())}</td>
+                                    <td>{row.answers}</td>
+                                    <td>{format!("{:.4}", row.avg_per_answer())}</td>
+                                    <td>{per_solved}</td>
                                 </tr>
                             }
                         })
@@ -340,6 +390,11 @@ pub fn LlmQualityDashboard() -> impl IntoView {
                                     overview.iterations.heavy_answers,
                                 )
                             />
+                        </div>
+
+                        <div class="d407-section">
+                            <h2 class="d407-subtitle">"Стоимость прогонов"</h2>
+                            <CostTable rows=overview.costs.clone() />
                         </div>
 
                         <div class="d407-section">

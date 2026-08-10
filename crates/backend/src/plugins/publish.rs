@@ -212,8 +212,7 @@ pub async fn apply_update(
 
     let bundle = package::import_archive(&object.bytes)?;
     // Локальная версия становится номером установленной версии из каталога, а не +1.
-    let outcome =
-        service::import_bundle_onto(Some(id), bundle, None, Some(entry.version)).await?;
+    let outcome = service::import_bundle_onto(Some(id), bundle, None, Some(entry.version)).await?;
     super::change_token::TOKEN.bump();
     Ok(outcome)
 }

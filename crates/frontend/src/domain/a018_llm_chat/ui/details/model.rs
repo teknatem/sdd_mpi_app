@@ -589,11 +589,7 @@ pub async fn fetch_workspace_file(chat_id: &str, path: &str) -> Result<ChatFileC
 }
 
 /// Правка живого документа (анкета, план, заметки).
-pub async fn save_workspace_file(
-    chat_id: &str,
-    path: &str,
-    content: &str,
-) -> Result<(), String> {
+pub async fn save_workspace_file(chat_id: &str, path: &str, content: &str) -> Result<(), String> {
     let url = format!(
         "{}/api/a018-llm-chat/{}/workspace/file/{}",
         api_base(),

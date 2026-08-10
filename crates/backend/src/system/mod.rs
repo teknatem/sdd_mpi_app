@@ -2,6 +2,7 @@ pub mod access;
 pub mod api;
 pub mod audit;
 pub mod auth;
+pub mod datasets;
 pub mod ext_api_log;
 pub mod favorites;
 pub mod history;

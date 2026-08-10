@@ -5,6 +5,8 @@ use super::repository;
 // как UUID (chat.agent_id) → сотрудник a017. Существующие чаты валидны: у a017 и a038 совпадают id.
 use crate::domain::a017_llm_agent::repository as employee_repository;
 use crate::domain::a038_llm_connection::repository as connection_repository;
+use crate::shared::llm::cost::{cost_micro, Pricing, UsageTotals};
+use crate::shared::llm::tool_guards::{GuardCapabilities, GuardDecision, GuardState};
 use crate::shared::llm::types::{ChatMessage, ChatRole as LlmChatRole, ToolCaller};
 use crate::shared::llm::{create_provider, execute_tool_call};
 use crate::system::s3::service::{self as s3_service, UploadedFile};
@@ -1118,12 +1120,21 @@ pub async fn send_message(
         let mut artifact_to_attach: Option<LlmArtifactId> = None;
         let mut tool_trace: Vec<serde_json::Value> = initial_skill_trace.into_iter().collect();
         let mut total_tokens_used: i64 = 0;
+        // Разбивка копится параллельно сумме: стоимость ответа считается по ней,
+        // а один ответ пользователю — это все итерации цикла вместе.
+        let mut usage_totals = UsageTotals::default();
         let mut tool_failures = 0usize;
         // Memo одинаковых read-only вызовов в пределах ОДНОГО ответа: модель регулярно
         // повторяет тот же drilldown/запрос на соседних итерациях (в разобранных чатах —
         // до 18 секунд на повтор). Данные внутри ответа не меняются: путь только читающий.
         let mut tool_memo: std::collections::HashMap<(String, String), String> =
             std::collections::HashMap::new();
+        // Гарды дополняют memo, а не заменяют его: memo экономит время на
+        // повторе читающего вызова, гард прерывает петлю и говорит об этом модели.
+        let mut guards = GuardState::new(GuardCapabilities {
+            artifact_publish_allowed: skill_session.artifact_publish_allowed(),
+            data_repair_execute_allowed: skill_session.data_repair_execute_allowed(),
+        });
 
         for iteration in 0..MAX_TOOL_ITERATIONS {
             if let Some(id) = job_id {
@@ -1156,6 +1167,7 @@ pub async fn send_message(
             }
             .map_err(|e| anyhow::anyhow!("LLM error: {:?}", e))?;
             total_tokens_used += response.tokens_used.unwrap_or(0) as i64;
+            usage_totals.add_response(&response);
 
             tracing::info!(
                 "[llm_iter] iter={} has_tool_calls={} finish_reason={:?} tokens={:?}",
@@ -1186,6 +1198,8 @@ pub async fn send_message(
             // Навыки, активированные на этой итерации (применяем после всех tool-результатов,
             // чтобы не разрывать пару assistant(tool_calls) → tool_result).
             let mut newly_activated: Vec<skills::Skill> = Vec::new();
+            // Детерминированные подсказки по классам отказов этой итерации.
+            let mut failure_hints: Vec<String> = Vec::new();
 
             // Выполнить каждый tool call и добавить результаты
             let tool_count = response.tool_calls.len();
@@ -1215,54 +1229,82 @@ pub async fn send_message(
                     utf8_truncate(&tool_call.arguments, 200)
                 );
                 let active_skill_ids = skill_session.active_skill_set();
+
+                // Граница вызова: решение принимается ДО исполнения и до memo —
+                // иначе повтор молча обслуживался бы кэшем, и петля осталась бы
+                // невидимой и для модели, и для трассы.
+                let guard_denial = match guards.before_tool(&tool_call.name, &tool_call.arguments) {
+                    GuardDecision::Deny { code, message } => {
+                        tracing::warn!(
+                            "[tool_guard] iter={} tool='{}' отклонён гардом '{}'",
+                            iteration + 1,
+                            tool_call.name,
+                            code
+                        );
+                        let payload = serde_json::json!({
+                            "error": message,
+                            "_tool": tool_call.name,
+                            "_ok": false,
+                            "_guard": code,
+                        });
+                        Some((code, payload.to_string()))
+                    }
+                    GuardDecision::Allow => None,
+                };
+                let guard_code = guard_denial.as_ref().map(|(code, _)| *code);
+
                 let memo_key = is_memoizable_tool(&tool_call.name)
                     .then(|| (tool_call.name.clone(), tool_call.arguments.clone()));
                 let memoized = memo_key
                     .as_ref()
                     .and_then(|key| tool_memo.get(key))
                     .cloned();
-                let result = match memoized {
-                    Some(cached) => {
-                        tracing::info!(
+                let result = if let Some((_, denial)) = guard_denial {
+                    denial
+                } else {
+                    match memoized {
+                        Some(cached) => {
+                            tracing::info!(
                             "[tool_call] iter={} tool='{}' — повтор с теми же аргументами, ответ из memo",
                             iteration + 1,
                             tool_call.name
                         );
-                        cached
-                    }
-                    None => {
-                        let fresh = execute_tool_call(
-                            tool_call,
-                            chat_id,
-                            &agent_id_str,
-                            &effective.agent_type,
-                            &active_tools,
-                            &active_skill_ids,
-                            skill_session.snapshot(),
-                            skill_session.access(),
-                            skill_session.artifact_publish_allowed(),
-                            skill_session.script_execute_allowed(),
-                            skill_session.script_develop_allowed(),
-                            skill_session.data_repair_execute_allowed(),
-                            actor.as_ref(),
-                        )
-                        .await;
-                        if let Some(key) = memo_key {
-                            // Ошибки не кэшируем: у них своя причина исправиться (модель
-                            // чинит SQL и осмысленно повторяет вызов с тем же текстом).
-                            let ok = serde_json::from_str::<serde_json::Value>(&fresh)
-                                .ok()
-                                .and_then(|v| {
-                                    v.get("_ok").and_then(serde_json::Value::as_bool).or_else(
-                                        || v.get("error").is_none().then_some(true),
-                                    )
-                                })
-                                .unwrap_or(true);
-                            if ok {
-                                tool_memo.insert(key, fresh.clone());
-                            }
+                            cached
                         }
-                        fresh
+                        None => {
+                            let fresh = execute_tool_call(
+                                tool_call,
+                                chat_id,
+                                &agent_id_str,
+                                &effective.agent_type,
+                                &active_tools,
+                                &active_skill_ids,
+                                skill_session.snapshot(),
+                                skill_session.access(),
+                                skill_session.artifact_publish_allowed(),
+                                skill_session.script_execute_allowed(),
+                                skill_session.script_develop_allowed(),
+                                skill_session.data_repair_execute_allowed(),
+                                actor.as_ref(),
+                            )
+                            .await;
+                            if let Some(key) = memo_key {
+                                // Ошибки не кэшируем: у них своя причина исправиться (модель
+                                // чинит SQL и осмысленно повторяет вызов с тем же текстом).
+                                let ok = serde_json::from_str::<serde_json::Value>(&fresh)
+                                    .ok()
+                                    .and_then(|v| {
+                                        v.get("_ok")
+                                            .and_then(serde_json::Value::as_bool)
+                                            .or_else(|| v.get("error").is_none().then_some(true))
+                                    })
+                                    .unwrap_or(true);
+                                if ok {
+                                    tool_memo.insert(key, fresh.clone());
+                                }
+                            }
+                            fresh
+                        }
                     }
                 };
                 let call_ms = call_start.elapsed().as_millis() as u64;
@@ -1358,19 +1400,36 @@ pub async fn send_message(
                         .unwrap_or_else(|| "ok".to_string())
                 };
 
+                // Срабатывание гарда попадает в трассу под своей стадией: иначе
+                // «сколько раз система удержала агента» неотличимо от отказа
+                // самого инструмента, и на d407 обе величины слипаются в одну.
                 tool_trace.push(serde_json::json!({
                     "iteration": iteration + 1,
                     "call":     tool_idx + 1,
-                    "stage":    tool_stage(&tool_call.name),
+                    "stage":    guard_code.map_or_else(|| tool_stage(&tool_call.name), |_| "guard"),
                     "tool":    tool_call.name,
                     "ok":      is_ok,
                     "ms":      call_ms,
-                    "summary": summary,
+                    "summary": guard_code
+                        .map(|code| format!("гард: {code}"))
+                        .unwrap_or(summary),
                     "input":   trace_input(&tool_call.arguments),
                     "output":  trace_output(parsed.as_ref()),
                 }));
 
+                // Подсказка по классу отказа — после всех tool-результатов
+                // (см. ниже), чтобы не разрывать пару assistant(tool_calls) → tool_result.
+                if let Some(value) = parsed.as_ref() {
+                    if let Some(hint) = guards.after_tool(&tool_call.name, value) {
+                        failure_hints.push(hint);
+                    }
+                }
+
                 llm_messages.push(ChatMessage::tool_result(tool_call.id.clone(), result));
+            }
+
+            for hint in failure_hints {
+                llm_messages.push(ChatMessage::system(hint));
             }
 
             // Применить активированные навыки: пересобрать инструменты и дописать
@@ -1418,6 +1477,38 @@ pub async fn send_message(
                 ));
                 break;
             }
+        }
+
+        // Сверка плана с журналом шагов. До этого «пункт выполнен» было
+        // утверждением модели, которое никто не проверял; теперь ссылка на
+        // несохранённый шаг становится наблюдаемым фактом, а не догадкой при
+        // разборе диалога.
+        match crate::shared::llm::chat_workspace::plan_state(chat_id).await {
+            Ok((_, drift)) if !drift.is_empty() => {
+                tracing::warn!(
+                    "[plan_drift] chat='{}': закрытых пунктов со ссылкой на несохранённый шаг — {}",
+                    chat_id,
+                    drift.len()
+                );
+                tool_trace.push(serde_json::json!({
+                    "iteration": MAX_TOOL_ITERATIONS + 1,
+                    "call": 0,
+                    "stage": "guard",
+                    "tool": "plan",
+                    "ok": false,
+                    "ms": 0,
+                    "summary": format!("гард: plan_drift ({} пункт(ов))", drift.len()),
+                    "input": { "steps": drift.iter().map(|s| &s.id).collect::<Vec<_>>() },
+                    "output": {
+                        "_guard": "plan_drift",
+                        "error": "Пункты плана отмечены выполненными, но шаги, на которые они \
+                                  ссылаются, в журнале отсутствуют",
+                        "steps": drift,
+                    },
+                }));
+            }
+            Ok(_) => {}
+            Err(e) => tracing::debug!("[plan_drift] чтение плана не удалось: {e}"),
         }
 
         if let Some(flow) = builder_workflow
@@ -1478,6 +1569,7 @@ pub async fn send_message(
             match summary_result {
                 Ok(resp) => {
                     total_tokens_used += resp.tokens_used.unwrap_or(0) as i64;
+                    usage_totals.add_response(&resp);
                     final_response = Some(resp);
                 }
                 Err(e) => tracing::warn!(
@@ -1489,6 +1581,9 @@ pub async fn send_message(
 
         if let Some(response) = final_response.as_mut() {
             response.tokens_used = Some(total_tokens_used.min(i32::MAX as i64) as i32);
+            response.prompt_tokens = usage_totals.prompt_i32();
+            response.completion_tokens = usage_totals.completion_i32();
+            response.cached_prompt_tokens = usage_totals.cached_prompt_i32();
         }
         let fallback_text = if artifact_to_attach.is_some() {
             "Результат создан, но модель не сформировала итоговый текст. Откройте карточку артефакта ниже."
@@ -1504,6 +1599,9 @@ pub async fn send_message(
                     content: fallback_text.to_string(),
                     tool_calls: vec![],
                     tokens_used: Some(total_tokens_used.min(i32::MAX as i64) as i32),
+                    prompt_tokens: usage_totals.prompt_i32(),
+                    completion_tokens: usage_totals.completion_i32(),
+                    cached_prompt_tokens: usage_totals.cached_prompt_i32(),
                     model: model_to_use.clone(),
                     finish_reason: Some("local_fallback".to_string()),
                     confidence: None,
@@ -1521,6 +1619,20 @@ pub async fn send_message(
         let combined =
             response.tokens_used.unwrap_or(0) as i64 + intent_result.tokens_used.max(0) as i64;
         response.tokens_used = Some(combined.min(i32::MAX as i64) as i32);
+        // Классификатор — такой же платный вызов модели, как и итерации цикла.
+        let mut totals = UsageTotals {
+            prompt: response.prompt_tokens.unwrap_or(0) as i64,
+            completion: response.completion_tokens.unwrap_or(0) as i64,
+            cached_prompt: response.cached_prompt_tokens.unwrap_or(0) as i64,
+        };
+        totals.add(
+            intent_result.prompt_tokens,
+            intent_result.completion_tokens,
+            intent_result.cached_prompt_tokens,
+        );
+        response.prompt_tokens = totals.prompt_i32();
+        response.completion_tokens = totals.completion_i32();
+        response.cached_prompt_tokens = totals.cached_prompt_i32();
     }
 
     tracing::info!(
@@ -1554,6 +1666,23 @@ pub async fn send_message(
     // от «прочитана моделью» факт и главный сигнал полезности статьи.
     crate::shared::llm::kb_tools::record_citations(&llm_response.content);
 
+    // Стоимость считается ЗДЕСЬ и один раз, по прайсу подключения на момент прогона:
+    // ставки со временем меняются, а исторические суммы должны остаться сопоставимыми.
+    let pricing = Pricing::from_fields(
+        effective.connection.price_in_per_mtok,
+        effective.connection.price_out_per_mtok,
+        effective.connection.price_cached_per_mtok,
+    );
+    let answer_usage = UsageTotals {
+        prompt: llm_response.prompt_tokens.unwrap_or(0) as i64,
+        completion: llm_response.completion_tokens.unwrap_or(0) as i64,
+        cached_prompt: llm_response.cached_prompt_tokens.unwrap_or(0) as i64,
+    };
+    let answer_cost = cost_micro(&answer_usage, pricing);
+    let answer_currency = answer_cost
+        .and(effective.connection.currency.clone())
+        .filter(|c| !c.trim().is_empty());
+
     // 10. Сохранить ответ ассистента с метаданными
     let mut assistant_msg = LlmChatMessage::new_with_metadata(
         chat_id_obj,
@@ -1563,6 +1692,13 @@ pub async fn send_message(
         Some(model_to_use),
         llm_response.confidence,
         Some(duration_ms),
+    )
+    .with_usage(
+        llm_response.prompt_tokens,
+        llm_response.completion_tokens,
+        llm_response.cached_prompt_tokens,
+        answer_cost,
+        answer_currency,
     );
 
     if let Some(artifact_id) = artifact_to_attach {
@@ -1837,9 +1973,7 @@ pub async fn upload_attachment(
         .await?;
         (String::new(), Some(uploaded.id))
     } else {
-        let upload_dir = PathBuf::from("uploads")
-            .join("chat_attachments")
-            .join(chat_id);
+        let upload_dir = attachments_root().join(chat_id);
         tokio::fs::create_dir_all(&upload_dir)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create upload directory: {}", e))?;
@@ -1854,11 +1988,14 @@ pub async fn upload_attachment(
         } else {
             format!("{}.{}", file_id, file_ext)
         };
-        let filepath = upload_dir.join(&stored_filename);
-        tokio::fs::write(&filepath, &data)
+        tokio::fs::write(upload_dir.join(&stored_filename), &data)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to write file: {}", e))?;
-        (filepath.to_string_lossy().to_string(), None)
+        // В БД идёт ключ ОТНОСИТЕЛЬНО корня вложений. Абсолютный путь зависит от
+        // конфига и может измениться при переносе данных, а старая форма записи
+        // (относительно рабочего каталога процесса) ломалась от одного лишь
+        // запуска бэкенда из другой директории.
+        (format!("{chat_id}/{stored_filename}"), None)
     };
 
     // Создать запись о вложении (без привязки к сообщению пока)
@@ -1908,7 +2045,7 @@ pub async fn delete_pending_attachment(chat_id: &str, attachment_id: &str) -> an
     if let Some(s3_file_id) = attachment.s3_file_id.as_deref() {
         s3_service::delete(s3_file_id).await?;
     } else {
-        match tokio::fs::remove_file(&attachment.filepath).await {
+        match tokio::fs::remove_file(attachment_abs_path(&attachment.filepath)).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
@@ -1943,10 +2080,40 @@ pub async fn load_attachment_bytes(attachment: &LlmChatAttachment) -> anyhow::Re
             .ok_or_else(|| anyhow::anyhow!("S3 object not found"))?;
         return Ok(download.bytes);
     }
-    tokio::fs::read(&attachment.filepath)
+    tokio::fs::read(attachment_abs_path(&attachment.filepath))
         .await
         .map(Bytes::from)
         .map_err(|e| anyhow::anyhow!("Failed to read file: {}", e))
+}
+
+/// Корень файловых вложений чатов из конфига.
+fn attachments_root() -> PathBuf {
+    match crate::shared::config::load_config() {
+        Ok(config) => crate::shared::config::get_attachments_path(&config),
+        Err(error) => {
+            tracing::warn!("Не удалось прочитать конфиг для пути вложений: {error}");
+            PathBuf::from("uploads").join("chat_attachments")
+        }
+    }
+}
+
+/// Абсолютный путь к файлу вложения по значению из БД.
+///
+/// В колонке `filepath` сосуществуют две формы: исторический путь относительно
+/// РАБОЧЕГО КАТАЛОГА процесса (`uploads/chat_attachments/...`, на Windows — с
+/// обратными слешами) и нынешний ключ относительно корня вложений
+/// (`<chat_id>/<uuid>.<ext>`). Миграция 0210 переписывает первую форму во
+/// вторую, но старые строки могут пережить откат миграции или прийти из копии
+/// БД, поэтому обе распознаются здесь.
+fn attachment_abs_path(filepath: &str) -> PathBuf {
+    let path = std::path::Path::new(filepath);
+    if path.is_absolute()
+        || filepath.starts_with("uploads/")
+        || filepath.starts_with("uploads\\")
+    {
+        return path.to_path_buf();
+    }
+    attachments_root().join(filepath.replace('\\', "/"))
 }
 
 async fn read_attachment_text(attachment: &LlmChatAttachment) -> anyhow::Result<String> {
@@ -2031,7 +2198,8 @@ mod tests {
     fn history_budget_default_matches_legacy_constants() {
         // Дефолт колонки context_window обязан воспроизводить прежние захардкоженные
         // 120_000/60_000 — иначе миграция изменит поведение облачных подключений.
-        let default_window = contracts::domain::a038_llm_connection::aggregate::default_context_window();
+        let default_window =
+            contracts::domain::a038_llm_connection::aggregate::default_context_window();
         assert_eq!(history_budget(default_window), (120_000, 60_000));
         // Кривое значение из БД не должно ронять бюджет в ноль.
         assert_eq!(history_budget(0), (120_000, 60_000));

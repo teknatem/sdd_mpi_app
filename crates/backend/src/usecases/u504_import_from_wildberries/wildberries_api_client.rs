@@ -6511,13 +6511,18 @@ mod orders_period_tests {
     fn stays_silent_when_rows_were_kept_or_wb_returned_nothing() {
         let earliest = Utc.with_ymd_and_hms(2026, 7, 1, 0, 0, 0).unwrap();
         // Что-то попало в окно — штатный импорт.
-        assert!(
-            unavailable_orders_period_message(day(2026, 7, 1), day(2026, 7, 31), 42, 100, Some(earliest))
-                .is_none()
-        );
+        assert!(unavailable_orders_period_message(
+            day(2026, 7, 1),
+            day(2026, 7, 31),
+            42,
+            100,
+            Some(earliest)
+        )
+        .is_none());
         // WB вернул пусто — это честное «заказов за период не было», не ошибка.
         assert!(
-            unavailable_orders_period_message(day(2026, 7, 1), day(2026, 7, 31), 0, 0, None).is_none()
+            unavailable_orders_period_message(day(2026, 7, 1), day(2026, 7, 31), 0, 0, None)
+                .is_none()
         );
     }
 }

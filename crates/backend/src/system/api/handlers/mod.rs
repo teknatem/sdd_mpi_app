@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod auth;
+pub mod datasets;
 pub mod ext_api_log;
 pub mod favorites;
 pub mod form_settings;

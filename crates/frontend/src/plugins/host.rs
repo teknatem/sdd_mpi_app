@@ -41,8 +41,7 @@ struct ServerMethodExample {
 #[component]
 pub fn PluginHost(plugin_id: String) -> impl IntoView {
     let ctx = use_context::<AppGlobalContext>().expect("AppGlobalContext not found");
-    let change_tokens =
-        use_context::<ChangeTokenContext>().expect("ChangeTokenContext not found");
+    let change_tokens = use_context::<ChangeTokenContext>().expect("ChangeTokenContext not found");
     let (def, set_def) = signal(None::<PluginDefinition>);
     let (loading, set_loading) = signal(true);
     let (error, set_error) = signal(None::<String>);

@@ -392,7 +392,10 @@ pub async fn release_stale(stale_before: &str, retry_at: &str) -> anyhow::Result
             Expr::value(AgentTaskStatus::Pending.as_str()),
         )
         .col_expr(Column::ClaimSessionId, Expr::value(Option::<String>::None))
-        .col_expr(Column::NextAttemptAt, Expr::value(Some(retry_at.to_string())))
+        .col_expr(
+            Column::NextAttemptAt,
+            Expr::value(Some(retry_at.to_string())),
+        )
         .col_expr(
             Column::Error,
             Expr::value(Some(
@@ -416,7 +419,10 @@ pub async fn release_stale(stale_before: &str, retry_at: &str) -> anyhow::Result
 pub async fn fail_exhausted() -> anyhow::Result<u64> {
     let now = Utc::now();
     let res = Entity::update_many()
-        .col_expr(Column::Status, Expr::value(AgentTaskStatus::Failed.as_str()))
+        .col_expr(
+            Column::Status,
+            Expr::value(AgentTaskStatus::Failed.as_str()),
+        )
         .col_expr(Column::FinishedAt, Expr::value(Some(now.to_rfc3339())))
         .col_expr(
             Column::Error,

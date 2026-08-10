@@ -236,12 +236,15 @@ impl TaskManager for Task029AgentTaskRunnerManager {
             // Изоляция по записи: одно упавшее поручение не роняет пачку.
             // Ровно этим ломается task015_kb_post, где `?` внутри цикла обрывает
             // публикацию всех оставшихся правок.
-            match self.execute_one(&rec, session_id, &logger, item_timeout).await {
+            match self
+                .execute_one(&rec, session_id, &logger, item_timeout)
+                .await
+            {
                 Ok(()) => done += 1,
                 Err(ExecError { message, retryable }) => {
                     failed += 1;
-                    if let Err(e) = a042_agent_task::service::mark_failed(&id, &message, retryable)
-                        .await
+                    if let Err(e) =
+                        a042_agent_task::service::mark_failed(&id, &message, retryable).await
                     {
                         logger.write_log(
                             session_id,
@@ -253,7 +256,11 @@ impl TaskManager for Task029AgentTaskRunnerManager {
                         &format!(
                             "{}: провал ({}): {message}",
                             rec.base.code,
-                            if retryable { "повторим" } else { "окончательно" }
+                            if retryable {
+                                "повторим"
+                            } else {
+                                "окончательно"
+                            }
                         ),
                     )?;
                 }

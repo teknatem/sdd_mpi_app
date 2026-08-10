@@ -170,12 +170,7 @@ pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
     ]
 }
 
-pub async fn execute_kb_tool(
-    name: &str,
-    arguments: &str,
-    chat_id: &str,
-    agent_id: &str,
-) -> Value {
+pub async fn execute_kb_tool(name: &str, arguments: &str, chat_id: &str, agent_id: &str) -> Value {
     let args = serde_json::from_str::<Value>(arguments).unwrap_or_else(|_| json!({}));
     match name {
         "search_knowledge" => search_knowledge(&args),
@@ -383,7 +378,10 @@ async fn report_issue(args: &Value, chat_id: &str, agent_id: &str) -> Value {
         .get("article_id")
         .and_then(|v| v.as_str())
         .unwrap_or_default();
-    let body = args.get("body").and_then(|v| v.as_str()).unwrap_or_default();
+    let body = args
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     if body.trim().is_empty() {
         return json!({ "error": "body обязателен: опиши, что именно не так и чем это подтверждается." });
     }
@@ -478,7 +476,8 @@ async fn report_issue(args: &Value, chat_id: &str, agent_id: &str) -> Value {
         }
     }
 
-    result["hint"] = json!("Замечание записано. Сообщи пользователю, что статья требует уточнения.");
+    result["hint"] =
+        json!("Замечание записано. Сообщи пользователю, что статья требует уточнения.");
     result
 }
 
@@ -568,9 +567,11 @@ pub fn validate_draft(args: &Value, ctx: &DraftContext) -> Result<DraftPlan, Str
 
     // 3. Тело.
     if body.starts_with("---") {
-        return Err("body не должен содержать frontmatter — он формируется автоматически. \
+        return Err(
+            "body не должен содержать frontmatter — он формируется автоматически. \
                     Начни с '# <заголовок>'."
-            .into());
+                .into(),
+        );
     }
     if !body.starts_with("# ") {
         return Err("body должен начинаться с заголовка первого уровня: '# <заголовок>'.".into());
@@ -946,12 +947,35 @@ fn transliterate(input: &str) -> String {
         .map(|ch| {
             let lower = ch.to_lowercase().next().unwrap_or(ch);
             match lower {
-                'а' => "a", 'б' => "b", 'в' => "v", 'г' => "g", 'д' => "d",
-                'е' | 'ё' | 'э' => "e", 'ж' => "zh", 'з' => "z", 'и' | 'й' => "i",
-                'к' => "k", 'л' => "l", 'м' => "m", 'н' => "n", 'о' => "o",
-                'п' => "p", 'р' => "r", 'с' => "s", 'т' => "t", 'у' => "u",
-                'ф' => "f", 'х' => "h", 'ц' => "c", 'ч' => "ch", 'ш' => "sh",
-                'щ' => "sch", 'ъ' | 'ь' => "", 'ы' => "y", 'ю' => "yu", 'я' => "ya",
+                'а' => "a",
+                'б' => "b",
+                'в' => "v",
+                'г' => "g",
+                'д' => "d",
+                'е' | 'ё' | 'э' => "e",
+                'ж' => "zh",
+                'з' => "z",
+                'и' | 'й' => "i",
+                'к' => "k",
+                'л' => "l",
+                'м' => "m",
+                'н' => "n",
+                'о' => "o",
+                'п' => "p",
+                'р' => "r",
+                'с' => "s",
+                'т' => "t",
+                'у' => "u",
+                'ф' => "f",
+                'х' => "h",
+                'ц' => "c",
+                'ч' => "ch",
+                'ш' => "sh",
+                'щ' => "sch",
+                'ъ' | 'ь' => "",
+                'ы' => "y",
+                'ю' => "yu",
+                'я' => "ya",
                 other => return other.to_string(),
             }
             .to_string()
@@ -1027,7 +1051,10 @@ mod tests {
             normalize_slug(&transliterate("Особенности воронки Wildberries")),
             "osobennosti-voronki-wildberries"
         );
-        assert_eq!(normalize_slug(&transliterate("Что нельзя считать нулём?")), "chto-nelzya-schitat-nulem");
+        assert_eq!(
+            normalize_slug(&transliterate("Что нельзя считать нулём?")),
+            "chto-nelzya-schitat-nulem"
+        );
     }
 
     #[test]
@@ -1058,7 +1085,10 @@ mod tests {
         ] {
             let args = draft(json!({ "body": body(leak) }));
             let error = validate_draft(&args, &ctx()).unwrap_err();
-            assert!(error.contains("техническая деталь"), "не поймано: {leak} → {error}");
+            assert!(
+                error.contains("техническая деталь"),
+                "не поймано: {leak} → {error}"
+            );
         }
     }
 
@@ -1072,25 +1102,35 @@ mod tests {
     #[test]
     fn rejects_double_frontmatter_and_missing_heading() {
         let args = draft(json!({ "body": "---\ntitle: x\n---\n\n# Заголовок\n\nтело" }));
-        assert!(validate_draft(&args, &ctx()).unwrap_err().contains("frontmatter"));
+        assert!(validate_draft(&args, &ctx())
+            .unwrap_err()
+            .contains("frontmatter"));
 
         let args = draft(json!({ "body": "Просто текст без заголовка. ".repeat(30) }));
-        assert!(validate_draft(&args, &ctx()).unwrap_err().contains("заголовка первого уровня"));
+        assert!(validate_draft(&args, &ctx())
+            .unwrap_err()
+            .contains("заголовка первого уровня"));
     }
 
     #[test]
     fn rejects_too_short_body() {
         let args = draft(json!({ "body": "# Коротко\n\nОдна фраза." }));
-        assert!(validate_draft(&args, &ctx()).unwrap_err().contains("слишком короткая"));
+        assert!(validate_draft(&args, &ctx())
+            .unwrap_err()
+            .contains("слишком короткая"));
     }
 
     #[test]
     fn requires_two_tags_and_single_line_summary() {
         let args = draft(json!({ "tags": ["воронка"] }));
-        assert!(validate_draft(&args, &ctx()).unwrap_err().contains("минимум 2 тега"));
+        assert!(validate_draft(&args, &ctx())
+            .unwrap_err()
+            .contains("минимум 2 тега"));
 
         let args = draft(json!({ "summary": "Первая строка\nвторая строка" }));
-        assert!(validate_draft(&args, &ctx()).unwrap_err().contains("одной строкой"));
+        assert!(validate_draft(&args, &ctx())
+            .unwrap_err()
+            .contains("одной строкой"));
     }
 
     #[test]
@@ -1105,13 +1145,18 @@ mod tests {
 
     #[test]
     fn unresolvable_related_is_dropped_with_warning() {
-        let args = draft(json!({ "related": ["funnel-overview", "воронка", "p916", "выдуманная-статья"] }));
+        let args = draft(
+            json!({ "related": ["funnel-overview", "воронка", "p916", "выдуманная-статья"] }),
+        );
         let plan = validate_draft(&args, &ctx()).unwrap();
         assert!(plan.related.contains(&"funnel-overview".to_string())); // id статьи
         assert!(plan.related.contains(&"воронка".to_string())); // тег
         assert!(plan.related.contains(&"p916".to_string())); // код агрегата
         assert!(!plan.related.contains(&"выдуманная-статья".to_string()));
-        assert!(plan.warnings.iter().any(|w| w.contains("выдуманная-статья")));
+        assert!(plan
+            .warnings
+            .iter()
+            .any(|w| w.contains("выдуманная-статья")));
     }
 
     #[test]
@@ -1124,7 +1169,10 @@ mod tests {
         );
         assert!(extract_cited_ids("без ссылок").is_empty());
         // Ссылка в скобках/с пунктуацией не должна утаскивать лишние символы.
-        assert_eq!(extract_cited_ids("(kb://article/drr)."), vec!["drr".to_string()]);
+        assert_eq!(
+            extract_cited_ids("(kb://article/drr)."),
+            vec!["drr".to_string()]
+        );
     }
 
     #[test]

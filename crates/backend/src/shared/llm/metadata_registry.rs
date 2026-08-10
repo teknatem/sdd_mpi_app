@@ -306,7 +306,10 @@ impl MetadataRegistry {
     /// ("a006_connection_mp"), collection_name ("connection_mp") или имени модуля
     /// ("a001_connection_1c" при таблице "a001_connection_1c_database").
     fn find_by_index(&self, index: &str) -> Option<&RegistryEntry> {
-        self.entries.iter().copied().find(|e| Self::names_match(e, index))
+        self.entries
+            .iter()
+            .copied()
+            .find(|e| Self::names_match(e, index))
     }
 
     /// Одно правило сопоставления имён для всего реестра: сущность у нас известна

@@ -1034,8 +1034,7 @@ pub async fn wb_sales_funnel(
             .map(|item| {
                 let id = item.base.id.0.to_string();
                 let article = Some(item.article.trim().to_string()).filter(|s| !s.is_empty());
-                let name =
-                    Some(item.base.description.trim().to_string()).filter(|s| !s.is_empty());
+                let name = Some(item.base.description.trim().to_string()).filter(|s| !s.is_empty());
                 (id, (article, name))
             })
             .collect();
@@ -1215,7 +1214,10 @@ pub async fn wb_sales_funnel_orders(
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let srids: Vec<String> = orders.iter().map(|o| o.header.document_no.clone()).collect();
+    let srids: Vec<String> = orders
+        .iter()
+        .map(|o| o.header.document_no.clone())
+        .collect();
     let paid_map =
         crate::projections::p913_wb_advert_order_attr::repository::sum_reserve_by_order_keys(
             &srids, None,
@@ -1302,7 +1304,12 @@ async fn funnel_marketplace_labels() -> HashMap<String, (Option<String>, Option<
         .map(|conn| {
             let label = type_by_marketplace
                 .get(&conn.marketplace_id)
-                .map(|t| (Some(t.display_name().to_string()), Some(t.code().to_string())))
+                .map(|t| {
+                    (
+                        Some(t.display_name().to_string()),
+                        Some(t.code().to_string()),
+                    )
+                })
                 .unwrap_or((None, None));
             (conn.to_string_id(), label)
         })

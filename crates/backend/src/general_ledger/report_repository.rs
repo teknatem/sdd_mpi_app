@@ -399,10 +399,12 @@ pub async fn get_ym_revenue_reconciliation(
         let connection_name: Option<String> = row.try_get("", "connection_name").ok();
         let layer: String = row.try_get("", "layer").unwrap_or_default();
         let model: Option<String> = row.try_get::<Option<String>>("", "model").unwrap_or(None);
-        let campaign_id: Option<String> =
-            row.try_get::<Option<String>>("", "campaign_id").unwrap_or(None);
-        let ybuh_doc_id: Option<String> =
-            row.try_get::<Option<String>>("", "ybuh_doc_id").unwrap_or(None);
+        let campaign_id: Option<String> = row
+            .try_get::<Option<String>>("", "campaign_id")
+            .unwrap_or(None);
+        let ybuh_doc_id: Option<String> = row
+            .try_get::<Option<String>>("", "ybuh_doc_id")
+            .unwrap_or(None);
         let net: f64 = row.try_get("", "net").unwrap_or(0.0);
         let net_qty: f64 = row.try_get("", "net_qty").unwrap_or(0.0);
 

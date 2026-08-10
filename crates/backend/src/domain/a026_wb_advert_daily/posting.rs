@@ -575,10 +575,11 @@ pub async fn post_document_with_context(
     // Стадия 1 воронки p916: платные показы (show_paid_count = metrics.views).
     // Формируется при проведении (idempotent: delete-by-registrator + insert ниже),
     // registrator_ref = id документа.
-    let p916_rows = crate::projections::p916_mp_sales_funnel_turnovers::builder::from_wb_advert_daily(
-        &document,
-        &registrator_ref,
-    );
+    let p916_rows =
+        crate::projections::p916_mp_sales_funnel_turnovers::builder::from_wb_advert_daily(
+            &document,
+            &registrator_ref,
+        );
 
     let db = get_connection();
     let _write_guard = acquire_sqlite_write_lock().await;
@@ -635,8 +636,7 @@ pub async fn post_document_with_context(
     )
     .await?;
     crate::projections::p916_mp_sales_funnel_turnovers::repository::insert_many_with_conn(
-        &txn,
-        &p916_rows,
+        &txn, &p916_rows,
     )
     .await?;
 

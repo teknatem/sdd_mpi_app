@@ -628,6 +628,11 @@ fn get_menu_groups() -> Vec<MenuGroup> {
                     "download-cloud",
                 ),
                 SidebarItem::new(
+                    "sys_datasets",
+                    tab_label_for_key("sys_datasets"),
+                    "package",
+                ),
+                SidebarItem::new(
                     "sys_raw_storage",
                     tab_label_for_key("sys_raw_storage"),
                     "database",

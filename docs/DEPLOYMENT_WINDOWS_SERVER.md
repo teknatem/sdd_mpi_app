@@ -32,31 +32,33 @@ target\release\backend.exe  →  C:\Users\udv\Desktop\MPI\backend.exe
 
 ### 1.2. Создайте config.toml
 
-Создайте файл `C:\Users\udv\Desktop\MPI\config.toml` со следующим содержимым:
+Создайте файл `C:\Users\udv\Desktop\MPI\config.toml`. Расположение данных задаётся
+**одной** настройкой — корнем `[data].root`; база и все каталоги выводятся из него
+(`db/app.db`, `knowledge/`, `skills/`, `chats/`, `golden_set/`, `quality_checks/`,
+`attachments/`, `backups/`, `tmp/` — создаются при старте).
 
-**Вариант A: С одинарными кавычками (самый простой)**
-
-```toml
-# Marketplace Integrator Configuration
-[database]
-path = 'C:\Users\udv\Desktop\MPI\data\app.db'
-```
-
-**Вариант B: С прямыми слешами**
+**Вариант A: С прямыми слешами (рекомендуется)**
 
 ```toml
 # Marketplace Integrator Configuration
-[database]
-path = "C:/Users/udv/Desktop/MPI/data/app.db"
+[data]
+root = "C:/Users/udv/Desktop/MPI/data"
 ```
 
-**Вариант C: Относительный путь**
+**Вариант B: С одинарными кавычками (обратные слеши без экранирования)**
 
 ```toml
 # Marketplace Integrator Configuration
-[database]
-path = "data/app.db"
+[data]
+root = 'C:\Users\udv\Desktop\MPI\data'
 ```
+
+> Путь ОБЯЗАН быть абсолютным: относительный отвергается при старте, иначе данные
+> «переезжают» вслед за рабочим каталогом процесса.
+> Отдельный `[database].path` нужен, только если база обязана лежать вне корня
+> (например, на другом диске) — он тоже обязан быть абсолютным.
+
+Полный пример со всеми секциями — `config.toml.example` в репозитории.
 
 ### 1.3. (Опционально) Скопируйте файл миграций
 

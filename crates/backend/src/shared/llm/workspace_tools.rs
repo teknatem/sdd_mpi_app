@@ -17,6 +17,7 @@ pub const WORKSPACE_TOOL_NAMES: &[&str] = &[
     "list_chat_files",
     "read_chat_file",
     "write_chat_file",
+    "update_plan_step",
     "save_step",
     "start_activity",
     "switch_activity",
@@ -89,6 +90,32 @@ pub fn workspace_tool_definitions() -> Vec<ToolDefinition> {
                     }
                 },
                 "required": ["name", "content"]
+            }),
+        },
+        ToolDefinition {
+            name: "update_plan_step".into(),
+            description: "Отметить пункт плана выполненным (или снять отметку). Правит одну \
+                          строку plan.md, остальной файл не трогает — используй вместо \
+                          перезаписи всего плана через write_chat_file. \
+                          Идентификаторы пунктов ('s1', 's2', …) видны в блоке активной задачи \
+                          и возвращаются этим инструментом. \
+                          Если пункт дал сохранённый результат — упомяни имя файла шага прямо \
+                          в тексте пункта: система сверяет закрытые пункты с журналом steps/, \
+                          и ссылка на несуществующий шаг попадёт в отчёт о качестве."
+                .into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "step_id": {
+                        "type": "string",
+                        "description": "Идентификатор пункта плана, например 's2'."
+                    },
+                    "done": {
+                        "type": "boolean",
+                        "description": "true — отметить выполненным, false — снять отметку. По умолчанию true."
+                    }
+                },
+                "required": ["step_id"]
             }),
         },
         ToolDefinition {
@@ -203,11 +230,11 @@ async fn read_attachment(chat_id: &str, name: &str) -> Option<Result<String, Str
             .await
             .ok()?;
     let attachment = attachments.into_iter().find(|a| a.filename == name)?;
-    let bytes = match crate::domain::a018_llm_chat::service::load_attachment_bytes(&attachment).await
-    {
-        Ok(bytes) => bytes,
-        Err(e) => return Some(Err(format!("Не удалось прочитать вложение: {e}"))),
-    };
+    let bytes =
+        match crate::domain::a018_llm_chat::service::load_attachment_bytes(&attachment).await {
+            Ok(bytes) => bytes,
+            Err(e) => return Some(Err(format!("Не удалось прочитать вложение: {e}"))),
+        };
     Some(
         String::from_utf8(bytes.to_vec())
             .map_err(|_| format!("Вложение '{name}' не является текстом в UTF-8")),
@@ -248,10 +275,7 @@ async fn seed_intake(activity: &Activity, intake_template: Option<&str>) {
         .seed_if_absent(super::chat_workspace::INTAKE_FILE, template)
         .await
     {
-        Ok(true) => tracing::info!(
-            "[workspace] шаблон анкеты положен в '{}'",
-            activity.name()
-        ),
+        Ok(true) => tracing::info!("[workspace] шаблон анкеты положен в '{}'", activity.name()),
         Ok(false) => {}
         Err(e) => tracing::warn!("[workspace] не удалось положить шаблон анкеты: {e}"),
     }
@@ -297,7 +321,11 @@ pub async fn execute_workspace_tool(
         }
 
         "switch_activity" => {
-            let target = args.get("name").and_then(Value::as_str).unwrap_or("").trim();
+            let target = args
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
             let activities = match ws.list_activities().await {
                 Ok(list) => list,
                 Err(e) => return err(format!("Не удалось прочитать каталог: {e}")),
@@ -316,6 +344,29 @@ pub async fn execute_workspace_tool(
                     "_ok": true,
                 }),
                 Err(e) => err(format!("Не удалось переключить задачу: {e}")),
+            }
+        }
+
+        "update_plan_step" => {
+            let step_id = args
+                .get("step_id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
+            if step_id.is_empty() {
+                return err("Укажи step_id — идентификатор пункта плана, например 's2'.");
+            }
+            let done = args.get("done").and_then(Value::as_bool).unwrap_or(true);
+            match super::chat_workspace::update_plan_step(chat_id, step_id, done).await {
+                Ok(steps) => json!({
+                    "step_id": step_id,
+                    "done": done,
+                    "plan_steps": steps,
+                    "hint": "Статус пункта обновлён. Закрытый пункт с сохранённым результатом \
+                             должен упоминать имя файла шага — оно сверяется с журналом steps/.",
+                    "_ok": true,
+                }),
+                Err(e) => err(format!("Не удалось обновить пункт плана: {e}")),
             }
         }
 
@@ -340,7 +391,11 @@ pub async fn execute_workspace_tool(
         }
 
         "read_chat_file" => {
-            let target_name = args.get("name").and_then(Value::as_str).unwrap_or("").trim();
+            let target_name = args
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
             if target_name.is_empty() {
                 return err("Укажи name — имя файла из list_chat_files.");
             }
@@ -407,7 +462,11 @@ pub async fn execute_workspace_tool(
         }
 
         "write_chat_file" => {
-            let file = args.get("name").and_then(Value::as_str).unwrap_or("").trim();
+            let file = args
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
             let content = args.get("content").and_then(Value::as_str).unwrap_or("");
             if file.is_empty() {
                 return err(format!(

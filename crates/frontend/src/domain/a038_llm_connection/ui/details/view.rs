@@ -49,6 +49,17 @@ pub fn LlmConnectionDetails(
                     vm.temperature.set(connection.temperature.to_string());
                     vm.max_tokens.set(connection.max_tokens.to_string());
                     vm.context_window.set(connection.context_window.to_string());
+                    // Незаданная ставка остаётся пустой строкой, а не «0»: пустое поле
+                    // означает «стоимость не считаем», ноль — бесплатную модель.
+                    let price_text =
+                        |value: Option<f64>| value.map(|v| v.to_string()).unwrap_or_default();
+                    vm.price_in_per_mtok
+                        .set(price_text(connection.price_in_per_mtok));
+                    vm.price_out_per_mtok
+                        .set(price_text(connection.price_out_per_mtok));
+                    vm.price_cached_per_mtok
+                        .set(price_text(connection.price_cached_per_mtok));
+                    vm.currency.set(connection.currency.unwrap_or_default());
                     vm.is_primary.set(connection.is_primary);
 
                     if let Some(models_json) = connection.available_models {
@@ -394,6 +405,27 @@ pub fn LlmConnectionDetails(
                         <Input value=vm.context_window placeholder="160000" />
                         <div style="font-size: 12px; color: var(--colorNeutralForeground3);">
                             "Окно контекста модели — из него считается бюджет истории чата. Для Ollama должно совпадать с OLLAMA_CONTEXT_LENGTH."
+                        </div>
+                    </div>
+
+                    <div class="form__group">
+                        <label class="form__label">"Прайс за 1M токенов"</label>
+                        <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                            <div style="flex: 1 1 120px;">
+                                <Input value=vm.price_in_per_mtok placeholder="вход, 3.0" />
+                            </div>
+                            <div style="flex: 1 1 120px;">
+                                <Input value=vm.price_out_per_mtok placeholder="выход, 15.0" />
+                            </div>
+                            <div style="flex: 1 1 120px;">
+                                <Input value=vm.price_cached_per_mtok placeholder="кэш-вход, 0.3" />
+                            </div>
+                            <div style="flex: 0 1 90px;">
+                                <Input value=vm.currency placeholder="RUB" />
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: var(--colorNeutralForeground3);">
+                            "Пустые ставки — стоимость прогонов не считается (это не то же самое, что 0). Пустой кэш-вход означает, что скидки за кэш нет."
                         </div>
                     </div>
 

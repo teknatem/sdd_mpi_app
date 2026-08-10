@@ -332,7 +332,10 @@ impl KnowledgeBase {
                 }
             }
         } else {
-            diagnostics.push(format!("каталог базы знаний не существует: {}", dir.display()));
+            diagnostics.push(format!(
+                "каталог базы знаний не существует: {}",
+                dir.display()
+            ));
             tracing::warn!(
                 "KnowledgeBase: directory '{}' does not exist; only embedded docs available",
                 dir.display()
@@ -989,7 +992,11 @@ author: llm
         business.is_embedded = false;
         insert_doc(&mut docs, business, Origin::File, &mut diagnostics);
 
-        let mut embedded = parse_doc("general-ledger".into(), "# Техдок\n", &Vocabulary::default());
+        let mut embedded = parse_doc(
+            "general-ledger".into(),
+            "# Техдок\n",
+            &Vocabulary::default(),
+        );
         embedded.is_embedded = true;
         insert_doc(&mut docs, embedded, Origin::Embedded, &mut diagnostics);
 
@@ -1027,7 +1034,10 @@ author: llm
         let ru = estimate_tokens(&"комиссия".repeat(50));
         let en = estimate_tokens(&"commission".repeat(50));
         // 400 кириллических символов дороже 500 латинских.
-        assert!(ru > en, "кириллица должна стоить дороже за символ: {ru} vs {en}");
+        assert!(
+            ru > en,
+            "кириллица должна стоить дороже за символ: {ru} vs {en}"
+        );
     }
 
     #[test]
@@ -1102,11 +1112,17 @@ author: llm
         assert_eq!(overview.status, KbStatus::Active);
         assert_eq!(overview.stars, Some(5));
         assert!(overview.token_cost > 0);
-        assert!(!kb.back_links("funnel-overview").is_empty(), "граф не собрался");
+        assert!(
+            !kb.back_links("funnel-overview").is_empty(),
+            "граф не собрался"
+        );
 
         let ozon = kb.get("funnel-ozon-open").expect("нет funnel-ozon-open");
         assert_eq!(ozon.status, KbStatus::Draft);
-        assert!(ozon.verified.is_none(), "черновик не может быть верифицирован");
+        assert!(
+            ozon.verified.is_none(),
+            "черновик не может быть верифицирован"
+        );
     }
 
     /// Главный сценарий приёмки: свободный текст находит нужную статью первой.
@@ -1124,7 +1140,8 @@ author: llm
         });
         assert!(total > 0, "поиск по свободному тексту ничего не нашёл");
         assert_eq!(
-            hits[0].0.id, "funnel-buyout-lag",
+            hits[0].0.id,
+            "funnel-buyout-lag",
             "ожидали статью про лаг выкупа первой, получили: {:?}",
             hits.iter().map(|(d, _)| &d.id).collect::<Vec<_>>()
         );

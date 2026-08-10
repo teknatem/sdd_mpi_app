@@ -153,6 +153,15 @@ pub struct LlmResponse {
     #[serde(default)]
     pub tool_calls: Vec<ToolCall>,
     pub tokens_used: Option<i32>,
+    /// Разбивка `tokens_used`. Отдельными полями, а не только суммой: вход и выход
+    /// стоят разных денег, и без разбивки стоимость прогона посчитать нечем.
+    #[serde(default)]
+    pub prompt_tokens: Option<i32>,
+    #[serde(default)]
+    pub completion_tokens: Option<i32>,
+    /// Часть `prompt_tokens`, обслуженная кэшем провайдера (тарифицируется дешевле).
+    #[serde(default)]
+    pub cached_prompt_tokens: Option<i32>,
     pub model: String,
     pub finish_reason: Option<String>,
     pub confidence: Option<f64>,

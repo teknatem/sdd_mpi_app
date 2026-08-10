@@ -85,6 +85,26 @@ pub struct LlmConnection {
     /// JSON array: curated subset of allowed_models that accepts image input.
     #[serde(default)]
     pub image_input_models: Option<String>,
+
+    /// Ставка за миллион входных токенов, в валюте `currency`. Пусто = прайс не
+    /// задан, стоимость прогонов по этому подключению не считается (а не равна нулю).
+    #[serde(default)]
+    pub price_in_per_mtok: Option<f64>,
+
+    /// Ставка за миллион выходных токенов.
+    #[serde(default)]
+    pub price_out_per_mtok: Option<f64>,
+
+    /// Ставка за миллион кэшированных входных токенов. Пусто = скидки нет,
+    /// считаем по входной ставке: незаполненное поле не должно выглядеть
+    /// как бесплатный кэш и занижать стоимость.
+    #[serde(default)]
+    pub price_cached_per_mtok: Option<f64>,
+
+    /// Валюта прайса (RUB, USD, …). Хранится строкой: конвертацией курсов
+    /// подсистема стоимости не занимается, разные валюты просто не смешиваются.
+    #[serde(default)]
+    pub currency: Option<String>,
 }
 
 /// Дефолт окна контекста. 160 000 подобрано так, чтобы формула бюджета компакции
@@ -125,6 +145,12 @@ impl LlmConnection {
             available_models,
             allowed_models,
             image_input_models,
+            // Прайс задаётся отдельно (см. `LlmConnectionDto`): у конструктора уже
+            // тринадцать позиционных аргументов, четырнадцатым ставку не добавляют.
+            price_in_per_mtok: None,
+            price_out_per_mtok: None,
+            price_cached_per_mtok: None,
+            currency: None,
         }
     }
 
@@ -159,6 +185,12 @@ impl LlmConnection {
             available_models,
             allowed_models,
             image_input_models,
+            // Прайс задаётся отдельно (см. `LlmConnectionDto`): у конструктора уже
+            // тринадцать позиционных аргументов, четырнадцатым ставку не добавляют.
+            price_in_per_mtok: None,
+            price_out_per_mtok: None,
+            price_cached_per_mtok: None,
+            currency: None,
         }
     }
 

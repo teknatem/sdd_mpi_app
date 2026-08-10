@@ -86,6 +86,18 @@ async fn main() -> anyhow::Result<()> {
         Err(e) => println!("⚠ Could not reset stale task runs: {}\n", e),
     }
 
+    // 3.2 Приведение файловой раскладки в порядок: подкаталоги [data].root и
+    // перенос вложений чатов из каталога, зависевшего от рабочей директории.
+    // Обе процедуры идемпотентны и не критичны — расхождения видны на странице
+    // «Наборы данных и перенос».
+    match shared::config::load_config() {
+        Ok(config) => {
+            system::datasets::bootstrap::ensure_data_root(&config);
+            system::datasets::bootstrap::migrate_legacy_attachments(&config);
+        }
+        Err(e) => println!("⚠ Could not prepare data directories: {}\n", e),
+    }
+
     // 4. Ensure admin user exists
     println!("Step 4: Checking admin user...");
     match system::initialization::ensure_admin_user_exists().await {

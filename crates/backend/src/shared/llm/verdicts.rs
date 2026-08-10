@@ -26,6 +26,10 @@ pub const FAILURE_KINDS: &[&str] = &[
     "missing_context",
     "no_answer",
     "refused",
+    // План закрыт, а работы за пунктом нет: пункт ссылается на шаг, которого в
+    // журнале не существует. Отдельный класс, потому что лечится не промптом
+    // про SQL и не контекстом, а дисциплиной ведения плана.
+    "plan_drift",
     "other",
 ];
 
@@ -371,9 +375,42 @@ pub async fn quality_overview(days: i64) -> Result<Value, String> {
     )
     .await?;
 
+    // Стоимость прогонов. Разрез по валюте: курсами подсистема не занимается,
+    // а сумма рублей с долларами была бы уверенно показанной неправдой.
+    //
+    // Вердикт стыкуется по `message_id`, а где судья оценил диалог целиком —
+    // по чату: иначе «стоимость решённой задачи» считалась бы по двум разным
+    // знаменателям в одной колонке.
+    //
+    // EXISTS, а не JOIN: на один ответ приходится несколько вердиктов (аудит +
+    // голден-сет, повторные прогоны судьи), и соединение размножило бы строку
+    // сообщения — суммарная стоимость выросла бы кратно числу оценок.
+    const SOLVED_EXISTS: &str = "EXISTS (SELECT 1 FROM sys_llm_verdict v \
+                                         WHERE v.verdict = 'solved' \
+                                           AND (v.message_id = m.id \
+                                                OR (COALESCE(v.message_id, '') = '' \
+                                                    AND v.chat_id = m.chat_id)))";
+    let (costs, _) = fetch_json_rows(
+        &format!(
+            "SELECT COALESCE(NULLIF(m.currency, ''), '(валюта не указана)') AS currency, \
+                    SUM(m.cost_micro) AS total_micro, \
+                    COUNT(*) AS answers, \
+                    SUM(CASE WHEN {SOLVED_EXISTS} THEN m.cost_micro ELSE 0 END) AS solved_micro, \
+                    SUM(CASE WHEN {SOLVED_EXISTS} THEN 1 ELSE 0 END) AS solved_answers \
+             FROM a018_llm_chat_message m \
+             WHERE m.cost_micro IS NOT NULL \
+               AND m.created_at >= datetime('now', '-{days} days') \
+             GROUP BY currency \
+             ORDER BY total_micro DESC"
+        ),
+        Vec::new(),
+    )
+    .await?;
+
     Ok(serde_json::json!({
         "days": days,
         "tools": tools,
+        "costs": costs,
         // Пустой объект, а не null: у потребителя поля имеют дефолты, а null
         // сломал бы типизацию на границе API.
         "iterations": iterations
@@ -465,7 +502,11 @@ mod tests {
             .fetch_all(&pool)
             .await
             .unwrap();
-        assert_eq!(golden.len(), 1, "источник golden не должен конфликтовать с audit");
+        assert_eq!(
+            golden.len(),
+            1,
+            "источник golden не должен конфликтовать с audit"
+        );
     }
 
     /// Опечатка в вердикте не должна тихо превратиться в валидную строку:

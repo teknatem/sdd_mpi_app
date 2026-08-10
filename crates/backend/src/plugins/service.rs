@@ -55,12 +55,12 @@ pub async fn validate(bundle: &PluginBundle) -> PluginValidateReport {
     sql_names.sort();
     for name in sql_names {
         let sql = &bundle.sql_resources[name];
-        if let Err(message) =
-            crate::shared::data_access::sql_guard::inspect_read_query(sql.trim())
+        if let Err(message) = crate::shared::data_access::sql_guard::inspect_read_query(sql.trim())
         {
-            report
-                .errors
-                .push(PluginError::new("sql", format!("SQL-ресурс '{name}': {message}")));
+            report.errors.push(PluginError::new(
+                "sql",
+                format!("SQL-ресурс '{name}': {message}"),
+            ));
             report.ok = false;
         }
     }

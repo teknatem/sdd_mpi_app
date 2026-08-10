@@ -3131,20 +3131,17 @@ impl ImportExecutor {
         );
         // Контекст строится СТРОГО после replace_for_period: снимок p913 должен
         // содержать только «чужие» документы (свои за период уже удалены).
-        let mut posting_context = AdvertPostingContext::prefetched(
-            &connection.to_string_id(),
-            &begin_date,
-            &end_date,
-        )
-        .await
-        .with_context(|| {
-            format!(
+        let mut posting_context =
+            AdvertPostingContext::prefetched(&connection.to_string_id(), &begin_date, &end_date)
+                .await
+                .with_context(|| {
+                    format!(
                 "Failed to prefetch WB advert posting context for connection={} period={}..{}",
                 connection.to_string_id(),
                 begin_date,
                 end_date
             )
-        })?;
+                })?;
         for document_id in &document_ids {
             post_wb_advert_document_with_retry(*document_id, &mut posting_context)
                 .await

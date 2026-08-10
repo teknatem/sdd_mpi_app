@@ -159,9 +159,7 @@ pub fn parse_realization_files(
             connection_id: connection_id.clone(),
             organization_id: organization_id.to_string(),
             marketplace_id: marketplace_id.clone(),
-            campaign_id: campaign_id
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string()),
+            campaign_id: campaign_id.filter(|s| !s.is_empty()).map(|s| s.to_string()),
             placement_type: placement_type
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string()),

@@ -116,12 +116,8 @@ pub async fn post_document(id: Uuid) -> Result<()> {
 
     let db = get_connection();
     let txn = db.begin().await?;
-    funnel_repo::delete_by_registrator_with_conn(
-        &txn,
-        funnel_builder::REG_A036,
-        &registrator_ref,
-    )
-    .await?;
+    funnel_repo::delete_by_registrator_with_conn(&txn, funnel_builder::REG_A036, &registrator_ref)
+        .await?;
     funnel_repo::insert_many_with_conn(&txn, &rows).await?;
     txn.commit().await?;
     Ok(())

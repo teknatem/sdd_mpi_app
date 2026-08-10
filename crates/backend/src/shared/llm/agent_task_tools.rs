@@ -94,11 +94,12 @@ pub fn agent_task_tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "create_agent_task".into(),
-            description: "Поставить поручение специалисту другой специализации. Ответа в этом ходе \
+            description:
+                "Поставить поручение специалисту другой специализации. Ответа в этом ходе \
                           НЕ БУДЕТ: поручение исполнится отдельным прогоном регламента. Используй, \
                           когда вопрос требует компетенции, которой у тебя нет, а не для того, что \
                           можешь сделать сам."
-                .into(),
+                    .into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -128,10 +129,11 @@ pub fn agent_task_tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "list_my_agent_tasks".into(),
-            description: "Поручения, поставленные из ЭТОГО диалога, с их статусами. Если в диалоге \
+            description:
+                "Поручения, поставленные из ЭТОГО диалога, с их статусами. Если в диалоге \
                           есть поручения — вызывай в начале хода, чтобы забрать готовые результаты \
                           и вплести их в ответ."
-                .into(),
+                    .into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -174,7 +176,9 @@ pub async fn execute_agent_task_tool(
     let args = serde_json::from_str::<Value>(arguments).unwrap_or_default();
     match name {
         "list_agent_specializations" => list_specializations(),
-        "create_agent_task" => create_agent_task(&args, chat_id, agent_id, agent_type, caller).await,
+        "create_agent_task" => {
+            create_agent_task(&args, chat_id, agent_id, agent_type, caller).await
+        }
         "list_my_agent_tasks" => list_my_agent_tasks(&args, chat_id).await,
         "get_agent_task_result" => get_agent_task_result(&args).await,
         _ => json!({ "error": format!("Unknown agent task tool: {name}") }),
@@ -277,7 +281,9 @@ async fn create_agent_task(
     let chat_ref = (!chat_id.trim().is_empty()).then(|| chat_id.to_string());
     let chain = match agent_task_service::resolve_chain(chat_ref.as_deref()).await {
         Ok(chain) => chain,
-        Err(e) => return json!({ "error": format!("Не удалось определить цепочку поручений: {e}") }),
+        Err(e) => {
+            return json!({ "error": format!("Не удалось определить цепочку поручений: {e}") })
+        }
     };
     if chain.depth > MAX_DELEGATION_DEPTH {
         return json!({
@@ -301,7 +307,9 @@ async fn create_agent_task(
                 });
             }
             Ok(_) => {}
-            Err(e) => return json!({ "error": format!("Не удалось проверить очередь диалога: {e}") }),
+            Err(e) => {
+                return json!({ "error": format!("Не удалось проверить очередь диалога: {e}") })
+            }
         }
 
         // Повторный вызов инструмента в одном цикле — не ошибка модели, а её

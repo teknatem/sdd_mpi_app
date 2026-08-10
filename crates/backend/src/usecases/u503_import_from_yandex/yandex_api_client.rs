@@ -2115,7 +2115,11 @@ fn numeric_part(value: Option<&serde_json::Value>) -> Option<i64> {
 pub fn parse_shows_sales_report(body: &str) -> Result<Vec<YmShowsSalesRow>> {
     let parsed: serde_json::Value = serde_json::from_str(body).map_err(|e| {
         let snippet: String = body.chars().take(400).collect();
-        anyhow::anyhow!("Failed to parse YM shows-sales report: {} | body: {}", e, snippet)
+        anyhow::anyhow!(
+            "Failed to parse YM shows-sales report: {} | body: {}",
+            e,
+            snippet
+        )
     })?;
 
     let rows_value = parsed

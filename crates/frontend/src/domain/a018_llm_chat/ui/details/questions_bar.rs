@@ -37,13 +37,12 @@ fn QuestionItem(
         let id = chat_id.get_value();
         let question_id = qid.get_value();
         spawn_local(async move {
-            if answer_intake_question(&id, &question_id, &value).await.is_ok() {
+            if answer_intake_question(&id, &question_id, &value)
+                .await
+                .is_ok()
+            {
                 // Составной текст, а не голое «да»: иначе история чата нечитабельна.
-                on_answered.run(format!(
-                    "Ответ на вопрос «{}»: {}",
-                    text.get_value(),
-                    value
-                ));
+                on_answered.run(format!("Ответ на вопрос «{}»: {}", text.get_value(), value));
             }
             saving.set(false);
         });

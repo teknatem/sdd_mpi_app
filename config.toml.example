@@ -1,40 +1,85 @@
 # Marketplace Integrator Configuration
-# This file configures database path and other settings
+# This file configures where data lives and other settings
 #
 # IMPORTANT: Place this file next to backend.exe and rename it to config.toml
 
-[database]
-# Database file path
-# 
+[data]
+# ЕДИНСТВЕННАЯ настройка расположения данных — общий корень. Путь ОБЯЗАН быть
+# абсолютным: относительный «переезжал» бы вслед за рабочим каталогом процесса.
+#
+# Под корнем — фиксированная раскладка (каталоги создаются при старте):
+#   db/app.db          база SQLite
+#   knowledge/         база знаний (Obsidian-совместимые MD)
+#   skills/            внешний каталог навыков LLM
+#   chats/             рабочие каталоги чатов
+#   golden_set/        эталонные кейсы регрессии качества
+#   quality_checks/    внешние MJS-проверки
+#   attachments/       вложения чатов
+#   backups/           локальные архивы
+#   tmp/               промежуточные файлы
+# Одинаковая раскладка на всех экземплярах — то, на чём держится перенос
+# наборов данных (см. docs/DATASETS_TRANSFER.md).
+#
 # WINDOWS USERS: Use forward slashes (/) instead of backslashes (\)
 # Windows accepts both types of slashes, but TOML requires special
 # handling for backslashes in double-quoted strings.
 #
 # ✓ CORRECT (forward slashes):
-# path = "C:/Users/username/Desktop/MPI/data/app.db"
-#
-# ✓ ALSO CORRECT (relative path):
-# path = "data/app.db"
+# root = "C:/Users/username/Desktop/MPI/data"
 #
 # ✓ ALSO CORRECT (double backslashes):
-# path = "C:\\Users\\username\\Desktop\\MPI\\data\\app.db"
+# root = "C:\\Users\\username\\Desktop\\MPI\\data"
 #
 # ✓ ALSO CORRECT (single quotes for literal string):
-# path = 'C:\Users\username\Desktop\MPI\data\app.db'
+# root = 'C:\Users\username\Desktop\MPI\data'
 #
 # ❌ WRONG (will cause parse error):
-# path = "C:\Users\username\Desktop\MPI\data\app.db"
+# root = "C:\Users\username\Desktop\MPI\data"
+#
+# ❌ WRONG (relative path — rejected at startup):
+# root = "data"
+#
+# Linux/Mac: root = "/var/lib/marketplace"
+root = "F:/data/leptos_marketplace_1"
 
-# Example 1: Relative path (database next to exe)
-path = "data/app.db"
+# --- Отклонения от общего корня ---------------------------------------------
+# Всё, что закомментировано ниже, в основном режиме задавать НЕ НУЖНО: каждый
+# путь выводится из [data].root. Раскомментируйте, только если каталог обязан
+# жить в другом месте (например, база — на отдельном диске).
+#
+# Приоритет резолюции пути:
+#   1) абсолютный путь в своей секции → как есть, каталог уходит из-под корня;
+#   2) [data].root → <root>/<фиксированное имя>;
+#   3) без корня → относительно каталога бинарника (историческое поведение).
+#
+# Каталог с индивидуальным путём помечается в UI «Наборы данных» отдельным
+# бейджем и выпадает из единой раскладки — держите этот список пустым, пока нет
+# причины для обратного.
 
-# Example 2: Absolute path on Windows
-# path = "C:/Users/udv/Desktop/MPI/data/app.db"
+# [database]
+# Путь к файлу БД. Не задан → <[data].root>/db/app.db.
+# Если задан — обязан быть абсолютным. Каталог создаётся автоматически.
+# path = "D:/db/app.db"
 
-# Example 3: Absolute path on Linux/Mac
-# path = "/var/lib/marketplace/app.db"
+# [llm]
+# Директория с Obsidian-совместимыми MD-файлами базы знаний.
+# knowledge_base_path = "D:/knowledge"
+# Внешний каталог навыков. Новый формат: <id>/SKILL.md + references/scripts/schemas;
+# корневые *.md поддерживаются для совместимости.
+# skills_path = "D:/skills"
+# Корень рабочих каталогов чатов: <chat_id>/<NNN-активность>/{intake.md,plan.md,notes.md,steps/}.
+# chat_files_path = "D:/chats"
+# Эталонные кейсы для регрессии качества («голден-сет»): <case-id>.md с frontmatter
+# (question / expect / agent_type). Прогоняются задачей task028_llm_golden_set.
+# golden_set_path = "D:/golden_set"
+# Корень файловых вложений чатов: <chat_id>/<uuid>.<ext>. В БД хранится ключ
+# относительно этого корня.
+# attachments_path = "D:/attachments"
 
-# The directory will be created automatically if it doesn't exist
+# [quality]
+# Внешние MJS-проверки: <check-id>/{check.json,check.mjs,schema.json?}.
+# Пакет с тем же id атомарно переопределяет встроенную проверку после reload.
+# checks_path = "D:/quality_checks"
 
 [scheduled_tasks]
 enabled = false
@@ -51,25 +96,28 @@ responsible_id = 0
 # Для двусторонних текстовых комментариев вебхуку также требуется scope "im".
 sync_comments = true
 
-[llm]
-# Директория с Obsidian-совместимыми MD-файлами базы знаний.
-# Относительный путь разрешается от директории бинарника.
-knowledge_base_path = "F:/data/leptos_marketplace_1/knowledge"
-# Внешний каталог навыков. Новый формат: <id>/SKILL.md + references/scripts/schemas;
-# корневые *.md поддерживаются для совместимости. Относительный путь — от бинарника.
-skills_path = "skills"
-# Корень рабочих каталогов чатов: <chat_id>/<NNN-активность>/{intake.md,plan.md,notes.md,steps/}.
-# Здесь живут анкеты, планы и журнал шагов. Относительный путь — от бинарника.
-chat_files_path = "chat_files"
-# Эталонные кейсы для регрессии качества («голден-сет»): <case-id>.md с frontmatter
-# (question / expect / agent_type). Прогоняются задачей task028_llm_golden_set после
-# правок промптов и навыков. Относительный путь — от бинарника.
-golden_set_path = "golden_set"
+[instance]
+# Кто этот экземпляр. Попадает в манифест каждого снапшота наборов данных,
+# чтобы на принимающей стороне было видно, откуда приехали данные.
+# id — стабильный slug, попадает в S3-ключи; пусто → имя машины.
+id = ""
+# Человекочитаемое имя для интерфейса; пусто → id.
+label = ""
+# production | staging | dev. Показывается бейджем рядом с каждым снапшотом,
+# чтобы «Тестовый» нельзя было спутать с «Рабочим» при восстановлении.
+env = ""
 
-[quality]
-# Внешние MJS-проверки: <check-id>/{check.json,check.mjs,schema.json?}.
-# Пакет с тем же id атомарно переопределяет встроенную проверку после reload.
-checks_path = "quality_checks"
+[datasets]
+# Сколько последних снапшотов ЭТОГО экземпляра хранить в бакете. Снапшоты
+# других экземпляров ротация не трогает никогда — иначе тестовый инстанс
+# снёс бы бэкапы рабочего.
+keep_per_instance = 10
+# Потолок размера архива. Дополнительно ограничен [s3].max_upload_mb: объект
+# грузится в память целиком, многочастной загрузки в клиенте пока нет.
+max_bundle_mb = 256
+# Разрешить включать вложения чатов в снапшоты. Выключено по умолчанию:
+# единственный набор, растущий от действий пользователей.
+attachments_enabled = false
 
 [external_api]
 # Статический API-ключ для внешних интеграций (например, 1С).
@@ -79,7 +127,7 @@ api_key = ""
 
 [ui]
 # Смещение часового пояса для отображения времени в интерфейсе.
-# Константа дублируется в frontend/src/shared/tz.rs (TZ_OFFSET_HOURS).
+# Константа дублируется в frontend/src/shared/date_utils.rs (TZ_OFFSET_HOURS).
 timezone_offset_hours = 3
 
 [s3]

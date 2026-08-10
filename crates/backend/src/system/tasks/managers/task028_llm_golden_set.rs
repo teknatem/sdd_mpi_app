@@ -127,7 +127,10 @@ impl TaskManager for Task028LlmGoldenSetManager {
         let planned = cases.len().min(config.max_cases.clamp(1, 50));
         logger.write_log(
             session_id,
-            &format!("Голден-сет: кейсов найдено {}, прогоняем {planned}", cases.len()),
+            &format!(
+                "Голден-сет: кейсов найдено {}, прогоняем {planned}",
+                cases.len()
+            ),
         )?;
 
         let mut runs: Vec<CaseRun> = Vec::new();

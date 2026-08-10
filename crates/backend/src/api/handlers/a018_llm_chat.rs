@@ -561,16 +561,18 @@ pub async fn get_workspace(
     a018_llm_chat::service::ensure_chat_access(&id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    let (activities, files, questions) = crate::shared::llm::chat_workspace::view_for_chat(&id)
-        .await
-        .map_err(|e| {
-            tracing::error!("a018 get_workspace({id}) failed: {e}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let (activities, files, questions, plan_steps) =
+        crate::shared::llm::chat_workspace::view_for_chat(&id)
+            .await
+            .map_err(|e| {
+                tracing::error!("a018 get_workspace({id}) failed: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
     Ok(Json(ChatWorkspaceView {
         activities,
         files,
         questions,
+        plan_steps,
     }))
 }
 

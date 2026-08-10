@@ -24,8 +24,14 @@ pub async fn replace_for_period_campaign(
     date_to: &str,
     documents: &[YmRealization],
 ) -> Result<usize> {
-    repository::replace_for_period_campaign(connection_id, campaign_id, date_from, date_to, documents)
-        .await
+    repository::replace_for_period_campaign(
+        connection_id,
+        campaign_id,
+        date_from,
+        date_to,
+        documents,
+    )
+    .await
 }
 
 pub async fn upsert_document(document: &YmRealization) -> Result<()> {

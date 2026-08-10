@@ -7,16 +7,16 @@
 use super::admin_tools::execute_admin_tool;
 use super::chart_tools::{execute_chart_tool, CHART_TOOL_NAMES};
 use super::data_tools::{execute_data_tool, DATA_TOOL_NAMES};
+use super::funnel_repair_tools::{execute_funnel_repair_tool, FUNNEL_REPAIR_TOOL_NAMES};
 use super::kb_admin_tools::execute_kb_admin_tool;
 use super::mail_tools::{execute_mail_tool, MAIL_TOOL_NAMES};
 use super::metadata_registry::METADATA_REGISTRY;
 use super::plugin_tools::{execute_plugin_tool, PLUGIN_TOOL_NAMES};
 use super::quality_tools::{execute_quality_tool, QUALITY_TOOL_NAMES};
-use super::funnel_repair_tools::{execute_funnel_repair_tool, FUNNEL_REPAIR_TOOL_NAMES};
 use super::schedule_tools::{execute_schedule_tool, SCHEDULE_TOOL_NAMES};
 use super::table_tools::{execute_build_table, execute_table_tool, TABLE_TOOL_NAMES};
-use super::workspace_tools::{execute_workspace_tool, WORKSPACE_TOOL_NAMES};
 use super::types::{ToolCall, ToolDefinition};
+use super::workspace_tools::{execute_workspace_tool, WORKSPACE_TOOL_NAMES};
 use contracts::domain::a017_llm_agent::aggregate::AgentType;
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
@@ -603,7 +603,10 @@ pub async fn execute_tool_call(
         let is_ok = tool_result_ok(&result);
         let mut result = result;
         if let serde_json::Value::Object(ref mut map) = result {
-            map.insert("_tool".to_string(), serde_json::Value::String(call.name.clone()));
+            map.insert(
+                "_tool".to_string(),
+                serde_json::Value::String(call.name.clone()),
+            );
             map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
         }
         return serde_json::to_string_pretty(&result)
@@ -611,18 +614,16 @@ pub async fn execute_tool_call(
     }
 
     if FUNNEL_REPAIR_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_funnel_repair_tool(
-            &call.name,
-            &call.arguments,
-            chat_id,
-            agent_id,
-            caller,
-        )
-        .await;
+        let result =
+            execute_funnel_repair_tool(&call.name, &call.arguments, chat_id, agent_id, caller)
+                .await;
         let is_ok = tool_result_ok(&result);
         let mut result = result;
         if let serde_json::Value::Object(ref mut map) = result {
-            map.insert("_tool".to_string(), serde_json::Value::String(call.name.clone()));
+            map.insert(
+                "_tool".to_string(),
+                serde_json::Value::String(call.name.clone()),
+            );
             map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
         }
         return serde_json::to_string_pretty(&result)
@@ -700,10 +701,11 @@ pub async fn execute_tool_call(
             tracing::info!("[get_entity_schema] called with entity_index='{}'", index);
             // Метаданные описывают агрегат логически; сверяем с физической таблицей и
             // отдаём json_extract-выражения для полей, которых нет отдельными колонками.
-            let result = crate::shared::data_access::physical_schema::annotate_with_physical_schema(
-                METADATA_REGISTRY.get_entity_schema(&index),
-            )
-            .await;
+            let result =
+                crate::shared::data_access::physical_schema::annotate_with_physical_schema(
+                    METADATA_REGISTRY.get_entity_schema(&index),
+                )
+                .await;
             let fields_count = result
                 .get("fields")
                 .and_then(|f| f.as_array())

@@ -43,9 +43,7 @@ static SHAPE_CACHE: Lazy<Mutex<HashMap<String, Option<TableShape>>>> =
 fn is_safe_ident(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         && !name.starts_with(|c: char| c.is_ascii_digit())
 }
 
@@ -154,7 +152,11 @@ pub async fn locate_json_fields(
 /// только реальные колонки, а логические поля отдать готовыми `json_extract`-выражениями.
 /// При любой неудаче (нет таблицы, ошибка запроса) схема возвращается как есть.
 pub async fn annotate_with_physical_schema(mut schema: Value) -> Value {
-    let Some(table) = schema.get("table").and_then(Value::as_str).map(str::to_string) else {
+    let Some(table) = schema
+        .get("table")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
         return schema;
     };
     let Some(shape) = table_shape(&table).await else {
@@ -206,7 +208,11 @@ pub async fn annotate_with_physical_schema(mut schema: Value) -> Value {
     // Внутри `fields[]` тоже проставляем выражение: модель обычно читает именно этот блок.
     if let Some(fields) = schema.get_mut("fields").and_then(Value::as_array_mut) {
         for field in fields.iter_mut() {
-            let Some(name) = field.get("column").and_then(Value::as_str).map(str::to_string) else {
+            let Some(name) = field
+                .get("column")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
                 continue;
             };
             if shape.has_column(&name) {

@@ -36,8 +36,7 @@ pub fn load_cases() -> Result<Vec<GoldenCase>, String> {
         return Ok(Vec::new());
     }
 
-    let entries =
-        std::fs::read_dir(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
+    let entries = std::fs::read_dir(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
 
     let mut cases = Vec::new();
     for entry in entries.flatten() {
@@ -74,8 +73,8 @@ fn parse_case(id: &str, raw: &str) -> Result<GoldenCase, String> {
     let (frontmatter, body) = split_frontmatter(raw);
     let frontmatter = frontmatter.ok_or("нет frontmatter")?;
 
-    let question = parse_scalar(&frontmatter, "question")
-        .ok_or("обязательное поле 'question' отсутствует")?;
+    let question =
+        parse_scalar(&frontmatter, "question").ok_or("обязательное поле 'question' отсутствует")?;
     let expect = parse_list(&frontmatter, "expect").unwrap_or_default();
     if expect.is_empty() {
         // Кейс без признаков правильного ответа не проверяем: судье не с чем

@@ -37,6 +37,13 @@ pub struct LlmConnectionDetailsVm {
     /// Окно контекста модели в токенах: из него считается бюджет истории чата.
     pub context_window: RwSignal<String>,
 
+    /// Прайс за миллион токенов. Пустая строка = ставка не задана: стоимость
+    /// прогонов по этому подключению не считается (а не считается нулевой).
+    pub price_in_per_mtok: RwSignal<String>,
+    pub price_out_per_mtok: RwSignal<String>,
+    pub price_cached_per_mtok: RwSignal<String>,
+    pub currency: RwSignal<String>,
+
     /// Курируемый короткий список разрешённых моделей (id). Именно из него
     /// можно выбирать модель в чате. Подмножество available_models.
     pub allowed_models: RwSignal<Vec<String>>,
@@ -94,6 +101,10 @@ impl LlmConnectionDetailsVm {
             temperature: RwSignal::new("0.7".to_string()),
             max_tokens: RwSignal::new("4096".to_string()),
             context_window: RwSignal::new("160000".to_string()),
+            price_in_per_mtok: RwSignal::new(String::new()),
+            price_out_per_mtok: RwSignal::new(String::new()),
+            price_cached_per_mtok: RwSignal::new(String::new()),
+            currency: RwSignal::new(String::new()),
             allowed_models: RwSignal::new(Vec::new()),
             image_input_models: RwSignal::new(Vec::new()),
             model_filter: RwSignal::new(String::new()),
@@ -223,6 +234,29 @@ impl LlmConnectionDetailsVm {
         self.context_window.get().parse().unwrap_or(160_000)
     }
 
+    /// Ставка прайса как `Option<f64>`. Пустое или нечисловое поле — это `None`
+    /// («не задано»), а не 0.0: нулевая ставка означала бы бесплатную модель и
+    /// молча обнулила бы стоимость всех прогонов подключения.
+    fn parse_price(raw: String) -> Option<f64> {
+        let trimmed = raw.trim().replace(',', ".");
+        if trimmed.is_empty() {
+            return None;
+        }
+        trimmed.parse::<f64>().ok().filter(|v| *v >= 0.0)
+    }
+
+    pub fn get_price_in(&self) -> Option<f64> {
+        Self::parse_price(self.price_in_per_mtok.get())
+    }
+
+    pub fn get_price_out(&self) -> Option<f64> {
+        Self::parse_price(self.price_out_per_mtok.get())
+    }
+
+    pub fn get_price_cached(&self) -> Option<f64> {
+        Self::parse_price(self.price_cached_per_mtok.get())
+    }
+
     /// Переключить принадлежность модели к allowed_models.
     /// Если снимаем галочку с модели, которая сейчас основная — сбрасываем основную
     /// (пустой model_name), чтобы `validate_models` поймал это перед записью.
@@ -319,6 +353,10 @@ impl LlmConnectionDetailsVm {
             "is_primary": self.is_primary.get(),
             "allowed_models": allowed_json,
             "image_input_models": image_models_json,
+            "price_in_per_mtok": self.get_price_in(),
+            "price_out_per_mtok": self.get_price_out(),
+            "price_cached_per_mtok": self.get_price_cached(),
+            "currency": if self.currency.get().trim().is_empty() { None } else { Some(self.currency.get().trim().to_uppercase()) },
         })
     }
 }

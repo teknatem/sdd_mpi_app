@@ -179,9 +179,7 @@ fn TicketsList() -> impl IntoView {
 
     let format_ts = |value: &str| format_datetime(value);
     // Дедлайн хранится как дата "YYYY-MM-DD" — показываем как есть
-    let format_deadline = |value: &Option<String>| {
-        value.clone().unwrap_or_else(|| "-".to_string())
-    };
+    let format_deadline = |value: &Option<String>| value.clone().unwrap_or_else(|| "-".to_string());
 
     view! {
         <PageFrame page_id="sys_tickets--list" category=PAGE_CAT_SYSTEM class="sys-tickets">

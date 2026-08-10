@@ -452,7 +452,9 @@ mod tests {
     use super::{list_depth, parse_blocks, strip_ordered, Block, ListItem};
 
     fn list_of(text: &str) -> Vec<ListItem> {
-        let Some(Block::List(items)) = parse_blocks(text).into_iter().find(|b| matches!(b, Block::List(_)))
+        let Some(Block::List(items)) = parse_blocks(text)
+            .into_iter()
+            .find(|b| matches!(b, Block::List(_)))
         else {
             panic!("ожидался список");
         };
@@ -491,7 +493,10 @@ mod tests {
     fn nested_items_keep_their_level() {
         let items = list_of("- верх\n  - вложенный\n- снова верх\n");
         assert_eq!(
-            items.iter().map(|i| (i.depth, i.text.as_str())).collect::<Vec<_>>(),
+            items
+                .iter()
+                .map(|i| (i.depth, i.text.as_str()))
+                .collect::<Vec<_>>(),
             vec![(0, "верх"), (1, "вложенный"), (0, "снова верх")]
         );
         assert!(items.iter().all(|i| !i.ordered));

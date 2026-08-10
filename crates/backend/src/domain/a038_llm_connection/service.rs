@@ -23,6 +23,15 @@ pub struct LlmConnectionDto {
     pub allowed_models: Option<String>,
     #[serde(default)]
     pub image_input_models: Option<String>,
+    /// Прайс за миллион токенов. Пусто = стоимость прогонов не считается.
+    #[serde(default)]
+    pub price_in_per_mtok: Option<f64>,
+    #[serde(default)]
+    pub price_out_per_mtok: Option<f64>,
+    #[serde(default)]
+    pub price_cached_per_mtok: Option<f64>,
+    #[serde(default)]
+    pub currency: Option<String>,
 }
 
 /// Создание нового подключения LLM
@@ -50,6 +59,10 @@ pub async fn create(dto: LlmConnectionDto) -> anyhow::Result<Uuid> {
         dto.allowed_models,
         dto.image_input_models,
     );
+    aggregate.price_in_per_mtok = dto.price_in_per_mtok;
+    aggregate.price_out_per_mtok = dto.price_out_per_mtok;
+    aggregate.price_cached_per_mtok = dto.price_cached_per_mtok;
+    aggregate.currency = dto.currency.filter(|s| !s.trim().is_empty());
 
     aggregate
         .validate()
@@ -96,6 +109,10 @@ pub async fn update(dto: LlmConnectionDto) -> anyhow::Result<()> {
     aggregate.is_primary = dto.is_primary;
     aggregate.allowed_models = dto.allowed_models;
     aggregate.image_input_models = dto.image_input_models;
+    aggregate.price_in_per_mtok = dto.price_in_per_mtok;
+    aggregate.price_out_per_mtok = dto.price_out_per_mtok;
+    aggregate.price_cached_per_mtok = dto.price_cached_per_mtok;
+    aggregate.currency = dto.currency.filter(|s| !s.trim().is_empty());
     // available_models не обновляется через update, только через fetch_models endpoint
 
     aggregate

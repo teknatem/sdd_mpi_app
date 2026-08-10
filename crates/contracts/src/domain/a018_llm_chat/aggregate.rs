@@ -310,6 +310,22 @@ pub struct LlmChatMessage {
     pub role: ChatRole,
     pub content: String,
     pub tokens_used: Option<i32>,
+    /// Разбивка `tokens_used` по ставкам тарификации. Пусто, если провайдер не
+    /// прислал `usage` — тогда стоимость честно не считается.
+    #[serde(default)]
+    pub prompt_tokens: Option<i32>,
+    #[serde(default)]
+    pub completion_tokens: Option<i32>,
+    /// Часть `prompt_tokens` из кэша провайдера (подмножество, не добавка).
+    #[serde(default)]
+    pub cached_prompt_tokens: Option<i32>,
+    /// Стоимость ответа в микроединицах валюты (1e-6), посчитанная по прайсу
+    /// подключения НА МОМЕНТ ПРОГОНА: смена прайса не переписывает историю.
+    #[serde(default)]
+    pub cost_micro: Option<i64>,
+    /// Валюта прайса на момент прогона — снимок вместе со стоимостью.
+    #[serde(default)]
+    pub currency: Option<String>,
     pub model_name: Option<String>,
     pub confidence: Option<f64>,
     pub duration_ms: Option<i64>,
@@ -346,6 +362,11 @@ impl LlmChatMessage {
             role,
             content,
             tokens_used: None,
+            prompt_tokens: None,
+            completion_tokens: None,
+            cached_prompt_tokens: None,
+            cost_micro: None,
+            currency: None,
             model_name: None,
             confidence: None,
             duration_ms: None,
@@ -375,6 +396,11 @@ impl LlmChatMessage {
             role,
             content,
             tokens_used,
+            prompt_tokens: None,
+            completion_tokens: None,
+            cached_prompt_tokens: None,
+            cost_micro: None,
+            currency: None,
             model_name,
             confidence,
             duration_ms,
@@ -401,6 +427,11 @@ impl LlmChatMessage {
             role,
             content,
             tokens_used,
+            prompt_tokens: None,
+            completion_tokens: None,
+            cached_prompt_tokens: None,
+            cost_micro: None,
+            currency: None,
             model_name: None,
             confidence: None,
             duration_ms: None,
@@ -412,6 +443,26 @@ impl LlmChatMessage {
             intent: None,
             attachments: Vec::new(),
         }
+    }
+
+    /// Проставить разбивку токенов и посчитанную стоимость.
+    ///
+    /// Отдельным шагом, а не параметрами `new_with_metadata`: у того уже семь
+    /// аргументов, и восьмой—двенадцатый позиционные `Option` читались бы как шум.
+    pub fn with_usage(
+        mut self,
+        prompt_tokens: Option<i32>,
+        completion_tokens: Option<i32>,
+        cached_prompt_tokens: Option<i32>,
+        cost_micro: Option<i64>,
+        currency: Option<String>,
+    ) -> Self {
+        self.prompt_tokens = prompt_tokens;
+        self.completion_tokens = completion_tokens;
+        self.cached_prompt_tokens = cached_prompt_tokens;
+        self.cost_micro = cost_micro;
+        self.currency = currency;
+        self
     }
 
     /// Создать системное сообщение

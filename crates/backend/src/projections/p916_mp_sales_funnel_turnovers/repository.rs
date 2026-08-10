@@ -392,9 +392,7 @@ pub async fn aggregate_by_product(request: &MpFunnelListRequest) -> Result<Vec<M
             funnel_order_sum: row.try_get("", "funnel_order_sum").unwrap_or(0.0),
             funnel_cancel_count: row.try_get("", "funnel_cancel_count").unwrap_or(0),
             funnel_cancel_sum: row.try_get("", "funnel_cancel_sum").unwrap_or(0.0),
-            funnel_cancel_available: row
-                .try_get::<i64>("", "funnel_cancel_present")
-                .unwrap_or(0)
+            funnel_cancel_available: row.try_get::<i64>("", "funnel_cancel_present").unwrap_or(0)
                 > 0,
             order_count: row.try_get("", "order_count").unwrap_or(0),
             order_sum: row.try_get("", "order_sum").unwrap_or(0.0),

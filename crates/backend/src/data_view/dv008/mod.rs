@@ -435,10 +435,8 @@ async fn fetch_drilldown_multi_period(
             " GROUP BY {} ORDER BY group_key ASC",
             period_key_expr(group_by).expect("checked above")
         ),
-        "nm_id" => {
-            " GROUP BY CAST(json_extract(j.value, '$.nm_id') AS INTEGER) ORDER BY m0 DESC"
-                .to_string()
-        }
+        "nm_id" => " GROUP BY CAST(json_extract(j.value, '$.nm_id') AS INTEGER) ORDER BY m0 DESC"
+            .to_string(),
         "connection_mp_ref" => " GROUP BY d.connection_id ORDER BY m0 DESC".to_string(),
         _ => unreachable!(),
     };
@@ -547,7 +545,11 @@ pub async fn compute_drilldown_multi(
 
     for (group_key, label, bases) in rows1 {
         let key = key_of(&group_key);
-        let label = if collapse_to_day { key_of(&label) } else { label };
+        let label = if collapse_to_day {
+            key_of(&label)
+        } else {
+            label
+        };
         let entry = merged
             .entry(key)
             .or_insert_with(|| (label, Bases::default(), Bases::default()));
@@ -556,7 +558,11 @@ pub async fn compute_drilldown_multi(
 
     for (group_key, label, bases) in rows2 {
         let key = key_of(&group_key);
-        let label = if collapse_to_day { key_of(&label) } else { label };
+        let label = if collapse_to_day {
+            key_of(&label)
+        } else {
+            label
+        };
         let entry = merged
             .entry(key)
             .or_insert_with(|| (label, Bases::default(), Bases::default()));

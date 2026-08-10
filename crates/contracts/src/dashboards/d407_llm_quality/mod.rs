@@ -118,6 +118,49 @@ pub struct RecentVerdict {
     pub created_at: String,
 }
 
+/// Стоимость прогонов за окно, в разрезе валюты.
+///
+/// Разрез по валюте, а не одна сумма: подключения тарифицируются в разных
+/// валютах, и курсами подсистема стоимости не занимается — складывать рубли
+/// с долларами в одно число значит показать неверную цифру уверенным тоном.
+///
+/// `solved_*` считаются только по ответам с вердиктом `solved` — это и есть
+/// знаменатель для вопроса «во сколько обходится решённая задача».
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CostStat {
+    pub currency: String,
+    /// Суммарная стоимость в микроединицах валюты (1e-6).
+    pub total_micro: i64,
+    /// Сколько ответов попало в сумму (у которых стоимость посчитана).
+    pub answers: i64,
+    /// Стоимость ответов, получивших вердикт `solved`.
+    #[serde(default)]
+    pub solved_micro: i64,
+    #[serde(default)]
+    pub solved_answers: i64,
+}
+
+impl CostStat {
+    /// Стоимость в единицах валюты (для отображения).
+    pub fn total(&self) -> f64 {
+        self.total_micro as f64 / 1_000_000.0
+    }
+
+    pub fn avg_per_answer(&self) -> f64 {
+        if self.answers <= 0 {
+            return 0.0;
+        }
+        self.total() / self.answers as f64
+    }
+
+    /// Средняя стоимость решённой задачи. `None`, если решённых нет —
+    /// ноль здесь читался бы как «бесплатно», а не как «не на чем считать».
+    pub fn avg_per_solved(&self) -> Option<f64> {
+        (self.solved_answers > 0)
+            .then(|| self.solved_micro as f64 / 1_000_000.0 / self.solved_answers as f64)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmQualityOverview {
     pub days: i64,
@@ -130,4 +173,6 @@ pub struct LlmQualityOverview {
     pub intents: Vec<IntentCount>,
     pub kb_articles: Vec<KbArticleStat>,
     pub recent_verdicts: Vec<RecentVerdict>,
+    #[serde(default)]
+    pub costs: Vec<CostStat>,
 }

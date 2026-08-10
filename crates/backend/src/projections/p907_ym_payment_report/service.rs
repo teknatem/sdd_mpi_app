@@ -230,7 +230,10 @@ pub async fn purge_superseded_pending_payouts(candidate_order_ids: &[i64]) -> Re
         let rows = db
             .query_all(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;
-        dead_ids.extend(rows.iter().filter_map(|row| row.try_get::<String>("", "id").ok()));
+        dead_ids.extend(
+            rows.iter()
+                .filter_map(|row| row.try_get::<String>("", "id").ok()),
+        );
     }
 
     if dead_ids.is_empty() {

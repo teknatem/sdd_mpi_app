@@ -101,11 +101,7 @@ impl AdvertPostingContext {
             let candidate_rank = (nomenclature_ref.is_none(), product_ref.as_str());
             let is_better = match chosen.get(&nm_id) {
                 Some((current_nomenclature, current_product_ref)) => {
-                    candidate_rank
-                        < (
-                            current_nomenclature.is_none(),
-                            current_product_ref.as_str(),
-                        )
+                    candidate_rank < (current_nomenclature.is_none(), current_product_ref.as_str())
                 }
                 None => true,
             };
@@ -202,12 +198,13 @@ impl AdvertPostingContext {
             return Ok(None);
         }
 
-        let resolved = crate::domain::a007_marketplace_product::service::resolve_wb_nomenclature_ref(
-            &self.connection_id,
-            nm_id,
-            None,
-        )
-        .await?;
+        let resolved =
+            crate::domain::a007_marketplace_product::service::resolve_wb_nomenclature_ref(
+                &self.connection_id,
+                nm_id,
+                None,
+            )
+            .await?;
         self.nomenclature_refs.insert(nm_id, resolved.clone());
         Ok(resolved)
     }
@@ -226,18 +223,19 @@ impl AdvertPostingContext {
             return Ok(cached.clone());
         }
 
-        let product_ref = crate::domain::a007_marketplace_product::service::find_or_create_for_advert(
-            crate::domain::a007_marketplace_product::service::AdvertProductParams {
-                connection_mp_ref: self.connection_id.clone(),
-                marketplace_ref: marketplace_ref.to_string(),
-                nm_id,
-                nm_name: nm_name.to_string(),
-                document_no: document_no.to_string(),
-                document_id: document_id.to_string(),
-                document_date: document_date.to_string(),
-            },
-        )
-        .await?;
+        let product_ref =
+            crate::domain::a007_marketplace_product::service::find_or_create_for_advert(
+                crate::domain::a007_marketplace_product::service::AdvertProductParams {
+                    connection_mp_ref: self.connection_id.clone(),
+                    marketplace_ref: marketplace_ref.to_string(),
+                    nm_id,
+                    nm_name: nm_name.to_string(),
+                    document_no: document_no.to_string(),
+                    document_id: document_id.to_string(),
+                    document_date: document_date.to_string(),
+                },
+            )
+            .await?;
 
         self.product_refs.insert(nm_id, product_ref.clone());
         // Свежесозданный элемент a007 идёт без привязки к номенклатуре.

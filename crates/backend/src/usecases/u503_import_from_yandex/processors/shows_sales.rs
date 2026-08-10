@@ -72,31 +72,37 @@ pub async fn build_documents(
                 offer_id,
             )
             .await?
-            .map(|product| (Some(product.to_string_id()), product.nomenclature_ref.clone()))
+            .map(|product| {
+                (
+                    Some(product.to_string_id()),
+                    product.nomenclature_ref.clone(),
+                )
+            })
             .unwrap_or((None, None));
             product_refs.insert(offer_id.clone(), refs);
         }
-        let (marketplace_product_ref, nomenclature_ref) = product_refs
-            .get(offer_id)
-            .cloned()
-            .unwrap_or((None, None));
+        let (marketplace_product_ref, nomenclature_ref) =
+            product_refs.get(offer_id).cloned().unwrap_or((None, None));
 
-        by_date.entry(date).or_default().push(YmShowsSalesDailyLine {
-            offer_id: offer_id.clone(),
-            offer_name: row.offer_name.clone().unwrap_or_default(),
-            marketplace_product_ref,
-            nomenclature_ref,
-            metrics: YmShowsSalesDailyMetrics {
-                shows: row.shows,
-                by_msku_shows: row.by_msku_shows,
-                clicks: row.clicks,
-                to_cart: row.to_cart,
-                order_items: row.order_items,
-                delivered_count: row.order_items_delivered_count,
-                canceled_count: row.order_items_canceled_count,
-                returned_count: row.order_items_returned_count,
-            },
-        });
+        by_date
+            .entry(date)
+            .or_default()
+            .push(YmShowsSalesDailyLine {
+                offer_id: offer_id.clone(),
+                offer_name: row.offer_name.clone().unwrap_or_default(),
+                marketplace_product_ref,
+                nomenclature_ref,
+                metrics: YmShowsSalesDailyMetrics {
+                    shows: row.shows,
+                    by_msku_shows: row.by_msku_shows,
+                    clicks: row.clicks,
+                    to_cart: row.to_cart,
+                    order_items: row.order_items,
+                    delivered_count: row.order_items_delivered_count,
+                    canceled_count: row.order_items_canceled_count,
+                    returned_count: row.order_items_returned_count,
+                },
+            });
     }
 
     let fetched_at = chrono::Utc::now().to_rfc3339();

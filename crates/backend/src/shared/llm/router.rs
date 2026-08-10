@@ -47,6 +47,11 @@ pub struct IntentResult {
     /// Откуда получен результат — для аналитики/отладки ("llm" | "rules").
     pub source: &'static str,
     pub tokens_used: i32,
+    /// Разбивка токенов классификатора. Нужна, чтобы вызов роутера попал в
+    /// стоимость ответа: иначе сумма prompt+completion разошлась бы с `tokens_used`.
+    pub prompt_tokens: i32,
+    pub completion_tokens: i32,
+    pub cached_prompt_tokens: i32,
 }
 
 impl IntentResult {
@@ -56,6 +61,9 @@ impl IntentResult {
             confidence,
             source,
             tokens_used: 0,
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            cached_prompt_tokens: 0,
         }
     }
 }
@@ -121,6 +129,9 @@ pub async fn classify_intent(
         Ok(resp) => match parse_intent_json(&resp.content) {
             Some(mut result) => {
                 result.tokens_used = resp.tokens_used.unwrap_or(0);
+                result.prompt_tokens = resp.prompt_tokens.unwrap_or(0);
+                result.completion_tokens = resp.completion_tokens.unwrap_or(0);
+                result.cached_prompt_tokens = resp.cached_prompt_tokens.unwrap_or(0);
                 result
             }
             None => {
@@ -478,7 +489,10 @@ mod tests {
     /// задании тихо активировала бы произвольный навык.
     #[test]
     fn unknown_service_marker_falls_through_to_rules() {
-        let result = quick_intent_result("Режим: не_существует. Построй график продаж", &AgentType::BusinessAnalyst);
+        let result = quick_intent_result(
+            "Режим: не_существует. Построй график продаж",
+            &AgentType::BusinessAnalyst,
+        );
         assert_ne!(result.intent, "не_существует");
     }
 

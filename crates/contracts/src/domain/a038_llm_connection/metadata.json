@@ -296,6 +296,82 @@
         "required": false
       },
       "ai_hint": "Только одно подключение может быть основным. При установке флага автоматически снимается с других."
+    },
+    {
+      "name": "price_in_per_mtok",
+      "rust_type": "Option<f64>",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Цена входа за 1M токенов",
+        "label_en": "Input price per 1M tokens",
+        "placeholder": "3.0",
+        "hint": "Ставка тарификации входных токенов. Пусто — стоимость не считается",
+        "visible_in_list": false,
+        "visible_in_form": true
+      },
+      "validation": {
+        "required": false,
+        "min": 0
+      },
+      "ai_hint": "Прайс за миллион токенов в валюте currency. Пустое поле означает «прайс не задан» — стоимость прогонов по этому подключению не рассчитывается. Явный 0 — это реальная цена (локальная модель)."
+    },
+    {
+      "name": "price_out_per_mtok",
+      "rust_type": "Option<f64>",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Цена выхода за 1M токенов",
+        "label_en": "Output price per 1M tokens",
+        "placeholder": "15.0",
+        "hint": "Ставка тарификации выходных токенов",
+        "visible_in_list": false,
+        "visible_in_form": true
+      },
+      "validation": {
+        "required": false,
+        "min": 0
+      },
+      "ai_hint": "Выходные токены почти всегда дороже входных — считать стоимость по одной усреднённой ставке нельзя."
+    },
+    {
+      "name": "price_cached_per_mtok",
+      "rust_type": "Option<f64>",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Цена кэш-входа за 1M токенов",
+        "label_en": "Cached input price per 1M tokens",
+        "placeholder": "0.3",
+        "hint": "Пусто — скидки нет, кэш считается по входной ставке",
+        "visible_in_list": false,
+        "visible_in_form": true
+      },
+      "validation": {
+        "required": false,
+        "min": 0
+      },
+      "ai_hint": "Кэшированные входные токены — подмножество входных, а не добавка. Пустое поле трактуется как «скидки нет»: незаполненный прайс не должен занижать стоимость."
+    },
+    {
+      "name": "currency",
+      "rust_type": "Option<String>",
+      "field_type": "primitive",
+      "source": "specific",
+      "ui": {
+        "label": "Валюта прайса",
+        "label_en": "Price currency",
+        "placeholder": "RUB",
+        "hint": "Валюта ставок: RUB, USD, …",
+        "visible_in_list": false,
+        "visible_in_form": true
+      },
+      "validation": {
+        "required": false,
+        "max_length": 8
+      },
+      "ai_hint": "Конвертацией курсов подсистема стоимости не занимается: суммы в разных валютах не смешиваются, а разделяются в отчёте."
     }
   ],
 

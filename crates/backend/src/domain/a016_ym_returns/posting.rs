@@ -1,9 +1,9 @@
 use super::repository;
 use anyhow::Result;
+use contracts::domain::a016_ym_returns::aggregate::YmReturn;
 use sea_orm::TransactionTrait;
 use std::collections::HashMap;
 use uuid::Uuid;
-use contracts::domain::a016_ym_returns::aggregate::YmReturn;
 
 /// Движения возврата в воронке (p916). Строки a016 не несут ссылок на товар и когорту —
 /// резолвим их здесь, где доступна БД: `shop_sku → a007/a004` и дата заказа по `order_id`.
@@ -14,13 +14,12 @@ async fn project_funnel(document: &YmReturn, id: Uuid) -> Result<()> {
 
     let registrator_ref = id.to_string();
 
-    let order_cohort_date =
-        crate::domain::a013_ym_order::repository::order_date_by_document_no(
-            &document.header.order_id.to_string(),
-        )
-        .await?
-        .as_ref()
-        .map(funnel_builder::msk_date_from_utc);
+    let order_cohort_date = crate::domain::a013_ym_order::repository::order_date_by_document_no(
+        &document.header.order_id.to_string(),
+    )
+    .await?
+    .as_ref()
+    .map(funnel_builder::msk_date_from_utc);
 
     let mut product_refs: HashMap<String, (Option<String>, Option<String>)> = HashMap::new();
     for line in &document.lines {
@@ -32,13 +31,22 @@ async fn project_funnel(document: &YmReturn, id: Uuid) -> Result<()> {
             &line.shop_sku,
         )
         .await?
-        .map(|product| (Some(product.to_string_id()), product.nomenclature_ref.clone()))
+        .map(|product| {
+            (
+                Some(product.to_string_id()),
+                product.nomenclature_ref.clone(),
+            )
+        })
         .unwrap_or((None, None));
         product_refs.insert(line.shop_sku.clone(), refs);
     }
 
-    let rows =
-        funnel_builder::from_ym_return(document, &registrator_ref, order_cohort_date, &product_refs);
+    let rows = funnel_builder::from_ym_return(
+        document,
+        &registrator_ref,
+        order_cohort_date,
+        &product_refs,
+    );
 
     let db = crate::shared::data::db::get_connection();
     let txn = db.begin().await?;

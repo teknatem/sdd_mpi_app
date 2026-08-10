@@ -202,8 +202,7 @@ pub fn spawn_flusher() {
     tokio::spawn(async {
         // Первичное наполнение кэша, чтобы UI не ждал первого флаша.
         refresh_snapshot().await;
-        let mut ticker =
-            tokio::time::interval(std::time::Duration::from_secs(FLUSH_INTERVAL_SECS));
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(FLUSH_INTERVAL_SECS));
         ticker.tick().await; // первый тик срабатывает немедленно
         loop {
             ticker.tick().await;

@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 
 // Формы каталога общие с фронтом: UI показывает те же задачи и файлы, что видит модель.
 pub use contracts::domain::a018_llm_chat::workspace::{
-    ChatActivity as ActivityRef, ChatFile as FileEntry, IntakeQuestion,
+    ChatActivity as ActivityRef, ChatFile as FileEntry, IntakeQuestion, PlanStep,
 };
 
 /// Живые документы активности — перезаписываются, не нумеруются.
@@ -498,28 +498,208 @@ pub async fn answer_question(chat_id: &str, question_id: &str, answer: &str) -> 
         .await
 }
 
+// ─── План: разбор и правка статусов ──────────────────────────────────────────
+
+/// Разобрать план в список пунктов.
+///
+/// Формат остаётся markdown-чекбоксами — так план уже пишет модель (см. `core.md`)
+/// и правит человек из UI. Пункты нумеруются позиционно (`s1`, `s2`, …): номер в
+/// самом файле пришлось бы синхронизировать при каждой вставке строки.
+///
+/// Ссылка на шаг журнала распознаётся в тексте пункта по имени файла — модель и
+/// так упоминает его («см. steps/003-calc-margin.json»), отдельного синтаксиса
+/// для этого вводить не нужно.
+pub fn parse_plan_steps(plan: &str) -> Vec<PlanStep> {
+    let mut steps = Vec::new();
+    for line in plan.lines() {
+        let trimmed = line.trim_start();
+        let Some(rest) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+        else {
+            continue;
+        };
+        let (done, title) = if let Some(t) = rest
+            .strip_prefix("[x]")
+            .or_else(|| rest.strip_prefix("[X]"))
+        {
+            (true, t)
+        } else if let Some(t) = rest.strip_prefix("[ ]") {
+            (false, t)
+        } else {
+            continue;
+        };
+        let title = title.trim().to_string();
+        if title.is_empty() {
+            continue;
+        }
+        steps.push(PlanStep {
+            id: format!("s{}", steps.len() + 1),
+            step_ref: extract_step_ref(&title),
+            title,
+            done,
+        });
+    }
+    steps
+}
+
+/// Вытащить имя файла журнала шагов из текста пункта.
+///
+/// Принимаем и полный путь (`steps/003-…json`), и голое имя файла: в тексте
+/// модель пишет то так, то иначе, а сверять нужно одно и то же.
+fn extract_step_ref(title: &str) -> Option<String> {
+    title
+        .split(|c: char| c.is_whitespace() || matches!(c, '(' | ')' | ',' | ';' | '«' | '»' | '"'))
+        .filter_map(|token| {
+            let token = token.trim_matches(|c: char| matches!(c, '.' | ':' | '`'));
+            let name = token.rsplit('/').next()?;
+            (name.ends_with(".json") && name.len() > 5).then(|| name.to_string())
+        })
+        .next()
+}
+
+/// Переставить статус пункта плана, не трогая остальной файл.
+///
+/// Заплатка по строке, а не пересборка markdown: в плане живут заголовки,
+/// комментарии и вложенные уточнения модели — пересериализация их потеряет.
+pub fn set_step_status(plan: &str, step_id: &str, done: bool) -> Option<String> {
+    let mut ordinal = 0usize;
+    let mut found = false;
+    let mut out = String::with_capacity(plan.len() + 8);
+
+    for line in plan.lines() {
+        let trimmed = line.trim_start();
+        let is_item = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .map(|rest| {
+                rest.starts_with("[x]") || rest.starts_with("[X]") || rest.starts_with("[ ]")
+            })
+            .unwrap_or(false);
+
+        if is_item {
+            ordinal += 1;
+            if format!("s{ordinal}") == step_id {
+                let indent_len = line.len() - trimmed.len();
+                let (indent, rest) = line.split_at(indent_len);
+                let marker = if done { "[x]" } else { "[ ]" };
+                // Первые два символа — маркер списка («- » или «* »), затем чекбокс.
+                let (bullet, body) = rest.split_at(2);
+                let body = body
+                    .strip_prefix("[x]")
+                    .or_else(|| body.strip_prefix("[X]"))
+                    .or_else(|| body.strip_prefix("[ ]"))
+                    .unwrap_or(body);
+                out.push_str(indent);
+                out.push_str(bullet);
+                out.push_str(marker);
+                out.push_str(body);
+                out.push('\n');
+                found = true;
+                continue;
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    found.then_some(out)
+}
+
+/// Пункты, отмеченные выполненными, которые ссылаются на несуществующий шаг журнала.
+///
+/// Проверяется только явная ссылка: требовать файл от КАЖДОГО закрытого пункта
+/// нельзя — часть шагов плана не производит данных вовсе («уточнить период у
+/// пользователя»), и такое правило дало бы поток ложных срабатываний. Зато
+/// выдуманное имя файла — однозначный признак того, что работа не сделана.
+pub fn plan_drift(steps: &[PlanStep], journal: &[String]) -> Vec<PlanStep> {
+    let known: Vec<&str> = journal
+        .iter()
+        .filter_map(|path| path.rsplit('/').next())
+        .collect();
+    steps
+        .iter()
+        .filter(|step| step.done)
+        .filter(|step| {
+            step.step_ref
+                .as_deref()
+                .is_some_and(|name| !known.contains(&name))
+        })
+        .cloned()
+        .collect()
+}
+
+/// Пункты плана и расхождения по активной задаче чата.
+pub async fn plan_state(chat_id: &str) -> io::Result<(Vec<PlanStep>, Vec<PlanStep>)> {
+    let Some(ws) = ChatWorkspace::for_chat(chat_id) else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let Some(activity) = ws.active().await? else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let Ok((plan, _)) = activity.read(PLAN_FILE, 0, usize::MAX).await else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let steps = parse_plan_steps(&plan);
+    let journal = activity.list_steps().await.unwrap_or_default();
+    let drift = plan_drift(&steps, &journal);
+    Ok((steps, drift))
+}
+
+/// Переставить статус пункта плана активной задачи.
+pub async fn update_plan_step(
+    chat_id: &str,
+    step_id: &str,
+    done: bool,
+) -> io::Result<Vec<PlanStep>> {
+    let ws = ChatWorkspace::for_chat(chat_id)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Каталог чата недоступен"))?;
+    let activity = ws
+        .active()
+        .await?
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Активной задачи нет"))?;
+    let (plan, _) = activity.read(PLAN_FILE, 0, usize::MAX).await?;
+    let updated = set_step_status(&plan, step_id, done).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Пункта '{step_id}' в плане нет"),
+        )
+    })?;
+    activity.write(PLAN_FILE, &updated).await?;
+    Ok(parse_plan_steps(&updated))
+}
+
 // ─── Доступ для UI ───────────────────────────────────────────────────────────
 
-/// Каталог чата для UI: задачи, файлы активной и её уточняющие вопросы.
+/// Каталог чата для UI: задачи, файлы активной, её уточняющие вопросы и план.
 pub async fn view_for_chat(
     chat_id: &str,
-) -> io::Result<(Vec<ActivityRef>, Vec<FileEntry>, Vec<IntakeQuestion>)> {
+) -> io::Result<(
+    Vec<ActivityRef>,
+    Vec<FileEntry>,
+    Vec<IntakeQuestion>,
+    Vec<PlanStep>,
+)> {
     let Some(ws) = ChatWorkspace::for_chat(chat_id) else {
-        return Ok((Vec::new(), Vec::new(), Vec::new()));
+        return Ok((Vec::new(), Vec::new(), Vec::new(), Vec::new()));
     };
     let activities = ws.list_activities().await?;
-    let (files, questions) = match ws.active().await? {
+    let (files, questions, plan_steps) = match ws.active().await? {
         Some(activity) => {
             let files = activity.list().await.unwrap_or_default();
             let questions = match activity.read(INTAKE_FILE, 0, usize::MAX).await {
                 Ok((intake, _)) => parse_questions(&intake),
                 Err(_) => Vec::new(),
             };
-            (files, questions)
+            let plan_steps = match activity.read(PLAN_FILE, 0, usize::MAX).await {
+                Ok((plan, _)) => parse_plan_steps(&plan),
+                Err(_) => Vec::new(),
+            };
+            (files, questions, plan_steps)
         }
-        None => (Vec::new(), Vec::new()),
+        None => (Vec::new(), Vec::new(), Vec::new()),
     };
-    Ok((activities, files, questions))
+    Ok((activities, files, questions, plan_steps))
 }
 
 /// Разобрать путь вида `<задача>/<файл>` (файл может быть `steps/NNN-…`).
@@ -783,9 +963,79 @@ mod tests {
         dir
     }
 
+    const PLAN: &str = "# План сверки\n\
+                        \n\
+                        - [x] Поднять обороты fina (steps/001-query-oboroty.json)\n\
+                        - [ ] Сверить с ybuh\n\
+                          - вложенное уточнение, не пункт\n\
+                        * [x] Отчёт готов\n\
+                        \n\
+                        Просто абзац, тоже не пункт.\n";
+
+    #[test]
+    fn plan_parses_checkboxes_and_ignores_prose() {
+        let steps = parse_plan_steps(PLAN);
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[0].id, "s1");
+        assert!(steps[0].done);
+        assert_eq!(steps[0].step_ref.as_deref(), Some("001-query-oboroty.json"));
+        assert_eq!(steps[1].id, "s2");
+        assert!(!steps[1].done);
+        assert_eq!(steps[1].step_ref, None);
+        // Маркер `*` — такой же пункт: модель пишет и так.
+        assert!(steps[2].done);
+    }
+
+    #[test]
+    fn step_status_patch_keeps_the_rest_of_the_file() {
+        let updated = set_step_status(PLAN, "s2", true).unwrap();
+        assert!(updated.contains("- [x] Сверить с ybuh"));
+        // Соседние пункты и проза не тронуты.
+        assert!(updated.contains("- [x] Поднять обороты fina"));
+        assert!(updated.contains("вложенное уточнение, не пункт"));
+        assert!(updated.contains("Просто абзац, тоже не пункт."));
+        assert!(updated.contains("# План сверки"));
+
+        // Обратный переход тоже работает, и повторная правка идемпотентна.
+        let reverted = set_step_status(&updated, "s2", false).unwrap();
+        assert!(reverted.contains("- [ ] Сверить с ybuh"));
+        assert_eq!(set_step_status(&reverted, "s2", false).unwrap(), reverted);
+    }
+
+    #[test]
+    fn unknown_step_id_is_rejected_rather_than_silently_ignored() {
+        assert!(set_step_status(PLAN, "s99", true).is_none());
+        assert!(set_step_status(PLAN, "мусор", true).is_none());
+    }
+
+    #[test]
+    fn drift_is_a_reference_to_a_step_that_was_never_saved() {
+        let steps = parse_plan_steps(PLAN);
+
+        // Файл на месте — расхождения нет.
+        let journal = vec!["steps/001-query-oboroty.json".to_string()];
+        assert!(plan_drift(&steps, &journal).is_empty());
+
+        // Журнал пуст: закрытый пункт ссылается на несуществующий шаг.
+        let drift = plan_drift(&steps, &[]);
+        assert_eq!(drift.len(), 1);
+        assert_eq!(drift[0].id, "s1");
+    }
+
+    #[test]
+    fn done_step_without_reference_is_not_drift() {
+        // Не каждый пункт производит данные («уточнить период у пользователя»),
+        // поэтому требовать файл от всех закрытых пунктов нельзя.
+        let steps = parse_plan_steps("- [x] Уточнить период у пользователя\n");
+        assert!(plan_drift(&steps, &[]).is_empty());
+    }
+
     #[test]
     fn slug_keeps_cyrillic_and_collapses_separators() {
-        assert_eq!(slugify("Сверка выручки  fina/ybuh за Q2"), "сверка-выручки-finaybuh-за-q2");
+        assert_eq!(
+            slugify("Сверка выручки  fina/ybuh за Q2"),
+            "сверка-выручки-finaybuh-за-q2"
+        );
         assert_eq!(slugify("   "), "bez-nazvaniya");
         assert_eq!(slugify("--Тест--"), "тест");
     }
@@ -834,11 +1084,17 @@ mod tests {
         assert_eq!(second.name(), "002-график-воронки-wb");
 
         // Новая активность становится активной.
-        assert_eq!(ws.active().await.unwrap().unwrap().name(), "002-график-воронки-wb");
+        assert_eq!(
+            ws.active().await.unwrap().unwrap().name(),
+            "002-график-воронки-wb"
+        );
 
         // Возврат к прежней задаче.
         ws.set_active("001-сверка-выручки-q2").await.unwrap();
-        assert_eq!(ws.active().await.unwrap().unwrap().name(), "001-сверка-выручки-q2");
+        assert_eq!(
+            ws.active().await.unwrap().unwrap().name(),
+            "001-сверка-выручки-q2"
+        );
 
         let listed = ws.list_activities().await.unwrap();
         assert_eq!(listed.len(), 2);
@@ -864,18 +1120,30 @@ mod tests {
         let a = ws.start_activity("Задача А").await.unwrap();
         let b = ws.start_activity("Задача Б").await.unwrap();
 
-        let s1 = a.save_step(StepKind::Query, "обороты fina", "{}", "json").await.unwrap();
-        let s2 = a.save_step(StepKind::Calc, "дельта по кабинетам", "{}", "json").await.unwrap();
+        let s1 = a
+            .save_step(StepKind::Query, "обороты fina", "{}", "json")
+            .await
+            .unwrap();
+        let s2 = a
+            .save_step(StepKind::Calc, "дельта по кабинетам", "{}", "json")
+            .await
+            .unwrap();
         assert_eq!(s1, "steps/001-query-обороты-fina.json");
         assert_eq!(s2, "steps/002-calc-дельта-по-кабинетам.json");
 
         // Нумерация шагов своя в каждой активности.
-        let b1 = b.save_step(StepKind::Draft, "спека графика", "{}", "json").await.unwrap();
+        let b1 = b
+            .save_step(StepKind::Draft, "спека графика", "{}", "json")
+            .await
+            .unwrap();
         assert_eq!(b1, "steps/001-draft-спека-графика.json");
 
         // Дыра в нумерации не приводит к перезаписи: считаем от максимума.
         tokio::fs::remove_file(a.dir().join(&s1)).await.unwrap();
-        let s3 = a.save_step(StepKind::Report, "итог", "текст", "md").await.unwrap();
+        let s3 = a
+            .save_step(StepKind::Report, "итог", "текст", "md")
+            .await
+            .unwrap();
         assert_eq!(s3, "steps/003-report-итог.md");
     }
 
@@ -974,7 +1242,8 @@ questions:
     /// не парсится, и все вопросы исчезали из интерфейса.
     #[test]
     fn inline_empty_answers_map_is_replaced_not_duplicated() {
-        let intake = "---\nquestions:\n  - id: breakdown\n    text: Как считать?\nanswers: {}\n---\nТело.\n";
+        let intake =
+            "---\nquestions:\n  - id: breakdown\n    text: Как считать?\nanswers: {}\n---\nТело.\n";
         let patched = upsert_answer(intake, "breakdown", "суммарно");
         assert_eq!(patched.matches("answers").count(), 1, "дубль ключа answers");
 
@@ -1017,7 +1286,9 @@ questions:
 
         let a = ws.start_activity("Сверка Q2").await.unwrap();
         a.write(PLAN_FILE, "- [x] поднять обороты").await.unwrap();
-        a.save_step(StepKind::Query, "обороты", "{}", "json").await.unwrap();
+        a.save_step(StepKind::Query, "обороты", "{}", "json")
+            .await
+            .unwrap();
         ws.start_activity("Воронка WB").await.unwrap();
         ws.set_active("001-сверка-q2").await.unwrap();
 

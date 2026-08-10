@@ -15,6 +15,46 @@
     color: var(--color-text-secondary);
 }
 
+/* План активной задачи: статусы пунктов без открытия plan.md. */
+.chat-workspace__plan {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0 10px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 6px;
+}
+
+.chat-workspace__plan-step {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--color-text-primary);
+}
+
+.chat-workspace__plan-step--done .chat-workspace__plan-title {
+    color: var(--color-text-secondary);
+    text-decoration: line-through;
+}
+
+.chat-workspace__plan-mark {
+    flex: 0 0 auto;
+}
+
+.chat-workspace__plan-id {
+    flex: 0 0 auto;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+
+.chat-workspace__plan-title {
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+}
+
 .chat-workspace__error {
     color: var(--color-error);
 }

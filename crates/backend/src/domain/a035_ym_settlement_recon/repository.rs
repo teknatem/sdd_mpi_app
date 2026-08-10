@@ -412,7 +412,9 @@ pub async fn order_breakdown(
         }
         out.push(OrderBreakdownRow {
             order_id,
-            ym_order_id: row.try_get::<Option<String>>("", "ym_order_id").unwrap_or(None),
+            ym_order_id: row
+                .try_get::<Option<String>>("", "ym_order_id")
+                .unwrap_or(None),
             status: row.try_get::<Option<String>>("", "status").unwrap_or(None),
             order_date: row.try_get("", "order_date").unwrap_or_default(),
             amount: row.try_get("", "amount").unwrap_or(0.0),

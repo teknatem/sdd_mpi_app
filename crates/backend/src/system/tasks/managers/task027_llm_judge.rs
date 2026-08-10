@@ -138,7 +138,8 @@ impl TaskManager for Task027LlmJudgeManager {
             return Ok(TaskRunOutcome::completed());
         }
 
-        let agent = a017_llm_agent::service::ensure_employee_for(AgentType::CoordinatorAdmin).await?;
+        let agent =
+            a017_llm_agent::service::ensure_employee_for(AgentType::CoordinatorAdmin).await?;
 
         logger.write_log(
             session_id,

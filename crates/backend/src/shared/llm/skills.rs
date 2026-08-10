@@ -74,6 +74,7 @@ const CORE_TOOLS: &[&str] = &[
     "list_chat_files",
     "read_chat_file",
     "write_chat_file",
+    "update_plan_step",
     "save_step",
     "start_activity",
     "switch_activity",
@@ -1488,7 +1489,10 @@ pub fn tools_catalog() -> Value {
             super::workspace_tools::workspace_tool_definitions(),
         ),
         ("quality", super::quality_tools::quality_tool_definitions()),
-        ("funnel_repair", super::funnel_repair_tools::funnel_repair_tool_definitions()),
+        (
+            "funnel_repair",
+            super::funnel_repair_tools::funnel_repair_tool_definitions(),
+        ),
         (
             "llm_quality",
             super::llm_quality_tools::llm_quality_tool_definitions(),
@@ -1544,7 +1548,7 @@ mod tests {
 
     /// Инструменты каталога лежат в core: состояние задачи нужно любому навыку.
     /// Имя, отсутствующее в `tool_universe()`, выбрасывается молча — проверяем,
-    /// что все шесть доехали до набора, который видит модель.
+    /// что все они доехали до набора, который видит модель.
     #[test]
     fn workspace_tools_are_available_without_any_skill() {
         let tools = assemble_tools::<&str>(&[]);

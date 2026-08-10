@@ -565,7 +565,13 @@ fn draw_annotation(
 }
 
 /// Цветной квадрат с белым номером; (x, y) — левый верхний угол.
-fn draw_number_square(ctx: &CanvasRenderingContext2d, number: usize, color: PenColor, x: f64, y: f64) {
+fn draw_number_square(
+    ctx: &CanvasRenderingContext2d,
+    number: usize,
+    color: PenColor,
+    x: f64,
+    y: f64,
+) {
     let side = BADGE_R * 2.0;
     ctx.set_fill_style_str(color.stroke());
     ctx.fill_rect(x, y, side, side);
@@ -573,7 +579,13 @@ fn draw_number_square(ctx: &CanvasRenderingContext2d, number: usize, color: PenC
 }
 
 /// Цветной круг с белым номером; (cx, cy) — центр.
-fn draw_number_circle(ctx: &CanvasRenderingContext2d, number: usize, color: PenColor, cx: f64, cy: f64) {
+fn draw_number_circle(
+    ctx: &CanvasRenderingContext2d,
+    number: usize,
+    color: PenColor,
+    cx: f64,
+    cy: f64,
+) {
     ctx.begin_path();
     let _ = ctx.arc(cx, cy, BADGE_R, 0.0, TAU);
     ctx.set_fill_style_str(color.stroke());
@@ -649,7 +661,12 @@ fn export_annotated_png(
         if comment.is_empty() {
             continue;
         }
-        rows.push((index + 1, a.kind, a.color, wrap_text(&ctx, comment, text_max)));
+        rows.push((
+            index + 1,
+            a.kind,
+            a.color,
+            wrap_text(&ctx, comment, text_max),
+        ));
     }
 
     // Панель нужна только если есть что показать.
@@ -687,7 +704,9 @@ fn export_annotated_png(
             let mid = y + PANEL_LINE_H * 0.5;
             match kind {
                 Shape::Rect => draw_number_square(&ctx, number, color, PANEL_MARGIN, mid - BADGE_R),
-                Shape::Arrow => draw_number_circle(&ctx, number, color, PANEL_MARGIN + BADGE_R, mid),
+                Shape::Arrow => {
+                    draw_number_circle(&ctx, number, color, PANEL_MARGIN + BADGE_R, mid)
+                }
             }
             ctx.set_fill_style_str("#111827");
             ctx.set_font(&format!("{PANEL_FS}px sans-serif"));

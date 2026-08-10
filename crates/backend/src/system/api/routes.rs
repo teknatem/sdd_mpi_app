@@ -319,6 +319,55 @@ pub fn configure_system_routes() -> Router {
                 .layer(middleware::from_fn(auth::middleware::require_admin)),
         )
         // ========================================
+        // DATASETS: TRANSFER BETWEEN INSTANCES
+        // ========================================
+        .route(
+            "/api/sys/datasets/status",
+            get(handlers::datasets::get_status)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/catalog",
+            get(handlers::datasets::get_catalog)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/snapshots",
+            post(handlers::datasets::create_snapshot)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/snapshots/:id",
+            get(handlers::datasets::get_manifest)
+                .delete(handlers::datasets::delete_snapshot)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/snapshots/:id/download",
+            get(handlers::datasets::download_snapshot)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/restore/preview",
+            post(handlers::datasets::restore_preview)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/restore",
+            post(handlers::datasets::restore_apply)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/restore/upload",
+            post(handlers::datasets::restore_upload)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/history",
+            get(handlers::datasets::get_history)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        // ========================================
         // UTILITIES
         // ========================================
         // Logs handlers

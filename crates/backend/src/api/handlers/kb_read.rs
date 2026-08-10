@@ -280,7 +280,9 @@ pub async fn vocabulary() -> Json<KbVocabularyResponse> {
 pub async fn issues() -> Json<serde_json::Value> {
     match crate::shared::llm::kb_metrics::list_open_issues(None, 200).await {
         Ok(items) => Json(serde_json::json!({ "total": items.len(), "items": items })),
-        Err(error) => Json(serde_json::json!({ "total": 0, "items": [], "error": error.to_string() })),
+        Err(error) => {
+            Json(serde_json::json!({ "total": 0, "items": [], "error": error.to_string() }))
+        }
     }
 }
 

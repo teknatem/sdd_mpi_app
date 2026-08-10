@@ -36,7 +36,11 @@ fn build_copy_tsv(reports: &[YmPaymentReportLinkDto], total_counted_sum: f64) ->
         "Дата\tТип транзакции\tSKU\tТовар / Услуга\tКол-во\tСумма\tСумма (в итоге)\tСумма ПП\tСтатус\tИсточник\n",
     );
     for r in reports {
-        let date = r.transaction_date.as_deref().map(fmt_date).unwrap_or_default();
+        let date = r
+            .transaction_date
+            .as_deref()
+            .map(fmt_date)
+            .unwrap_or_default();
         let counted = if is_reference_row(r.payment_status.as_deref()) {
             String::new()
         } else {

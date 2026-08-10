@@ -83,7 +83,10 @@ fn main() {
         let path = Path::new(dir);
         let metadata_json = path.join("metadata.json");
         if !metadata_json.exists() {
-            panic!("{} is declared as an entity directory but has no metadata.json", dir);
+            panic!(
+                "{} is declared as an entity directory but has no metadata.json",
+                dir
+            );
         }
         println!("cargo:rerun-if-changed={}", metadata_json.display());
 

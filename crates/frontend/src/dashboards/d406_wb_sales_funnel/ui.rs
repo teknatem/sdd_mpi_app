@@ -324,7 +324,11 @@ impl ExcelExportable for FunnelExportRow {
             // Счётчик отказов маркетплейса: своя доступность, не зависит от канального N/A.
             fmt_avail(m.funnel_cancel_count, m.funnel_cancel_available),
             cnt(m.return_count),
-            if a { format!("{:.0}", m.order_sum) } else { "N/A".to_string() },
+            if a {
+                format!("{:.0}", m.order_sum)
+            } else {
+                "N/A".to_string()
+            },
             pct(c.open_to_cart),
             pct(c.cart_to_order),
             pct(c.order_to_buyout),
@@ -440,7 +444,14 @@ fn marketplace_badge(row: &WbSalesFunnelRow) -> impl IntoView {
     match row.marketplace.as_ref() {
         Some(name) => {
             let code = row.marketplace_code.clone().unwrap_or_default();
-            let cls = format!("d406-badge d406-badge--{}", if code.is_empty() { "muted".to_string() } else { code });
+            let cls = format!(
+                "d406-badge d406-badge--{}",
+                if code.is_empty() {
+                    "muted".to_string()
+                } else {
+                    code
+                }
+            );
             view! { <span class=cls>{name.clone()}</span> }.into_any()
         }
         None => view! { <span class="d406-badge d406-badge--muted">"—"</span> }.into_any(),

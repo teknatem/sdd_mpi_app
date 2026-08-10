@@ -1310,7 +1310,10 @@ impl ImportExecutor {
                         self.progress_tracker.add_error(
                             session_id,
                             Some(aggregate_index.to_string()),
-                            format!("Отчёт {} за {}-{:02} не загружен: {}", model, year, month, e),
+                            format!(
+                                "Отчёт {} за {}-{:02} не загружен: {}",
+                                model, year, month, e
+                            ),
                             None,
                         );
                         continue;
@@ -1338,7 +1341,10 @@ impl ImportExecutor {
                     self.progress_tracker.add_error(
                         session_id,
                         Some(aggregate_index.to_string()),
-                        format!("Ошибка сохранения {} за {}-{:02}: {}", model, year, month, e),
+                        format!(
+                            "Ошибка сохранения {} за {}-{:02}: {}",
+                            model, year, month, e
+                        ),
                         None,
                     );
                     continue;
@@ -1452,7 +1458,11 @@ impl ImportExecutor {
                 )),
             );
             tokio::time::sleep(tokio::time::Duration::from_secs(POLL_INTERVAL_SECS)).await;
-            match self.api_client.poll_report_status(connection, &report_id).await {
+            match self
+                .api_client
+                .poll_report_status(connection, &report_id)
+                .await
+            {
                 Ok((status, file_url)) => match status.as_str() {
                     "DONE" => {
                         download_url = file_url;

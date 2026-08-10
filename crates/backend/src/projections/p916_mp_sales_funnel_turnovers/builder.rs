@@ -1076,7 +1076,7 @@ mod tests {
         let r = &rows[0];
         assert_eq!(r.buyout_count, 1);
         assert_eq!(r.order_key.as_deref(), Some("srid-9")); // мост к p913
-        // Когорта = дата заказа (передана извне), событие = дата продажи (MSK +3).
+                                                            // Когорта = дата заказа (передана извне), событие = дата продажи (MSK +3).
         assert_eq!(r.cohort_date, "2026-03-01");
         assert_eq!(r.event_date, "2026-03-10");
     }

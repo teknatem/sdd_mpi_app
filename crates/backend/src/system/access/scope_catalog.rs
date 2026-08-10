@@ -676,6 +676,19 @@ pub const SCOPE_CATALOG: &[ScopeDescriptor] = &[
         read_label: "Просмотр S3-файлов",
         all_label: "Загрузка, скачивание и удаление S3-файлов",
     },
+    // Отдельно от sys_s3_files намеренно: «посмотреть список файлов в бакете» и
+    // «перезаписать базу знаний этого инстанса» — права принципиально разной
+    // разрушительности, и объединять их в одну галочку нельзя.
+    ScopeDescriptor {
+        scope_id: "sys_datasets",
+        scope_type: ScopeType::System,
+        label: "Наборы данных и перенос",
+        description: "Выгрузка наборов данных в S3 и восстановление на другом экземпляре",
+        icon: "package",
+        category: "system",
+        read_label: "Просмотр наборов и каталога снапшотов",
+        all_label: "Запись снапшотов в S3 и восстановление данных",
+    },
 ];
 
 /// Find a scope descriptor by its scope_id.

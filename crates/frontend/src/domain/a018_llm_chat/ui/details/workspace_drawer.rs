@@ -135,7 +135,9 @@ pub fn ChatWorkspaceDrawer(
         spawn_local(async move {
             match save_workspace_file(&id, &full, &content).await {
                 Ok(()) => {
-                    saved_note.set(Some("Сохранено — подхватится следующим ответом".to_string()));
+                    saved_note.set(Some(
+                        "Сохранено — подхватится следующим ответом".to_string(),
+                    ));
                     error.set(None);
                 }
                 Err(e) => error.set(Some(e)),
@@ -209,7 +211,34 @@ pub fn ChatWorkspaceDrawer(
                             .into_any();
                         }
                         let (root_files, dirs) = split_by_dir(ws.files);
+                        let plan_steps = ws.plan_steps.clone();
                         view! {
+                            // План активной задачи структурой: статусы видно сразу,
+                            // не открывая plan.md и не вчитываясь в markdown.
+                            {(!plan_steps.is_empty())
+                                .then(|| {
+                                    view! {
+                                        <div class="chat-workspace__plan">
+                                            {plan_steps
+                                                .into_iter()
+                                                .map(|step| {
+                                                    let mark = if step.done { "☑" } else { "☐" };
+                                                    view! {
+                                                        <div
+                                                            class="chat-workspace__plan-step"
+                                                            class:chat-workspace__plan-step--done=step.done
+                                                            title=step.step_ref.clone().unwrap_or_default()
+                                                        >
+                                                            <span class="chat-workspace__plan-mark">{mark}</span>
+                                                            <span class="chat-workspace__plan-id">{step.id.clone()}</span>
+                                                            <span class="chat-workspace__plan-title">{step.title.clone()}</span>
+                                                        </div>
+                                                    }
+                                                })
+                                                .collect_view()}
+                                        </div>
+                                    }
+                                })}
                             <div class="chat-tree">
                                 {ws.activities
                                     .into_iter()

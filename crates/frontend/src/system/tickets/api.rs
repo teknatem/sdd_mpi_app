@@ -8,9 +8,7 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{FormData, Request, RequestInit, RequestMode, Response};
 
 use crate::shared::api_utils::api_base;
-use crate::shared::auth_download::{
-    download_authenticated_file, open_authenticated_in_new_tab,
-};
+use crate::shared::auth_download::{download_authenticated_file, open_authenticated_in_new_tab};
 use crate::system::auth::storage;
 
 fn auth_header() -> Result<String, String> {
@@ -47,10 +45,7 @@ pub async fn fetch_tickets(query: &TicketListQuery) -> Result<TicketListResponse
     }
     if let Some(search) = &query.search {
         if !search.trim().is_empty() {
-            url.push_str(&format!(
-                "&search={}",
-                urlencoding::encode(search.trim())
-            ));
+            url.push_str(&format!("&search={}", urlencoding::encode(search.trim())));
         }
     }
 
@@ -186,7 +181,11 @@ pub async fn upload_attachment(
     opts.set_mode(RequestMode::Cors);
     opts.set_body(&form_data);
 
-    let url = format!("{}/api/system/tickets/{}/attachments", api_base(), ticket_id);
+    let url = format!(
+        "{}/api/system/tickets/{}/attachments",
+        api_base(),
+        ticket_id
+    );
     let request = Request::new_with_str_and_init(&url, &opts).map_err(|e| format!("{e:?}"))?;
     request
         .headers()
@@ -235,7 +234,10 @@ pub fn attachment_download_url(ticket_id: &str, attachment_id: &str) -> String {
     )
 }
 
-pub async fn open_attachment_in_new_tab(ticket_id: &str, attachment_id: &str) -> Result<(), String> {
+pub async fn open_attachment_in_new_tab(
+    ticket_id: &str,
+    attachment_id: &str,
+) -> Result<(), String> {
     open_authenticated_in_new_tab(&attachment_download_url(ticket_id, attachment_id)).await
 }
 

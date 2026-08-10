@@ -256,14 +256,12 @@ async fn ensure_a015_dealer_price_ut_column(pool: &SqlitePool) -> anyhow::Result
 
 /// DDL таблицы из `sqlite_master` (None, если таблицы нет).
 async fn table_ddl(pool: &SqlitePool, table: &str) -> anyhow::Result<Option<String>> {
-    Ok(
-        sqlx::query_scalar::<_, String>(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name = ?1",
-        )
-        .bind(table)
-        .fetch_optional(pool)
-        .await?,
+    Ok(sqlx::query_scalar::<_, String>(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name = ?1",
     )
+    .bind(table)
+    .fetch_optional(pool)
+    .await?)
 }
 
 /// Вырезает из DDL таблицы объявление внешнего ключа по колонке `agent_id`
@@ -314,11 +312,11 @@ async fn drop_agent_fk(pool: &SqlitePool, table: &str) -> anyhow::Result<bool> {
         "CREATE TABLE \"{tmp}\" {};\n",
         &stripped[body_start..]
     ));
-    script.push_str(&format!("INSERT INTO \"{tmp}\" SELECT * FROM \"{table}\";\n"));
-    script.push_str(&format!("DROP TABLE \"{table}\";\n"));
     script.push_str(&format!(
-        "ALTER TABLE \"{tmp}\" RENAME TO \"{table}\";\n"
+        "INSERT INTO \"{tmp}\" SELECT * FROM \"{table}\";\n"
     ));
+    script.push_str(&format!("DROP TABLE \"{table}\";\n"));
+    script.push_str(&format!("ALTER TABLE \"{tmp}\" RENAME TO \"{table}\";\n"));
     for index_ddl in index_ddls {
         script.push_str(&index_ddl);
         script.push_str(";\n");
@@ -332,7 +330,9 @@ async fn drop_agent_fk(pool: &SqlitePool, table: &str) -> anyhow::Result<bool> {
             // Откатываем возможную открытую транзакцию и восстанавливаем enforcement FK.
             let _ = (&mut *conn).execute("ROLLBACK;").await;
             let _ = (&mut *conn).execute("PRAGMA foreign_keys=ON;").await;
-            Err(anyhow::anyhow!("Failed to drop agent_id FK on {table}: {e}"))
+            Err(anyhow::anyhow!(
+                "Failed to drop agent_id FK on {table}: {e}"
+            ))
         }
     }
 }

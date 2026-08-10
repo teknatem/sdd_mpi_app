@@ -11,12 +11,9 @@ const IMAGE_MIMES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/g
 pub async fn read_image_file_from_clipboard() -> Result<File, String> {
     let window = web_sys::window().ok_or_else(|| "Нет доступа к окну".to_string())?;
     let clipboard = window.navigator().clipboard();
-    let items_val = JsFuture::from(clipboard.read())
-        .await
-        .map_err(|_| {
-            "Не удалось прочитать буфер обмена. Разрешите доступ или скопируйте скриншот."
-                .to_string()
-        })?;
+    let items_val = JsFuture::from(clipboard.read()).await.map_err(|_| {
+        "Не удалось прочитать буфер обмена. Разрешите доступ или скопируйте скриншот.".to_string()
+    })?;
 
     let items: Array = items_val
         .dyn_into()
@@ -28,10 +25,7 @@ pub async fn read_image_file_from_clipboard() -> Result<File, String> {
         };
         let types = item_val.types();
         for type_index in 0..types.length() {
-            let mime = types
-                .get(type_index)
-                .as_string()
-                .unwrap_or_default();
+            let mime = types.get(type_index).as_string().unwrap_or_default();
             if !mime.starts_with("image/") {
                 continue;
             }

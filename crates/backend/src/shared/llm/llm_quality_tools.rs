@@ -60,10 +60,11 @@ pub fn llm_quality_tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "record_chat_verdicts".into(),
-            description: "Записать вердикты пачкой — по одному на диалог. Вызывай ОДИН раз в конце \
+            description:
+                "Записать вердикты пачкой — по одному на диалог. Вызывай ОДИН раз в конце \
                           прогона со всеми оценками сразу. Повторная оценка уже оценённого диалога \
                           не ошибка: она молча пропускается и возвращается в skipped."
-                .into(),
+                    .into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -84,7 +85,12 @@ pub fn llm_quality_tool_definitions() -> Vec<ToolDefinition> {
                                 "failure_kind": {
                                     "type": "string",
                                     "enum": FAILURE_KINDS,
-                                    "description": "Причина для partial/failed. У solved не указывай."
+                                    "description": "Причина для partial/failed. У solved не указывай. \
+                                                    Срабатывания гардов видны в сводке ошибок \
+                                                    инструментов с пометкой 'гард: <код>': \
+                                                    tool_loop — модель повторяла один вызов; \
+                                                    plan_drift — пункт плана закрыт, а шага, на \
+                                                    который он ссылается, в журнале нет."
                                 },
                                 "reason": {
                                     "type": "string",
@@ -275,7 +281,10 @@ async fn chat_context(chat_id: &str) -> ChatContext {
                 .and_then(Value::as_str)
                 .filter(|value| !value.is_empty())
                 .map(str::to_string);
-            context.intent = row.get("intent").and_then(Value::as_str).map(str::to_string);
+            context.intent = row
+                .get("intent")
+                .and_then(Value::as_str)
+                .map(str::to_string);
         }
     }
 

@@ -1,6 +1,7 @@
 pub mod access;
 pub mod audit;
 pub mod auth;
+pub mod datasets;
 pub mod favorites;
 pub mod history;
 pub mod pages;

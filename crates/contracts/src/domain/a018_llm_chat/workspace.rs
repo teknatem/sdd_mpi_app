@@ -42,6 +42,24 @@ pub struct IntakeQuestion {
     pub answer: Option<String>,
 }
 
+/// Пункт плана активной задачи.
+///
+/// План остаётся markdown-файлом с чекбоксами (`- [ ]` / `- [x]`) — так его
+/// уже пишет модель и правит человек. Структура нужна для другого: пока статус
+/// был только текстом, «пункт закрыт» оставалось утверждением модели, которое
+/// никто не мог сверить с журналом шагов.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PlanStep {
+    /// Позиционный идентификатор (`s1`, `s2`, …) — по нему адресуется правка статуса.
+    pub id: String,
+    pub title: String,
+    /// `true` для `- [x]`.
+    pub done: bool,
+    /// Имя файла в `steps/`, на который ссылается пункт, если оно указано.
+    #[serde(default)]
+    pub step_ref: Option<String>,
+}
+
 /// Ответ на запрос каталога чата.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ChatWorkspaceView {
@@ -51,6 +69,9 @@ pub struct ChatWorkspaceView {
     /// Вопросы из анкеты активной задачи (отвеченные и нет).
     #[serde(default)]
     pub questions: Vec<IntakeQuestion>,
+    /// Пункты плана активной задачи.
+    #[serde(default)]
+    pub plan_steps: Vec<PlanStep>,
 }
 
 /// Ответ пользователя на уточняющий вопрос.

@@ -338,4 +338,3 @@ async fn add_context(
     http_request("POST", &url, Some(dto.to_string())).await?;
     Ok(())
 }
-

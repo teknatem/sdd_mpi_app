@@ -325,7 +325,11 @@ fn check(draft: &TicketDraft) -> Checklist {
 
     match draft.ticket_type {
         TicketType::Bug => {
-            for section in ["## Что происходит", "## Как воспроизвести", "## Ожидаемое поведение"] {
+            for section in [
+                "## Что происходит",
+                "## Как воспроизвести",
+                "## Ожидаемое поведение",
+            ] {
                 if !has_section(section) {
                     missing.push(format!("Раздел описания «{section}»."));
                 }
@@ -591,9 +595,7 @@ async fn ticket_create(args: &Value, chat_id: &str, caller: &ToolCaller) -> Valu
                               только следующим ходом."
             });
         }
-        Err(e) => {
-            return json!({ "error": format!("Не удалось проверить журнал валидации: {e}") })
-        }
+        Err(e) => return json!({ "error": format!("Не удалось проверить журнал валидации: {e}") }),
     }
 
     // Защита от повторного создания: журнал валидации остаётся валидным и после
@@ -639,7 +641,8 @@ async fn ticket_create(args: &Value, chat_id: &str, caller: &ToolCaller) -> Valu
         origin: Some(TICKET_ORIGIN_LLM_CHAT.to_string()),
     };
 
-    let ticket = match ticket_service::create_from_chat(&requester(caller), request, chat_id).await {
+    let ticket = match ticket_service::create_from_chat(&requester(caller), request, chat_id).await
+    {
         Ok(t) => t,
         Err(e) => return json!({ "error": format!("Не удалось создать тикет: {e}") }),
     };
@@ -700,16 +703,17 @@ async fn copy_chat_images(chat_id: &str, ticket_id: &str, caller: &ToolCaller) -
         return 0;
     };
     let db = crate::shared::data::db::get_connection();
-    let attachments =
-        match crate::domain::a018_llm_chat::repository::find_attachments_by_chat_id(&db, &chat_uuid)
-            .await
-        {
-            Ok(items) => items,
-            Err(e) => {
-                tracing::warn!("ticket_create: не удалось получить вложения чата {chat_id}: {e}");
-                return 0;
-            }
-        };
+    let attachments = match crate::domain::a018_llm_chat::repository::find_attachments_by_chat_id(
+        &db, &chat_uuid,
+    )
+    .await
+    {
+        Ok(items) => items,
+        Err(e) => {
+            tracing::warn!("ticket_create: не удалось получить вложения чата {chat_id}: {e}");
+            return 0;
+        }
+    };
 
     let mut copied = 0usize;
     for attachment in attachments {

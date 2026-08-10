@@ -9,13 +9,45 @@ use async_openai::{
         ChatCompletionRequestMessageContentPartImage, ChatCompletionRequestMessageContentPartText,
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestToolMessageArgs,
         ChatCompletionRequestUserMessageArgs, ChatCompletionRequestUserMessageContentPart,
-        ChatCompletionTool, ChatCompletionTools, CreateChatCompletionRequest,
+        ChatCompletionTool, ChatCompletionTools, CompletionUsage, CreateChatCompletionRequest,
         CreateChatCompletionRequestArgs, CreateChatCompletionResponse, FunctionCall,
         FunctionObject, ImageUrl,
     },
     Client,
 };
 use async_trait::async_trait;
+
+/// Разбивка токенов одного ответа провайдера.
+///
+/// Вход, выход и кэшированная часть входа тарифицируются по разным ставкам,
+/// поэтому одной суммы `total_tokens` для расчёта стоимости не хватает.
+/// Провайдер может не прислать `usage` вовсе (или прислать без разбивки) —
+/// тогда поля остаются `None`, и стоимость честно не считается.
+#[derive(Default, Clone, Copy)]
+struct UsageSplit {
+    total: Option<i32>,
+    prompt: Option<i32>,
+    completion: Option<i32>,
+    cached_prompt: Option<i32>,
+}
+
+impl UsageSplit {
+    fn from_usage(usage: Option<&CompletionUsage>) -> Self {
+        match usage {
+            Some(u) => Self {
+                total: Some(u.total_tokens as i32),
+                prompt: Some(u.prompt_tokens as i32),
+                completion: Some(u.completion_tokens as i32),
+                cached_prompt: u
+                    .prompt_tokens_details
+                    .as_ref()
+                    .and_then(|details| details.cached_tokens)
+                    .map(|tokens| tokens as i32),
+            },
+            None => Self::default(),
+        }
+    }
+}
 
 /// OpenAI провайдер
 pub struct OpenAiProvider {
@@ -348,7 +380,7 @@ impl LlmProvider for OpenAiProvider {
             }
         }
 
-        let tokens_used = response.usage.map(|u| u.total_tokens as i32);
+        let usage = UsageSplit::from_usage(response.usage.as_ref());
         let finish_reason = choice.finish_reason.as_ref().map(|r| format!("{:?}", r));
 
         // Вычислить confidence из logprobs (только если нет tool calls)
@@ -379,7 +411,10 @@ impl LlmProvider for OpenAiProvider {
         Ok(LlmResponse {
             content,
             tool_calls,
-            tokens_used,
+            tokens_used: usage.total,
+            prompt_tokens: usage.prompt,
+            completion_tokens: usage.completion,
+            cached_prompt_tokens: usage.cached_prompt,
             model: response.model.clone(),
             finish_reason,
             confidence,
@@ -421,7 +456,7 @@ impl LlmProvider for OpenAiProvider {
             let mut content = String::new();
             let mut model = self.model.clone();
             let mut finish_reason: Option<String> = None;
-            let mut tokens_used: Option<i32> = None;
+            let mut usage = UsageSplit::default();
             // Аккумулятор чанков tool-call'ов: index → (id, name, arguments)
             let mut tool_acc: std::collections::BTreeMap<u32, (String, String, String)> =
                 std::collections::BTreeMap::new();
@@ -431,8 +466,8 @@ impl LlmProvider for OpenAiProvider {
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(chunk) => {
-                        if let Some(usage) = &chunk.usage {
-                            tokens_used = Some(usage.total_tokens as i32);
+                        if chunk.usage.is_some() {
+                            usage = UsageSplit::from_usage(chunk.usage.as_ref());
                         }
                         if !chunk.model.is_empty() {
                             model = chunk.model.clone();
@@ -516,7 +551,10 @@ impl LlmProvider for OpenAiProvider {
             return Ok(LlmResponse {
                 content,
                 tool_calls,
-                tokens_used,
+                tokens_used: usage.total,
+                prompt_tokens: usage.prompt,
+                completion_tokens: usage.completion,
+                cached_prompt_tokens: usage.cached_prompt,
                 model,
                 finish_reason,
                 confidence: None,

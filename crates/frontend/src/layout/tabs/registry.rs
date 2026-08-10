@@ -77,10 +77,10 @@ use crate::domain::a037_wb_product_snapshot::ui::list::WbProductSnapshotList;
 use crate::domain::a038_llm_connection::ui::details::LlmConnectionDetails;
 use crate::domain::a038_llm_connection::ui::list::LlmConnectionList;
 use crate::domain::a039_mail_message::ui::list::MailMessageList;
-use crate::domain::a042_agent_task::ui::details::AgentTaskDetails;
-use crate::domain::a042_agent_task::ui::list::AgentTaskList;
 use crate::domain::a040_wb_search_analytics_daily::ui::details::WbSearchAnalyticsDetail;
 use crate::domain::a040_wb_search_analytics_daily::ui::list::WbSearchAnalyticsList;
+use crate::domain::a042_agent_task::ui::details::AgentTaskDetails;
+use crate::domain::a042_agent_task::ui::list::AgentTaskList;
 use crate::general_ledger::ui::{
     GeneralLedgerDetailsPage, GeneralLedgerDimensionsPage, GeneralLedgerEntitiesPage,
     GeneralLedgerLayerTurnoverMatrixPage, GeneralLedgerLayersPage, GeneralLedgerPage,
@@ -110,6 +110,7 @@ use crate::shared::knowledge_base::ui::{KnowledgeArticlePage, KnowledgeBaseWorks
 use crate::shared::universal_dashboard::{SchemaBrowser, UniversalDashboard};
 use crate::system::pages::style_guide::StyleGuidePage;
 use crate::system::pages::thaw_test::ThawTestPage;
+use crate::system::datasets::ui::DatasetsPage;
 use crate::system::raw_storage::ui::RawStoragePage;
 use crate::system::s3::ui::list::S3FilesPage;
 use crate::system::tasks::ui::details::ScheduledTaskDetails;
@@ -1353,6 +1354,7 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
         }
         "sys_audit" => view! { <crate::system::audit::AuditPage /> }.into_any(),
         "sys_s3_files" => view! { <S3FilesPage /> }.into_any(),
+        "sys_datasets" => view! { <DatasetsPage /> }.into_any(),
         "sys_raw_storage" => view! { <RawStoragePage /> }.into_any(),
         k if k.starts_with("sys_role_details_") => {
             let id = k.strip_prefix("sys_role_details_").unwrap().to_string();
