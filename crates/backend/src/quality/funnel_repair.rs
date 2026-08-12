@@ -268,6 +268,8 @@ pub async fn start(
     agent_id: &str,
     requested_by_user_id: Option<&str>,
 ) -> Result<RepairRunView> {
+    let database_activity = crate::system::maintenance::try_begin_database_activity()
+        .ok_or_else(|| anyhow!("Исправление недоступно во время обслуживания базы данных"))?;
     validate_scope(&spec.target, &spec.date_from, &spec.date_to)?;
     let actual_hash = spec_hash(&spec)?;
     if actual_hash != payload_hash {
@@ -291,6 +293,7 @@ pub async fn start(
     .await?;
     let run_id = id.clone();
     tokio::spawn(async move {
+        let _database_activity = database_activity;
         if let Err(error) = execute_run(&run_id, &spec).await {
             let _ = finish_failed(&run_id, &error.to_string()).await;
         }

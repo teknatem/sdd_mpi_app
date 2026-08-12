@@ -3,6 +3,7 @@ use crate::layout::global_context::AppGlobalContext;
 use crate::shared::change_tokens::ChangeTokenContext;
 use crate::shared::modal_stack::{KeydownGuard, ModalHost, ModalStackService};
 use crate::system::auth::context::AuthProvider;
+use crate::system::maintenance::MaintenanceContext;
 use crate::system::tasks::api as tasks_api;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Function;
@@ -23,6 +24,12 @@ pub fn App() -> impl IntoView {
     provide_context(AppGlobalContext::new());
     // Provide centralized modal stack for CRUD-details modals
     provide_context(ModalStackService::new());
+    // Режим обслуживания опрашивается глобально: он может включиться в любой
+    // момент — в том числе автоматически, операцией переноса базы, запущенной
+    // другим администратором.
+    let maintenance = MaintenanceContext::new();
+    provide_context(maintenance);
+    maintenance.start_polling();
     // Provide change token context and start the global polling loop
     let ct = ChangeTokenContext::new();
     provide_context(ct);

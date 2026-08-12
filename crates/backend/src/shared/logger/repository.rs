@@ -44,6 +44,10 @@ pub fn log_event_internal(source: &str, category: &str, message: &str) {
     let message = message.to_string();
 
     tokio::spawn(async move {
+        let Some(_database_activity) = crate::system::maintenance::try_begin_database_activity()
+        else {
+            return;
+        };
         if let Err(e) = log_event(&source, &category, &message).await {
             eprintln!("Failed to log event: {}", e);
         }

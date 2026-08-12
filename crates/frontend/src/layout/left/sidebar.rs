@@ -214,6 +214,11 @@ fn get_menu_groups() -> Vec<MenuGroup> {
                     "file-text",
                 ),
                 SidebarItem::with_scope(
+                    "a043_wb_finance_report",
+                    tab_label_for_key("a043_wb_finance_report"),
+                    "receipt",
+                ),
+                SidebarItem::with_scope(
                     "a021_production_output",
                     tab_label_for_key("a021_production_output"),
                     "package",
@@ -815,5 +820,26 @@ pub fn Sidebar() -> impl IntoView {
             // Плагины — динамическая группа (использование доступно всем; управление — админам)
             <crate::plugins::PluginsSidebarGroup expanded_group=expanded_group />
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wb_finance_report_is_available_in_documents_group() {
+        let documents = get_menu_groups()
+            .into_iter()
+            .find(|group| group.id == "documents")
+            .expect("documents sidebar group must exist");
+
+        let item = documents
+            .items
+            .iter()
+            .find(|item| item.id == "a043_wb_finance_report")
+            .expect("a043 sidebar item must exist");
+
+        assert_eq!(item.scope_id, Some("a043_wb_finance_report"));
     }
 }

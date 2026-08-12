@@ -150,6 +150,29 @@ pub struct SendMessageRequest {
     pub request_id: Option<String>,
 }
 
+fn ensure_model_is_allowed(model: &str, allowed_models: &[String]) -> anyhow::Result<()> {
+    let model = model.trim();
+    if model.is_empty() {
+        anyhow::bail!("Модель LLM не выбрана");
+    }
+    // Пустой allowed_models означает, что подключение не ограничивает список моделей.
+    if allowed_models.is_empty() || allowed_models.iter().any(|allowed| allowed == model) {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "Модель '{}' недоступна сотруднику. Доступные модели: {}. Выберите другую модель в заголовке чата.",
+        model,
+        allowed_models.join(", ")
+    )
+}
+
+fn ensure_connection_model_is_allowed(
+    connection: &LlmConnection,
+    model: &str,
+) -> anyhow::Result<()> {
+    ensure_model_is_allowed(model, &connection.allowed_models_list())
+}
+
 /// «Эффективный агент» чата: персона (специализация + обязанности) из сотрудника a017 +
 /// техническое подключение a038, из которого берётся провайдер/креды/дефолт-модель.
 pub struct EffectiveAgent {
@@ -249,6 +272,8 @@ pub async fn create(dto: LlmChatDto, owner_user_id: Option<String>) -> anyhow::R
         .or_else(|| effective.pinned_model.clone())
         .unwrap_or_else(|| effective.connection.model_name.clone());
 
+    ensure_connection_model_is_allowed(&effective.connection, &model_name)?;
+
     let mut aggregate =
         LlmChat::new_for_insert(code, dto.description, agent_id, model_name, owner_user_id);
 
@@ -301,6 +326,9 @@ pub async fn update(dto: LlmChatDto) -> anyhow::Result<()> {
         aggregate.model_name = model_name;
     }
 
+    let effective = resolve_effective_agent(&aggregate.agent_id.as_string()).await?;
+    ensure_connection_model_is_allowed(&effective.connection, &aggregate.model_name)?;
+
     // Валидация
     aggregate
         .validate()
@@ -312,6 +340,25 @@ pub async fn update(dto: LlmChatDto) -> anyhow::Result<()> {
     // Сохранение
     repository::update(&db, &aggregate).await?;
 
+    Ok(())
+}
+
+/// Изменить модель существующего чата, проверив её по текущему подключению сотрудника.
+pub async fn set_model(id: &str, model_name: String) -> anyhow::Result<()> {
+    let chat_uuid = Uuid::parse_str(id).map_err(|e| anyhow::anyhow!("Invalid chat ID: {}", e))?;
+    let chat_id = LlmChatId::new(chat_uuid);
+    let db = crate::shared::data::db::get_connection();
+    let mut chat = repository::find_by_id(&db, &chat_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Chat not found"))?;
+
+    let effective = resolve_effective_agent(&chat.agent_id.as_string()).await?;
+    let model_name = model_name.trim().to_string();
+    ensure_connection_model_is_allowed(&effective.connection, &model_name)?;
+
+    chat.model_name = model_name;
+    chat.before_write();
+    repository::update(&db, &chat).await?;
     Ok(())
 }
 
@@ -682,6 +729,9 @@ pub async fn send_message(
         .or_else(|| Some(chat.model_name.clone()).filter(|s| !s.trim().is_empty()))
         .or_else(|| effective.pinned_model.clone())
         .unwrap_or_else(|| effective.connection.model_name.clone());
+
+    // Не даём модели старого чата или клиентскому override уйти в API другого провайдера.
+    ensure_connection_model_is_allowed(&effective.connection, &model_to_use)?;
 
     // Провайдер создаётся сразу: нужен и для компакции истории (ниже), и для цикла.
     // Технику берём из подключения a038.
@@ -2107,10 +2157,7 @@ fn attachments_root() -> PathBuf {
 /// БД, поэтому обе распознаются здесь.
 fn attachment_abs_path(filepath: &str) -> PathBuf {
     let path = std::path::Path::new(filepath);
-    if path.is_absolute()
-        || filepath.starts_with("uploads/")
-        || filepath.starts_with("uploads\\")
-    {
+    if path.is_absolute() || filepath.starts_with("uploads/") || filepath.starts_with("uploads\\") {
         return path.to_path_buf();
     }
     attachments_root().join(filepath.replace('\\', "/"))
@@ -2178,6 +2225,30 @@ async fn append_attachments_to_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn model_allowlist_accepts_listed_model() {
+        let allowed = vec!["deepseek-v4-pro".to_string()];
+        assert!(ensure_model_is_allowed("deepseek-v4-pro", &allowed).is_ok());
+    }
+
+    #[test]
+    fn model_allowlist_rejects_foreign_model_with_available_options() {
+        let allowed = vec![
+            "deepseek-v4-pro".to_string(),
+            "deepseek-v4-flash".to_string(),
+        ];
+        let error = ensure_model_is_allowed("kimi-k3", &allowed)
+            .expect_err("foreign model must be rejected")
+            .to_string();
+        assert!(error.contains("kimi-k3"));
+        assert!(error.contains("deepseek-v4-pro, deepseek-v4-flash"));
+    }
+
+    #[test]
+    fn empty_model_allowlist_remains_unrestricted() {
+        assert!(ensure_model_is_allowed("custom-model", &[]).is_ok());
+    }
 
     fn msg(chars: usize) -> LlmChatMessage {
         LlmChatMessage::user(LlmChatId::new(Uuid::nil()), "я".repeat(chars))

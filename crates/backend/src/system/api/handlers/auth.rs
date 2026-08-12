@@ -1,3 +1,4 @@
+use axum::response::{IntoResponse, Response};
 use axum::{extract::Json, http::StatusCode};
 use contracts::system::auth::{
     LoginRequest, LoginResponse, RefreshRequest, RefreshResponse, UserInfo,
@@ -8,12 +9,24 @@ use crate::system::auth::extractor::CurrentUser;
 use crate::system::{auth::jwt, users::service as user_service};
 
 /// Login handler
-pub async fn login(Json(request): Json<LoginRequest>) -> Result<Json<LoginResponse>, StatusCode> {
+///
+/// Ошибку возвращает готовым `Response`, а не кодом: отказ по режиму
+/// обслуживания несёт тело с причиной — по голому 503 человек на экране входа
+/// не отличит технические работы от упавшего сервера.
+pub async fn login(Json(request): Json<LoginRequest>) -> Result<Json<LoginResponse>, Response> {
     // Verify credentials
     let user = user_service::verify_credentials(&request.username, &request.password)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?
+        .ok_or_else(|| StatusCode::UNAUTHORIZED.into_response())?;
+
+    // Режим обслуживания: пароль проверен, но пускать обычного пользователя
+    // некуда — все прикладные роуты за гейтом отдают 503. Отказ ПОСЛЕ проверки
+    // пароля намеренный: иначе по коду ответа можно было бы перебирать логины,
+    // не зная пароля.
+    if crate::system::maintenance::is_active() && !user.is_admin {
+        return Err(crate::system::maintenance::unavailable_response());
+    }
 
     // Resolve primary role and scopes
     let primary_role = resolver::get_primary_role_code(&user.id)
@@ -28,14 +41,14 @@ pub async fn login(Json(request): Json<LoginRequest>) -> Result<Json<LoginRespon
     let access_token =
         jwt::generate_access_token(&user.id, &user.username, user.is_admin, &primary_role)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
 
     let refresh_token = jwt::generate_refresh_token();
 
     // Store refresh token in database
     store_refresh_token(&user.id, &refresh_token)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
 
     let response = LoginResponse {
         access_token,

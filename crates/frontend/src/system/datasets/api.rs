@@ -1,6 +1,6 @@
 use contracts::system::datasets::{
-    CreateSnapshotRequest, CreateSnapshotResponse, DatasetCatalogResponse, DatasetsStatusDto,
-    RestoreApplyRequest, RestorePreviewDto, RestorePreviewRequest, RestoreResultDto,
+    CreateSnapshotRequest, DatasetCatalogResponse, DatasetJobDto, DatasetJobStartedDto,
+    DatasetsStatusDto, RestoreApplyRequest, RestorePreviewDto, RestorePreviewRequest,
     SnapshotManifestResponse, TransferLogResponse,
 };
 use gloo_net::http::Request;
@@ -56,24 +56,26 @@ pub async fn fetch_catalog() -> Result<DatasetCatalogResponse, String> {
         .map_err(|e| format!("Не удалось разобрать каталог снапшотов: {e}"))
 }
 
+/// Запускает выгрузку. Ответ — только идентификатор фоновой задачи: сама
+/// операция может идти минутами, и её результат забирается опросом `fetch_job`.
 pub async fn create_snapshot(
     request: &CreateSnapshotRequest,
-) -> Result<CreateSnapshotResponse, String> {
+) -> Result<DatasetJobStartedDto, String> {
     let response = Request::post(&format!("{}/api/sys/datasets/snapshots", api_base()))
         .header("Authorization", &auth_header()?)
         .json(request)
         .map_err(|e| format!("Не удалось сформировать запрос: {e}"))?
         .send()
         .await
-        .map_err(|e| format!("Не удалось записать снапшот: {e}"))?;
+        .map_err(|e| format!("Не удалось запустить выгрузку: {e}"))?;
 
     if !response.ok() {
-        return Err(read_error(response, "Не удалось записать снапшот").await);
+        return Err(read_error(response, "Не удалось запустить выгрузку").await);
     }
     response
         .json()
         .await
-        .map_err(|e| format!("Не удалось разобрать результат записи: {e}"))
+        .map_err(|e| format!("Не удалось разобрать ответ на запуск выгрузки: {e}"))
 }
 
 pub async fn fetch_manifest(snapshot_id: &str) -> Result<SnapshotManifestResponse, String> {
@@ -111,9 +113,7 @@ pub async fn delete_snapshot(snapshot_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn restore_preview(
-    request: &RestorePreviewRequest,
-) -> Result<RestorePreviewDto, String> {
+pub async fn restore_preview(request: &RestorePreviewRequest) -> Result<RestorePreviewDto, String> {
     let response = Request::post(&format!("{}/api/sys/datasets/restore/preview", api_base()))
         .header("Authorization", &auth_header()?)
         .json(request)
@@ -131,22 +131,73 @@ pub async fn restore_preview(
         .map_err(|e| format!("Не удалось разобрать различия: {e}"))
 }
 
-pub async fn restore_apply(request: &RestoreApplyRequest) -> Result<RestoreResultDto, String> {
+pub async fn restore_apply(request: &RestoreApplyRequest) -> Result<DatasetJobStartedDto, String> {
     let response = Request::post(&format!("{}/api/sys/datasets/restore", api_base()))
         .header("Authorization", &auth_header()?)
         .json(request)
         .map_err(|e| format!("Не удалось сформировать запрос: {e}"))?
         .send()
         .await
-        .map_err(|e| format!("Не удалось восстановить данные: {e}"))?;
+        .map_err(|e| format!("Не удалось запустить восстановление: {e}"))?;
 
     if !response.ok() {
-        return Err(read_error(response, "Не удалось восстановить данные").await);
+        return Err(read_error(response, "Не удалось запустить восстановление").await);
     }
     response
         .json()
         .await
-        .map_err(|e| format!("Не удалось разобрать результат восстановления: {e}"))
+        .map_err(|e| format!("Не удалось разобрать ответ на запуск восстановления: {e}"))
+}
+
+/// Состояние фоновой задачи. Опрашивается раз в секунду, пока задача идёт.
+pub async fn fetch_job(job_id: &str) -> Result<DatasetJobDto, String> {
+    let response = Request::get(&format!("{}/api/sys/datasets/jobs/{job_id}", api_base()))
+        .header("Authorization", &auth_header()?)
+        .send()
+        .await
+        .map_err(|e| format!("Не удалось получить состояние операции: {e}"))?;
+
+    if !response.ok() {
+        return Err(read_error(response, "Не удалось получить состояние операции").await);
+    }
+    response
+        .json()
+        .await
+        .map_err(|e| format!("Не удалось разобрать состояние операции: {e}"))
+}
+
+/// Операция, идущая прямо сейчас, — чтобы страница после перезагрузки вкладки
+/// снова показала прогресс, а не пустой экран поверх работающей выгрузки.
+pub async fn fetch_active_job() -> Result<Option<DatasetJobDto>, String> {
+    let response = Request::get(&format!("{}/api/sys/datasets/jobs/active", api_base()))
+        .header("Authorization", &auth_header()?)
+        .send()
+        .await
+        .map_err(|e| format!("Не удалось получить текущую операцию: {e}"))?;
+
+    if !response.ok() {
+        return Err(read_error(response, "Не удалось получить текущую операцию").await);
+    }
+    response
+        .json()
+        .await
+        .map_err(|e| format!("Не удалось разобрать текущую операцию: {e}"))
+}
+
+pub async fn cancel_job(job_id: &str) -> Result<(), String> {
+    let response = Request::post(&format!(
+        "{}/api/sys/datasets/jobs/{job_id}/cancel",
+        api_base()
+    ))
+    .header("Authorization", &auth_header()?)
+    .send()
+    .await
+    .map_err(|e| format!("Не удалось прервать операцию: {e}"))?;
+
+    if !response.ok() {
+        return Err(read_error(response, "Не удалось прервать операцию").await);
+    }
+    Ok(())
 }
 
 pub async fn fetch_history() -> Result<TransferLogResponse, String> {

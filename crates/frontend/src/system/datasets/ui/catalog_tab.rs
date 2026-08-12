@@ -14,10 +14,7 @@ use crate::system::datasets::ui::diff_dialog::DiffDialog;
 use crate::system::datasets::ui::{DatasetsState, DATETIME_FMT};
 
 #[component]
-pub fn CatalogTab(
-    state: DatasetsState,
-    catalog_error: RwSignal<Option<String>>,
-) -> impl IntoView {
+pub fn CatalogTab(state: DatasetsState, catalog_error: RwSignal<Option<String>>) -> impl IntoView {
     let expanded = RwSignal::<Option<String>>::new(None);
     let selected_sets = RwSignal::<HashSet<String>>::new(HashSet::new());
     let mode = RwSignal::new(RestoreMode::Merge);
@@ -45,7 +42,9 @@ pub fn CatalogTab(
             set_ids,
             mode: mode.get(),
         };
-        state.busy_label.set(Some("Сравнение с локальными данными...".to_string()));
+        state
+            .busy_label
+            .set(Some("Сравнение с локальными данными...".to_string()));
         state.error.set(None);
         spawn_local(async move {
             match api::restore_preview(&request).await {
@@ -69,11 +68,15 @@ pub fn CatalogTab(
         if !confirmed {
             return;
         }
-        state.busy_label.set(Some("Удаление снапшота...".to_string()));
+        state
+            .busy_label
+            .set(Some("Удаление снапшота...".to_string()));
         spawn_local(async move {
             match api::delete_snapshot(&snapshot_id).await {
                 Ok(()) => {
-                    state.notice.set(Some(format!("Снапшот {snapshot_id} удалён")));
+                    state
+                        .notice
+                        .set(Some(format!("Снапшот {snapshot_id} удалён")));
                     state.reload.run(());
                 }
                 Err(err) => state.error.set(Some(err)),
@@ -83,7 +86,9 @@ pub fn CatalogTab(
     };
 
     let download = move |snapshot_id: String| {
-        state.busy_label.set(Some("Подготовка архива...".to_string()));
+        state
+            .busy_label
+            .set(Some("Подготовка архива...".to_string()));
         spawn_local(async move {
             match api::download_snapshot_bytes(&snapshot_id).await {
                 Ok(bytes) => {
@@ -229,6 +234,7 @@ pub fn CatalogTab(
                                             </div>
 
                                             <div class="datasets__mode">
+                                                <span class="text-muted">"Режим для файловых наборов"</span>
                                                 <label class="form__checkbox-wrapper">
                                                     <input
                                                         type="radio"

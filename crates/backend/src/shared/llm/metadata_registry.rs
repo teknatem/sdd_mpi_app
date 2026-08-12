@@ -14,8 +14,29 @@ use serde_json::{json, Value};
 
 type RegistryEntry = EntityRegistration;
 
+/// Сколько привязанных документов показывать в схеме объекта: это подсказка
+/// «что про него написано», а не выдача поиска. Десять записей у горячих таблиц
+/// стоили 300 токенов в каждом вызове схемы; за остальным есть
+/// `search_knowledge(entities=[...])`.
+const ANCHORED_DOCS_LIMIT: usize = 5;
+
 pub struct MetadataRegistry {
     entries: Vec<&'static RegistryEntry>,
+}
+
+/// Таблица и то, что в ней имеет смысл измерять.
+#[derive(Debug, Clone)]
+pub struct ProfileTarget {
+    pub entity_index: &'static str,
+    pub table: &'static str,
+    /// Колонка, по которой считается период данных.
+    pub date_column: Option<&'static str>,
+    /// Дата документа, лежащая внутри JSON-колонки: измерить период по ней
+    /// нельзя (ключ в JSON не выводится из метаданных), но молчать о ней хуже —
+    /// пустой период читается как «данных нет».
+    pub json_date_field: Option<&'static str>,
+    /// Ссылочные колонки: их незаполненность и есть типичная дыра в данных.
+    pub ref_columns: Vec<&'static str>,
 }
 
 // ─── Глобальный экземпляр ───────────────────────────────────────────────────
@@ -198,7 +219,7 @@ impl MetadataRegistry {
             columns_for_sql.len()
         );
 
-        json!({
+        let mut result = json!({
             "index":           entity_index,
             "table":           table,
             "name":            entry.meta.ui.element_name,
@@ -211,7 +232,83 @@ impl MetadataRegistry {
                 columns_for_sql[..columns_for_sql.len().min(5)].join(", "),
                 table
             ),
-        })
+        });
+
+        // Профиль данных: строк, период, заполненность ссылок. Схема говорит,
+        // что колонка есть; профиль — что за спрошенный месяц там пусто.
+        if let Some(profile) = crate::shared::data::data_profile::snapshot().get(table) {
+            let mut block = json!({
+                "rows": profile.row_count,
+                "refreshed_at": profile.computed_at,
+            });
+            if let (Some(column), Some(from), Some(to)) = (
+                profile.date_column.as_ref(),
+                profile.date_min.as_ref(),
+                profile.date_max.as_ref(),
+            ) {
+                block["date_column"] = json!(column);
+                block["date_from"] = json!(from);
+                block["date_to"] = json!(to);
+            } else if let Some(field) = Self::json_date_field(entry) {
+                // Иначе пустой период читается как «данных нет», хотя строки есть.
+                block["date_note"] = json!(format!(
+                    "Дата документа '{field}' хранится внутри JSON-колонки — период не измеряется. \
+                     Отбирай по датам через json_extract."
+                ));
+            }
+            // Показываем только реально дырявые ссылки — полностью заполненная
+            // колонка не новость и место в контексте не заслуживает.
+            let gaps: serde_json::Map<String, Value> = profile
+                .null_shares()
+                .into_iter()
+                .filter(|(_, share)| *share > 0.0)
+                .map(|(column, share)| (column, json!(share)))
+                .collect();
+            if !gaps.is_empty() {
+                block["null_share_pct"] = Value::Object(gaps);
+            }
+            if profile.row_count == 0 {
+                block["warning"] =
+                    json!("Таблица пуста — запрос вернёт ноль строк не из-за фильтров.");
+            }
+            result["data_profile"] = block;
+        }
+
+        // Документы, привязанные к объекту якорем. Отдаём здесь, а не отдельным
+        // инструментом: за схемой объекта модель уже пришла, и лишний вызов ради
+        // «что про него написано» ничем не оправдан.
+        let kb = super::knowledge_base::kb_read();
+        let mut anchored = kb.docs_for_anchor(entity_index);
+        // Сгенерированные карты сюда не берём: единственная, что привязана к
+        // объектам, — профиль данных, и он уже отдан блоком `data_profile` выше.
+        anchored.retain(|doc| doc.kind != super::knowledge_base::DocKind::Generated);
+        // Сначала знание об организации, потом техдокументация; внутри — по
+        // важности. Алфавит по id вытеснял бы бизнес-статью за предел выдачи.
+        anchored.sort_by_key(|doc| {
+            (
+                doc.kind != super::knowledge_base::DocKind::Business,
+                std::cmp::Reverse(doc.stars.unwrap_or(0)),
+            )
+        });
+        let docs: Vec<Value> = anchored
+            .into_iter()
+            .take(ANCHORED_DOCS_LIMIT)
+            .map(|doc| {
+                json!({
+                    "id": doc.id,
+                    "title": doc.title,
+                    "corpus": doc.kind.as_str(),
+                    "token_cost": doc.token_cost,
+                })
+            })
+            .collect();
+        if !docs.is_empty() {
+            result["docs"] = json!(docs);
+            result["docs_hint"] =
+                json!("Знание об объекте: читать через get_knowledge(id) по необходимости.");
+        }
+
+        result
     }
 
     // ─── get_join_hint ────────────────────────────────────────────────────
@@ -312,6 +409,81 @@ impl MetadataRegistry {
             .find(|e| Self::names_match(e, index))
     }
 
+    /// Канонический индекс сущности по любому из её имён. `None` — такой
+    /// сущности в реестре нет. Нужен базе знаний, чтобы приводить якоря статей
+    /// (`entities:`, `related:`) к одному коду.
+    pub fn canonical_index(&self, reference: &str) -> Option<&'static str> {
+        self.find_by_index(reference)
+            .map(|entry| entry.meta.entity_index)
+    }
+
+    /// Что профилировать в каждой таблице каталога.
+    ///
+    /// Знание о том, какая колонка «дата документа», а какая ссылка, живёт в
+    /// метаданных — поэтому выбор делается здесь, а не в профайлере: тому
+    /// остаётся выполнить готовый список запросов.
+    pub fn profile_targets(&self) -> Vec<ProfileTarget> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let table = entry.meta.table_name?;
+                let physical = || {
+                    entry
+                        .fields
+                        .iter()
+                        .filter(|f| f.physical && !Self::is_internal_field(f))
+                };
+                // Дата документа предпочтительнее служебной created_at: вопросы
+                // задают про период данных, а не про время загрузки строки.
+                let date_column = physical()
+                    .find(|f| Self::looks_like_date(f) && f.source == FieldSource::Specific)
+                    .or_else(|| physical().find(|f| Self::looks_like_date(f)))
+                    .map(|f| f.name);
+                let ref_columns: Vec<&'static str> = physical()
+                    .filter(|f| f.ref_aggregate.is_some() || f.name.ends_with("_ref"))
+                    .map(|f| f.name)
+                    .collect();
+                Some(ProfileTarget {
+                    entity_index: entry.meta.entity_index,
+                    table,
+                    // Логическую дату ищем, только когда физической нет: иначе
+                    // она уже измерена и упоминать её незачем.
+                    json_date_field: match date_column {
+                        Some(_) => None,
+                        None => Self::json_date_field(entry),
+                    },
+                    date_column,
+                    ref_columns,
+                })
+            })
+            .collect()
+    }
+
+    /// Дата опознаётся и по типу, и по имени: во внешних отчётах дата часто
+    /// приезжает строкой (`p903.rr_dt`), и по типу её не отличить от текста.
+    ///
+    /// Имя проверяется по окончанию, а не по вхождению: `updated_by` содержит
+    /// «date» и раньше уходил в профиль колонкой даты — период таблицы получался
+    /// вида «system … system».
+    fn looks_like_date(field: &FieldMetadata) -> bool {
+        field.rust_type.contains("DateTime")
+            || field.rust_type.contains("NaiveDate")
+            || field.name == "date"
+            || field.name.ends_with("_date")
+            || field.name.ends_with("_dt")
+            || field.name.ends_with("_at")
+    }
+
+    /// Дата документа, живущая внутри JSON-колонки: физической даты у таблицы
+    /// нет, но само поле в метаданных описано (`physical: false`).
+    fn json_date_field(entry: &RegistryEntry) -> Option<&'static str> {
+        entry
+            .fields
+            .iter()
+            .find(|f| !f.physical && Self::looks_like_date(f))
+            .map(|f| f.name)
+    }
+
     /// Одно правило сопоставления имён для всего реестра: сущность у нас известна
     /// под несколькими именами (индекс, таблица, коллекция, каталог модуля), и они
     /// не всегда совпадают. Префикс до первого `_` — это индекс, он уникален.
@@ -351,6 +523,40 @@ impl MetadataRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Профиль меряет период по колонке даты, а не по чему попало.
+    ///
+    /// Оба случая — из живого каталога: `updated_by` содержит «date» и раньше
+    /// уходил в профиль колонкой даты, а у `a015` дата документа лежит в JSON,
+    /// и молчаливый прочерк в периоде читался как «данных нет».
+    #[test]
+    fn profile_targets_pick_real_date_columns() {
+        let targets = METADATA_REGISTRY.profile_targets();
+        let target = |index: &str| {
+            targets
+                .iter()
+                .find(|t| t.entity_index == index)
+                .unwrap_or_else(|| panic!("нет цели профиля для {index}"))
+        };
+
+        assert!(
+            !targets
+                .iter()
+                .any(|t| t.date_column.is_some_and(|c| c.ends_with("_by"))),
+            "колонка-автор не может быть колонкой даты"
+        );
+
+        let orders = target("a015");
+        assert_eq!(orders.date_column, None);
+        assert_eq!(orders.json_date_field, Some("order_dt"));
+
+        let sales = target("a012");
+        assert_eq!(sales.date_column, Some("sale_date"));
+        assert_eq!(
+            sales.json_date_field, None,
+            "физическая дата найдена — логическую упоминать незачем"
+        );
+    }
 
     /// Каждая сущность каталога должна быть доступна LLM и отдавать непустую схему.
     /// Регистрация автоматическая (`ALL_ENTITIES`), поэтому перечислять индексы руками

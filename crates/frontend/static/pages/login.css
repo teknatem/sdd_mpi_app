@@ -106,6 +106,35 @@
   margin-right: auto;
 }
 
+/* Технические работы: строка видна всем и до всякого входа — отказ «503» без
+   объяснения человек читает как поломку. Полосой поверху, а не внутри круга:
+   круг задан фиксированным размером (--login-ring-size), и лишний текст внутри
+   вылез бы за него. Тон предупреждения, не ошибки: это не сбой пользователя. */
+.login__maintenance {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-header);
+  display: flex;
+  justify-content: center;
+  padding: 10px var(--spacing-lg);
+  border-bottom: 1px solid var(--warning-box-border);
+  background: var(--warning-box-bg);
+  color: var(--warning-box-text-color);
+}
+
+/* Полосе отдана вся ширина экрана: сообщение должно уместиться в одну строку. */
+.login__maintenance .maintenance-line {
+  max-width: 100%;
+}
+
+/* Переключатель темы висит в том же верхнем правом углу — при полосе он
+   уезжает под неё, иначе они наложатся. */
+.login--maintenance .login__theme-selector {
+  top: 64px;
+}
+
 @keyframes loginCardFadeIn {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }

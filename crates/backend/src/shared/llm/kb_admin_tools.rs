@@ -112,22 +112,17 @@ pub async fn execute_kb_admin_tool(
 
 fn list_kb_documents() -> serde_json::Value {
     let kb = super::knowledge_base::kb_read();
-    let kb_dir = knowledge_base_dir();
     let mut docs = kb
         .all_docs()
         .into_iter()
         .map(|doc| {
-            let source_kind = doc
-                .source_path
-                .as_deref()
-                .map(|path| {
-                    if std::path::PathBuf::from(path).strip_prefix(&kb_dir).is_ok() {
-                        "business_obsidian"
-                    } else {
-                        "app_embedded"
-                    }
-                })
-                .unwrap_or("app_embedded");
+            // Техдокументация лежит копией внутри каталога знаний, поэтому по
+            // пути её от бизнес-статьи не отличить — класс берём из `kind`.
+            let source_kind = if doc.is_embedded() {
+                "app_embedded"
+            } else {
+                "business_obsidian"
+            };
             json!({
                 "id": doc.id,
                 "title": doc.title,

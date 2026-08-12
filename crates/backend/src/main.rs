@@ -51,6 +51,20 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    // 1.5 Отложенная подмена БД — СТРОГО до открытия пула подключений.
+    // Восстановление базы не может подменить файл на живом приложении (его
+    // держит пул, и Windows не даст переименовать поверх), поэтому оно лишь
+    // готовит файл, а установка происходит здесь. Печатаем заметно: смена
+    // содержимого базы не должна выглядеть как что-то, случившееся само.
+    match shared::config::load_config() {
+        Ok(config) => {
+            if let Some(report) = system::datasets::db_restore::apply_pending_restore(&config) {
+                println!("Step 1.5: {report}\n");
+            }
+        }
+        Err(e) => println!("⚠ Could not check for a pending database restore: {}\n", e),
+    }
+
     // 2. Initialize database (loads config from config.toml)
     println!("Step 2: Initializing database...");
     match shared::data::db::initialize_database().await {
@@ -97,6 +111,25 @@ async fn main() -> anyhow::Result<()> {
         }
         Err(e) => println!("⚠ Could not prepare data directories: {}\n", e),
     }
+
+    // Skills have a single runtime source: the configured external catalog.
+    // First startup creates the directory and materializes any missing embedded seeds.
+    let skill_snapshot = shared::llm::skills::snapshot();
+    if skill_snapshot.skills.is_empty()
+        || skill_snapshot
+            .diagnostics
+            .iter()
+            .any(|message| message.starts_with("CRITICAL:"))
+    {
+        return Err(anyhow::anyhow!(
+            "external skill catalog initialization failed: {}",
+            skill_snapshot.diagnostics.join("; ")
+        ));
+    }
+    println!(
+        "✓ External skill catalog initialized: {} skills\n",
+        skill_snapshot.skills.len()
+    );
 
     // 4. Ensure admin user exists
     println!("Step 4: Checking admin user...");
@@ -205,6 +238,19 @@ async fn main() -> anyhow::Result<()> {
     // счётчики обращений к статьям должны копиться независимо от него.
     shared::llm::kb_metrics::spawn_flusher();
 
+    // Сгенерированные карты базы знаний (профиль данных, плагины, навыки,
+    // проверки). Фоново и с задержкой: карты нужны ассистенту, а не первому
+    // HTTP-запросу, и обход всех таблиц не должен растягивать старт.
+    tokio::spawn(async {
+        // Профиль прошлого запуска поднимаем сразу: таблица переживает рестарт,
+        // и до пересчёта схема объекта отдавала бы «данных нет» вместо цифр.
+        shared::data::data_profile::refresh_snapshot().await;
+        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+        if let Some(_database_activity) = system::maintenance::try_begin_database_activity() {
+            shared::llm::kb_generated::regenerate_all().await;
+        }
+    });
+
     // 5. Configure CORS
     println!("Step 8: Configuring CORS...");
     let cors = CorsLayer::new()
@@ -225,6 +271,12 @@ async fn main() -> anyhow::Result<()> {
         .merge(system::api::configure_system_routes())
         .merge(api::configure_business_routes())
         .fallback_service(ServeDir::new("dist"))
+        // Слои применяются снаружи внутрь в обратном порядке, поэтому логгер
+        // оборачивает гейт: отклонённые обслуживанием запросы тоже попадают в
+        // журнал. При выключенном режиме гейт стоит один атомарный load.
+        .layer(middleware::from_fn(
+            system::middleware::maintenance_gate::maintenance_gate,
+        ))
         .layer(middleware::from_fn(
             system::middleware::request_logger::request_logger,
         ))
@@ -326,7 +378,12 @@ async fn main() -> anyhow::Result<()> {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(system::restart::wait())
     .await?;
+
+    if system::restart::is_requested() {
+        tracing::warn!("Server stopped cleanly; waiting for the service supervisor to restart it");
+    }
 
     Ok(())
 }

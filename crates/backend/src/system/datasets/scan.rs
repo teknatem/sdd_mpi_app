@@ -53,16 +53,7 @@ impl DatasetScan {
     /// Детерминированный хеш дерева: не зависит ни от порядка обхода файловой
     /// системы, ни от времени модификации — только от имён и содержимого.
     pub fn tree_sha256(&self) -> String {
-        let mut hasher = Sha256::new();
-        for file in &self.files {
-            hasher.update(file.relative_path.as_bytes());
-            hasher.update([0]);
-            hasher.update(file.size_bytes.to_string().as_bytes());
-            hasher.update([0]);
-            hasher.update(file.sha256.as_bytes());
-            hasher.update([b'\n']);
-        }
-        hex_lower(&hasher.finalize())
+        tree_sha256(&self.manifest_entries())
     }
 
     pub fn manifest_entries(&self) -> Vec<FileEntry> {
@@ -91,6 +82,24 @@ impl DatasetScan {
     }
 }
 
+/// Хеш дерева по готовым записям манифеста.
+///
+/// Определение живёт здесь в единственном экземпляре: набор «База данных»
+/// собирает свою вырожденную запись `app.db` мимо сканера, и разойдись эти две
+/// формулы — снапшоты одного и того же состояния получали бы разные хеши.
+pub fn tree_sha256(entries: &[FileEntry]) -> String {
+    let mut hasher = Sha256::new();
+    for entry in entries {
+        hasher.update(entry.path.as_bytes());
+        hasher.update([0]);
+        hasher.update(entry.size_bytes.to_string().as_bytes());
+        hasher.update([0]);
+        hasher.update(entry.sha256.as_bytes());
+        hasher.update([b'\n']);
+    }
+    hex_lower(&hasher.finalize())
+}
+
 fn hex_lower(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -115,7 +124,8 @@ pub fn scan_directory(descriptor: &DatasetDescriptor, root: &Path) -> anyhow::Re
     walk(descriptor, root, root, 0, &mut scan)?;
     scan.files
         .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
-    scan.skipped.sort_by(|left, right| left.path.cmp(&right.path));
+    scan.skipped
+        .sort_by(|left, right| left.path.cmp(&right.path));
     scan.total_bytes = scan.files.iter().map(|file| file.size_bytes).sum();
     Ok(scan)
 }

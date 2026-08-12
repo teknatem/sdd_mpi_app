@@ -84,6 +84,8 @@ pub struct TaskSessionParams {
     pub registry: Arc<TaskManagerRegistry>,
     /// Holds the task id and all declared write tables until the run future exits.
     pub resource_guard: TaskResourceGuard,
+    /// Не даёт переносу БД начаться посреди выполнения задания.
+    pub database_activity: crate::system::maintenance::DatabaseActivityPermit,
 }
 
 /// Запускает задачу в фоновом Tokio-задании и регистрирует `AbortHandle` в реестре.
@@ -100,6 +102,7 @@ pub fn spawn_task_session(params: TaskSessionParams) {
         logger,
         registry,
         resource_guard,
+        database_activity,
     } = params;
 
     let task_id: ScheduledTaskId = task.base.id;
@@ -113,6 +116,7 @@ pub fn spawn_task_session(params: TaskSessionParams) {
         .unwrap_or(7200);
 
     let join_handle = tokio::spawn(async move {
+        let _database_activity = database_activity;
         let _resource_guard = resource_guard;
         let manager = match registry.get(&task_type) {
             Some(m) => m,

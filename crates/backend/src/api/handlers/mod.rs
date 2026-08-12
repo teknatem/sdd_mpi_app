@@ -40,6 +40,7 @@ pub mod a038_llm_connection;
 pub mod a039_mail_message;
 pub mod a040_wb_search_analytics_daily;
 pub mod a042_agent_task;
+pub mod a043_wb_finance_report;
 
 // Projection handlers (p900-p908)
 pub mod p900_mp_sales_register;
@@ -89,6 +90,10 @@ pub mod ext_bi_wb_funnel;
 pub mod ext_bi_wb_stocks;
 // External BI API (Power BI) — WB finance report p903 (raw native rows)
 pub mod ext_bi_wb_finance;
+// External BI API (Power BI) — YM payment report p907 (raw native rows)
+pub mod ext_bi_ym_payments;
+// OpenAPI-спека и страница документации внешнего API (без ключа)
+pub mod ext_docs;
 
 // Data quality checks
 pub mod quality;

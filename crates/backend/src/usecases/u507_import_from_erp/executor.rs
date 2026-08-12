@@ -25,6 +25,10 @@ impl ImportExecutor {
 
     /// Запустить импорт (создаёт async task и возвращает session_id)
     pub async fn start_import(&self, request: ImportRequest) -> Result<ImportResponse> {
+        let database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Импорт недоступен во время обслуживания базы данных")
+            })?;
         let connection_id = Uuid::parse_str(&request.connection_id)
             .map_err(|_| anyhow::anyhow!("Invalid connection_id"))?;
 
@@ -45,6 +49,7 @@ impl ImportExecutor {
         let conn = connection.clone();
 
         tokio::spawn(async move {
+            let _database_activity = database_activity;
             if let Err(e) = executor.execute_import(&sid, &req, &conn).await {
                 tracing::error!("ERP import failed: {}", e);
                 executor

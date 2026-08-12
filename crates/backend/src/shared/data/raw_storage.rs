@@ -331,6 +331,42 @@ async fn main_database_path() -> Result<PathBuf> {
     anyhow::bail!("main SQLite database is missing from PRAGMA database_list")
 }
 
+/// Путь к файлу основной БД — как его видит сам SQLite, а не как его собрал бы
+/// конфиг. Нужен подсистеме переноса наборов: снимок снимается ровно с того
+/// файла, с которым работает приложение.
+pub async fn database_file_path() -> Result<PathBuf> {
+    main_database_path().await
+}
+
+/// `PRAGMA integrity_check` на живой БД. Возвращает `Ok(())`, если SQLite
+/// ответил единственной строкой `ok`; иначе — ошибку с текстом первой жалобы.
+///
+/// Проверка не косметическая: битую базу нельзя ни выгружать (снапшот молча
+/// унаследует повреждение), ни принимать при восстановлении.
+pub async fn integrity_check() -> Result<()> {
+    let rows = conn()
+        .query_all(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "PRAGMA integrity_check".to_string(),
+        ))
+        .await?;
+    let messages: Vec<String> = rows
+        .iter()
+        .filter_map(|row| row.try_get::<String>("", "integrity_check").ok())
+        .collect();
+    if messages.len() == 1 && messages[0] == "ok" {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "PRAGMA integrity_check не прошёл: {}",
+        if messages.is_empty() {
+            "СУБД не вернула результат".to_string()
+        } else {
+            messages.join("; ")
+        }
+    )
+}
+
 async fn wal_file_mb() -> Result<f64> {
     let db_path = main_database_path().await?;
     let mut wal_path = db_path.into_os_string();

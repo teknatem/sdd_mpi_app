@@ -2,7 +2,9 @@
 
 use std::collections::HashSet;
 
-use contracts::system::datasets::{CreateSnapshotRequest, CreateSnapshotResponse, PathOrigin};
+use contracts::system::datasets::{
+    CreateSnapshotRequest, CreateSnapshotResponse, DatasetJobStatus, DatasetKind, PathOrigin,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -61,7 +63,9 @@ pub fn ExportTab(state: DatasetsState) -> impl IntoView {
     let write_snapshot = move |_| {
         let set_ids: Vec<String> = selected.get().into_iter().collect();
         if set_ids.is_empty() {
-            state.error.set(Some("Не выбрано ни одного набора".to_string()));
+            state
+                .error
+                .set(Some("Не выбрано ни одного набора".to_string()));
             return;
         }
         let note_value = note.get().trim().to_string();
@@ -70,26 +74,33 @@ pub fn ExportTab(state: DatasetsState) -> impl IntoView {
             note: (!note_value.is_empty()).then_some(note_value),
         };
 
-        state.busy_label.set(Some("Запись снапшота в S3...".to_string()));
         state.error.set(None);
         state.notice.set(None);
         result.set(None);
         spawn_local(async move {
+            // Ответ — только идентификатор задачи: выгрузка с базой идёт
+            // минутами, и её ход показывает баннер прогресса на уровне страницы.
             match api::create_snapshot(&request).await {
-                Ok(response) => {
-                    state.notice.set(Some(format!(
-                        "Снапшот {} записан ({})",
-                        response.snapshot.snapshot_id,
-                        format_bytes_compact(response.bundle_size_bytes)
-                    )));
-                    result.set(Some(response));
-                    state.reload.run(());
-                }
+                Ok(started) => state.watch_job.run(started.job_id),
                 Err(err) => state.error.set(Some(err)),
             }
-            state.busy_label.set(None);
         });
     };
+
+    // Итог выгрузки приезжает в состоянии задачи — забираем его оттуда, чтобы
+    // карточка результата (ключ, sha256, ротация) осталась на месте.
+    Effect::new(move |_| {
+        if let Some(snapshot) = state.job.get().and_then(|job| job.snapshot_result) {
+            result.set(Some(snapshot));
+        }
+    });
+
+    let job_running = Signal::derive(move || {
+        state
+            .job
+            .get()
+            .is_some_and(|job| job.status == DatasetJobStatus::Running)
+    });
 
     view! {
         <section class="datasets__section">
@@ -138,11 +149,22 @@ pub fn ExportTab(state: DatasetsState) -> impl IntoView {
                                                 {(!set.exists).then(|| view! {
                                                     <span class="badge badge--neutral">"нет каталога"</span>
                                                 })}
-                                                {disabled.then(|| view! {
-                                                    <span class="badge badge--neutral">"фаза 2"</span>
+                                                {(set.kind == DatasetKind::Database).then(|| view! {
+                                                    <span class="badge badge--warning">"длительная операция"</span>
                                                 })}
                                             </div>
                                             <div class="datasets__set-description">{set.description_ru.clone()}</div>
+                                            // Свободное место, которое вернул бы VACUUM: полезно
+                                            // знать до того, как выгружать гигабайты.
+                                            {set.db_stats.as_ref().filter(|stats| stats.reclaimable_mb >= 1.0).map(|stats| view! {
+                                                <div class="datasets__set-description text-muted">
+                                                    {format!(
+                                                        "Снимок будет уплотнён: сейчас свободно {:.0} МБ, WAL {:.0} МБ",
+                                                        stats.reclaimable_mb,
+                                                        stats.wal_mb,
+                                                    )}
+                                                </div>
+                                            })}
                                         </td>
                                         <td class="table__cell datasets__mono">{set.path.clone()}</td>
                                         <td class="table__cell">
@@ -181,7 +203,11 @@ pub fn ExportTab(state: DatasetsState) -> impl IntoView {
                 </div>
                 <button
                     class="button button--primary"
-                    disabled=move || state.busy_label.get().is_some() || selected.get().is_empty()
+                    disabled=move || {
+                        state.busy_label.get().is_some()
+                            || job_running.get()
+                            || selected.get().is_empty()
+                    }
                     on:click=write_snapshot
                 >
                     {icon("upload-cloud")}

@@ -201,12 +201,19 @@ pub fn snapshot() -> Arc<HashMap<String, MetricsRow>> {
 pub fn spawn_flusher() {
     tokio::spawn(async {
         // Первичное наполнение кэша, чтобы UI не ждал первого флаша.
-        refresh_snapshot().await;
+        if let Some(_database_activity) = crate::system::maintenance::try_begin_database_activity()
+        {
+            refresh_snapshot().await;
+        }
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(FLUSH_INTERVAL_SECS));
         ticker.tick().await; // первый тик срабатывает немедленно
         loop {
             ticker.tick().await;
-            flush().await;
+            if let Some(_database_activity) =
+                crate::system::maintenance::try_begin_database_activity()
+            {
+                flush().await;
+            }
         }
     });
 }

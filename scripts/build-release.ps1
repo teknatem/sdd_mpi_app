@@ -116,6 +116,15 @@ Write-Ok "config.toml.template"
 3. Start service:  Start-Service MarketplaceBackend
 
 DB migrations are applied automatically on startup.
+
+## Automatic restart after database restore
+
+The backend exits cleanly after staging a restored database. NSSM must restart it:
+
+```powershell
+nssm set MarketplaceBackend AppExit Default Restart
+nssm set MarketplaceBackend AppRestartDelay 2000
+```
 '@ | Out-File -FilePath "$DeployDir\DEPLOY.md" -Encoding utf8
 Write-Ok "DEPLOY.md"
 

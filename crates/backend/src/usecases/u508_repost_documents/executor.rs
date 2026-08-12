@@ -115,6 +115,10 @@ impl RepostExecutor {
     }
 
     pub async fn start_repost(&self, request: RepostRequest) -> Result<RepostResponse> {
+        let database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| {
+                anyhow!("Перепроведение недоступно во время обслуживания базы данных")
+            })?;
         Self::validate_request(&request)?;
 
         let session_id = Uuid::new_v4().to_string();
@@ -127,6 +131,7 @@ impl RepostExecutor {
         let req = request.clone();
 
         tokio::spawn(async move {
+            let _database_activity = database_activity;
             if let Err(error) = executor.execute_repost(&sid, &req).await {
                 tracing::error!("Projection repost failed: {}", error);
                 executor
@@ -149,6 +154,10 @@ impl RepostExecutor {
         &self,
         request: AggregateRepostRequest,
     ) -> Result<RepostResponse> {
+        let database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| {
+                anyhow!("Перепроведение недоступно во время обслуживания базы данных")
+            })?;
         Self::validate_aggregate_request(&request)?;
 
         let session_id = Uuid::new_v4().to_string();
@@ -161,6 +170,7 @@ impl RepostExecutor {
         let req = request.clone();
 
         tokio::spawn(async move {
+            let _database_activity = database_activity;
             if let Err(error) = executor.execute_aggregate_repost(&sid, &req).await {
                 tracing::error!("Aggregate repost failed: {}", error);
                 executor
@@ -192,6 +202,8 @@ impl RepostExecutor {
         &self,
         request: FunnelRebuildRequest,
     ) -> Result<RepostResponse> {
+        let database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| anyhow!("Пересбор недоступен во время обслуживания базы данных"))?;
         let date_from = NaiveDate::parse_from_str(&request.date_from, "%Y-%m-%d")
             .map_err(|_| anyhow!("Invalid date_from: {}", request.date_from))?;
         let date_to = NaiveDate::parse_from_str(&request.date_to, "%Y-%m-%d")
@@ -210,6 +222,7 @@ impl RepostExecutor {
         let req = request.clone();
 
         tokio::spawn(async move {
+            let _database_activity = database_activity;
             if let Err(error) = executor.execute_funnel_rebuild(&sid, &req).await {
                 tracing::error!("Funnel rebuild failed: {}", error);
                 executor

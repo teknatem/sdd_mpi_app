@@ -1,0 +1,559 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Внешний API маркетплейсов",
+    "version": "1",
+    "description": "Сервис, который система предоставляет наружу: выгрузки для 1С и BI (Power BI).\n\n**Авторизация** — общий ключ в заголовке `X-Api-Key` (значение — `[external_api].api_key` в `config.toml` экземпляра). Ключ один на всех потребителей; персональных ключей нет.\n\n**Общие соглашения**\n\n* Даты — строки `YYYY-MM-DD`, границы периода включительно.\n* Пагинация — `limit`/`offset`; у каждого эндпоинта свой предел `limit`, значение выше предела молча урезается до него.\n* Поле `total` в ответе — число строк за период **до** пагинации.\n* `connection_id` — UUID кабинета маркетплейса (`a006_connection_mp`); пусто — все кабинеты.\n* Все вызовы (включая отказы 401/400) пишутся в журнал внешнего API и видны администратору системы.\n\n**Ответ 503** означает, что ключ не настроен на сервере либо система в режиме обслуживания."
+  },
+  "servers": [{ "url": "/", "description": "Текущий сервер" }],
+  "tags": [
+    { "name": "1С", "description": "Выгрузки для интеграции с 1С:УТ 11" },
+    { "name": "BI", "description": "Плоские выгрузки для Power BI" }
+  ],
+  "security": [{ "ApiKeyAuth": [] }],
+  "paths": {
+    "/api/ext/v1/wb-supplies": {
+      "get": {
+        "tags": ["1С"],
+        "summary": "Список поставок WB",
+        "description": "Поставки Wildberries за период с числом заказов в каждой. Период фильтруется по дате создания поставки в WB.",
+        "operationId": "listWbSupplies",
+        "parameters": [
+          { "$ref": "#/components/parameters/DateFromOptional" },
+          { "$ref": "#/components/parameters/DateToOptional" },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          {
+            "name": "organization_id",
+            "in": "query",
+            "required": false,
+            "description": "Фильтр по организации (UUID). Пусто — все организации.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "show_done",
+            "in": "query",
+            "required": false,
+            "description": "`false` — только открытые (незакрытые) поставки.",
+            "schema": { "type": "boolean", "default": true }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "default": 200 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список поставок",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SupplyListResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/wb-supplies/{id}": {
+      "get": {
+        "tags": ["1С"],
+        "summary": "Поставка WB целиком",
+        "description": "Шапка поставки и полный список заказов в ней, включая стикеры и ссылку на номенклатуру 1С.",
+        "operationId": "getWbSupply",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Внутренний UUID поставки либо ID поставки WB (начинается с `WB-`, например `WB-GI-32319994`).",
+            "schema": { "type": "string" },
+            "example": "WB-GI-32319994"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Поставка с заказами",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SupplyDetail" }
+              }
+            }
+          },
+          "400": {
+            "description": "Идентификатор не UUID и не ID поставки WB"
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Поставка не найдена" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/wb-sales-funnel": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Воронка продаж WB",
+        "description": "Плоские строки «товар × день»: переходы, корзина, заказы, выкупы, отмены и конверсии.",
+        "operationId": "listWbSalesFunnel",
+        "parameters": [
+          { "$ref": "#/components/parameters/DateFromRequired" },
+          { "$ref": "#/components/parameters/DateToRequired" },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 50000.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50000, "default": 5000 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Строки воронки",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FunnelResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/PeriodRequired" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/wb-advert-daily": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Реклама WB по дням",
+        "description": "Плоские строки «кампания × товар × день»: показы, клики, CTR/CPC, заказы и расход.",
+        "operationId": "listWbAdvertDaily",
+        "parameters": [
+          { "$ref": "#/components/parameters/DateFromRequired" },
+          { "$ref": "#/components/parameters/DateToRequired" },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 50000.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50000, "default": 5000 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Строки по рекламе",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdvertResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/PeriodRequired" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/wb-stocks": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Остатки WB на дату",
+        "description": "Остатки на уровне товара (`nm_id`): склады WB и склады продавца. Разреза по складам, баркодам и товару в пути нет — эти данные не хранятся.\n\nБез параметра `date` отдаётся последний снимок; с `date` — снимок на дату или ближайший более ранний (фактическая дата в поле `snapshot_date`).",
+        "operationId": "listWbStocks",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Остаток на дату. Пусто — последний снимок.",
+            "schema": { "type": "string", "format": "date" },
+            "example": "2026-07-10"
+          },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 50000.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50000, "default": 50000 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Остатки по товарам",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StockResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/wb-finance-report": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Финансовый отчёт WB (сырые строки)",
+        "description": "Строки отчёта `reportDetailByPeriod` в исходном виде WB, как они пришли из API, плюс `connection_mp_ref` и `organization_ref`. Состав полей задаёт Wildberries, а не эта система, — поэтому строка описана как свободный объект.\n\nПериод фильтруется по `rr_dt` (дата операции в отчёте).",
+        "operationId": "listWbFinanceReport",
+        "parameters": [
+          { "$ref": "#/components/parameters/DateFromRequired" },
+          { "$ref": "#/components/parameters/DateToRequired" },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          { "$ref": "#/components/parameters/LimitRaw" },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Сырые строки отчёта WB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RawRowsResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/PeriodRequired" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/ym-payment-report": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Отчёт по платежам Яндекс Маркета (сырые строки)",
+        "description": "Строки отчёта `united-netting` в том виде, в каком они пришли из CSV Маркета, плюс `connection_mp_ref`, `organization_ref` и служебный `loaded_at_utc`.\n\n`loaded_at_utc` нужен BI, чтобы находить строки, дозаполненные задним числом: `bank_order_id` и `act_id` Маркет проставляет спустя недели, а фильтра «изменённые с» у отчёта нет.\n\nВнутренние поля связи (`id`, `marketplace_product_ref`, `marketplace_order_ref`, `nomenclature_ref`, `payload_version`) наружу не отдаются.\n\nПериод фильтруется по `transaction_date`.",
+        "operationId": "listYmPaymentReport",
+        "parameters": [
+          { "$ref": "#/components/parameters/DateFromRequired" },
+          { "$ref": "#/components/parameters/DateToRequired" },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          { "$ref": "#/components/parameters/LimitRaw" },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Сырые строки отчёта YM",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RawRowsResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/PeriodRequired" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Общий ключ внешнего API (`[external_api].api_key` в config.toml)."
+      }
+    },
+    "parameters": {
+      "DateFromRequired": {
+        "name": "date_from",
+        "in": "query",
+        "required": true,
+        "description": "Начало периода, включительно.",
+        "schema": { "type": "string", "format": "date" },
+        "example": "2026-06-01"
+      },
+      "DateToRequired": {
+        "name": "date_to",
+        "in": "query",
+        "required": true,
+        "description": "Конец периода, включительно.",
+        "schema": { "type": "string", "format": "date" },
+        "example": "2026-06-30"
+      },
+      "DateFromOptional": {
+        "name": "date_from",
+        "in": "query",
+        "required": false,
+        "description": "Начало периода, включительно. Пусто — без нижней границы.",
+        "schema": { "type": "string", "format": "date" }
+      },
+      "DateToOptional": {
+        "name": "date_to",
+        "in": "query",
+        "required": false,
+        "description": "Конец периода, включительно. Пусто — без верхней границы.",
+        "schema": { "type": "string", "format": "date" }
+      },
+      "ConnectionId": {
+        "name": "connection_id",
+        "in": "query",
+        "required": false,
+        "description": "Кабинет маркетплейса (UUID). Пусто — все кабинеты.",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "LimitRaw": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Максимум 20000.",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 20000, "default": 5000 }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Заголовок `X-Api-Key` отсутствует или ключ неверный"
+      },
+      "PeriodRequired": {
+        "description": "Не заданы обязательные `date_from` / `date_to`"
+      },
+      "ServerError": { "description": "Внутренняя ошибка — подробности в логе сервера" },
+      "Unavailable": {
+        "description": "Ключ внешнего API не настроен на сервере либо идёт обслуживание"
+      }
+    },
+    "schemas": {
+      "SupplyListResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SupplyListItem" }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Число поставок за период до пагинации."
+          }
+        }
+      },
+      "SupplyListItem": {
+        "type": "object",
+        "required": ["id", "supply_id", "is_done", "is_b2b", "is_posted", "orders_count"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Внутренний UUID системы." },
+          "supply_id": { "type": "string", "description": "ID поставки в WB.", "example": "WB-GI-32319994" },
+          "name": { "type": ["string", "null"], "description": "Название поставки из WB." },
+          "is_done": { "type": "boolean", "description": "Поставка закрыта в WB." },
+          "is_b2b": { "type": "boolean" },
+          "is_posted": { "type": "boolean", "description": "Документ проведён в системе." },
+          "created_at_wb": { "type": ["string", "null"], "format": "date-time", "description": "Создание поставки в WB, ISO-8601." },
+          "closed_at_wb": { "type": ["string", "null"], "format": "date-time", "description": "Закрытие поставки в WB, ISO-8601." },
+          "organization_name": { "type": ["string", "null"] },
+          "orders_count": { "type": "integer", "format": "int64", "description": "Число заказов в поставке." }
+        }
+      },
+      "SupplyDetail": {
+        "type": "object",
+        "required": ["id", "supply_id", "is_done", "is_b2b", "is_posted", "connection_id", "organization_id", "orders"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "supply_id": { "type": "string" },
+          "name": { "type": ["string", "null"] },
+          "is_done": { "type": "boolean" },
+          "is_b2b": { "type": "boolean" },
+          "is_posted": { "type": "boolean" },
+          "created_at_wb": { "type": ["string", "null"], "format": "date-time" },
+          "closed_at_wb": { "type": ["string", "null"], "format": "date-time" },
+          "connection_id": { "type": "string", "format": "uuid" },
+          "organization_id": { "type": "string", "format": "uuid" },
+          "cargo_type": {
+            "type": ["integer", "null"],
+            "description": "Тип груза: 0 — виртуальный, 1 — короб, 2 — монопаллета, 5 — суперсейф."
+          },
+          "orders": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SupplyOrderRow" }
+          }
+        }
+      },
+      "SupplyOrderRow": {
+        "type": "object",
+        "required": ["order_id", "barcodes"],
+        "properties": {
+          "order_id": { "type": "integer", "format": "int64" },
+          "order_uid": { "type": ["string", "null"] },
+          "article": { "type": ["string", "null"] },
+          "nm_id": { "type": ["integer", "null"], "format": "int64" },
+          "chrt_id": { "type": ["integer", "null"], "format": "int64" },
+          "barcodes": { "type": "array", "items": { "type": "string" } },
+          "price": {
+            "type": ["integer", "null"],
+            "format": "int64",
+            "description": "Цена в копейках — умножьте на 0.01, чтобы получить рубли."
+          },
+          "created_at": { "type": ["string", "null"], "format": "date-time" },
+          "part_a": { "type": ["integer", "null"], "format": "int64", "description": "Стикер, верхнее число." },
+          "part_b": { "type": ["integer", "null"], "format": "int64", "description": "Стикер, нижнее число." },
+          "nomenclature_ref": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "UUID номенклатуры 1С, если сопоставление есть."
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "`null` — активный заказ, `cancel` — отменён."
+          }
+        }
+      },
+      "FunnelResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/FunnelRow" } },
+          "total": { "type": "integer", "description": "Число строк за период до пагинации." }
+        }
+      },
+      "FunnelRow": {
+        "type": "object",
+        "description": "Товар (`nm_id`) за конкретный день. Поля идут в порядке стадий воронки.",
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "connection_id": { "type": "string", "format": "uuid" },
+          "connection_name": { "type": ["string", "null"] },
+          "organization_name": { "type": ["string", "null"] },
+          "currency": { "type": "string" },
+          "nm_id": { "type": "integer", "format": "int64" },
+          "vendor_code": { "type": "string" },
+          "brand_name": { "type": "string" },
+          "subject_id": { "type": "integer", "format": "int64" },
+          "subject_name": { "type": "string" },
+          "title": { "type": "string" },
+          "open_count": { "type": "integer", "format": "int64", "description": "Переходы в карточку товара." },
+          "add_to_wishlist_count": { "type": "integer", "format": "int64", "description": "Добавления в «Отложенные»." },
+          "cart_count": { "type": "integer", "format": "int64", "description": "Положили в корзину, шт." },
+          "order_count": { "type": "integer", "format": "int64", "description": "Заказали товаров, шт." },
+          "order_sum": { "type": "number", "format": "double", "description": "Заказали на сумму." },
+          "buyout_count": { "type": "integer", "format": "int64", "description": "Выкупили товаров, шт." },
+          "buyout_sum": { "type": "number", "format": "double", "description": "Выкупили на сумму." },
+          "cancel_count": {
+            "type": ["integer", "null"],
+            "format": "int64",
+            "description": "Отменили товаров, шт. `null` — счётчика в источнике не было (данные до подключения отмен). Это N/A, а не ноль."
+          },
+          "cancel_sum": {
+            "type": ["number", "null"],
+            "format": "double",
+            "description": "Отменили на сумму. `null` — см. `cancel_count`."
+          },
+          "buyout_percent": { "type": "number", "format": "double", "description": "Процент выкупа." },
+          "add_to_cart_conversion": { "type": "number", "format": "double", "description": "Конверсия в корзину, %." },
+          "cart_to_order_conversion": { "type": "number", "format": "double", "description": "Конверсия в заказ, %." }
+        }
+      },
+      "AdvertResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdvertRow" } },
+          "total": { "type": "integer", "description": "Число строк за период до пагинации." }
+        }
+      },
+      "AdvertRow": {
+        "type": "object",
+        "description": "Кампания × товар × день.",
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "connection_id": { "type": "string", "format": "uuid" },
+          "connection_name": { "type": ["string", "null"] },
+          "organization_name": { "type": ["string", "null"] },
+          "advert_id": { "type": "integer", "format": "int64", "description": "ID рекламной кампании WB." },
+          "nm_id": { "type": "integer", "format": "int64" },
+          "nm_name": { "type": "string" },
+          "nomenclature_ref": { "type": ["string", "null"], "format": "uuid", "description": "UUID номенклатуры 1С, если сопоставление есть." },
+          "app_types": { "type": "array", "items": { "type": "integer" }, "description": "Типы площадок (коды WB)." },
+          "placements": { "type": "array", "items": { "type": "string" }, "description": "Места показа." },
+          "views": { "type": "integer", "format": "int64", "description": "Показы." },
+          "clicks": { "type": "integer", "format": "int64" },
+          "ctr": { "type": "number", "format": "double" },
+          "cpc": { "type": "number", "format": "double", "description": "Цена клика." },
+          "atbs": { "type": "integer", "format": "int64", "description": "Добавления в корзину." },
+          "orders": { "type": "integer", "format": "int64", "description": "Заказы." },
+          "shks": { "type": "integer", "format": "int64", "description": "Заказано товаров, шт." },
+          "sum": { "type": "number", "format": "double", "description": "Расход на рекламу." },
+          "sum_price": { "type": "number", "format": "double", "description": "Сумма заказов." },
+          "cr": { "type": "number", "format": "double", "description": "Конверсия в заказ, %." },
+          "canceled": { "type": "integer", "format": "int64", "description": "Отмены." }
+        }
+      },
+      "StockResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/StockRow" } },
+          "total": { "type": "integer", "description": "Число строк до пагинации." }
+        }
+      },
+      "StockRow": {
+        "type": "object",
+        "properties": {
+          "snapshot_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Фактическая дата снимка (≤ запрошенной `date`)."
+          },
+          "connection_id": { "type": "string", "format": "uuid" },
+          "connection_name": { "type": ["string", "null"] },
+          "organization_name": { "type": ["string", "null"] },
+          "nm_id": { "type": "integer", "format": "int64" },
+          "vendor_code": { "type": "string" },
+          "brand_name": { "type": "string" },
+          "subject_id": { "type": "integer", "format": "int64" },
+          "subject_name": { "type": "string" },
+          "title": { "type": "string" },
+          "stock_wb": { "type": "integer", "format": "int64", "description": "Остаток на складах WB, шт." },
+          "stock_mp": { "type": "integer", "format": "int64", "description": "Остаток на складах продавца, шт." },
+          "stock_balance_sum": { "type": "number", "format": "double", "description": "Сумма остатков." }
+        }
+      },
+      "RawRowsResponse": {
+        "type": "object",
+        "required": ["items", "total", "limit", "offset"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "Строки отчёта в исходном формате маркетплейса. Набор полей определяет маркетплейс и может меняться без изменения версии этого API. Гарантированно присутствуют `connection_mp_ref` и `organization_ref`.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "connection_mp_ref": { "type": "string", "format": "uuid", "description": "Кабинет маркетплейса." },
+                "organization_ref": { "type": "string", "format": "uuid", "description": "Организация." }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Число строк за период до пагинации (подсчёт ограничен сверху)."
+          },
+          "limit": { "type": "integer", "description": "Применённый `limit` после урезания до предела." },
+          "offset": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

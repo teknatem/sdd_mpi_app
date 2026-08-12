@@ -23,6 +23,9 @@
 
 pub mod bootstrap;
 pub mod bundle;
+pub mod database;
+pub mod db_restore;
+pub mod jobs;
 pub mod publish;
 pub mod registry;
 pub mod repository;
@@ -36,7 +39,7 @@ use contracts::system::datasets::SourceInfo;
 use crate::shared::config::{self, Config};
 
 /// Кто выполняет операцию — попадает в манифест и журнал переносов.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ActorInfo {
     pub user_id: Option<String>,
     pub login: Option<String>,
@@ -83,7 +86,9 @@ pub async fn source_info(config: &Config) -> SourceInfo {
         hostname: identity.hostname,
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         git_commit: option_env!("GIT_COMMIT").unwrap_or("unknown").to_string(),
-        build_profile: option_env!("BUILD_PROFILE").unwrap_or("unknown").to_string(),
+        build_profile: option_env!("BUILD_PROFILE")
+            .unwrap_or("unknown")
+            .to_string(),
         schema_version,
         os: format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH),
         data_root: config::get_data_root(config)

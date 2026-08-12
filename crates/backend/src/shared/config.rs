@@ -168,10 +168,15 @@ pub struct DatasetsConfig {
     /// инстансов ротация не трогает никогда.
     #[serde(default = "default_datasets_keep")]
     pub keep_per_instance: usize,
-    /// Потолок размера бандла. Дополнительно ограничен `[s3].max_upload_mb` —
-    /// объект грузится в память целиком, multipart в клиенте пока нет.
+    /// Потолок размера zip-бандла ФАЙЛОВЫХ наборов. Дополнительно ограничен
+    /// `[s3].max_upload_mb` — этот объект по-прежнему собирается в памяти целиком.
     #[serde(default = "default_datasets_max_bundle_mb")]
     pub max_bundle_mb: u64,
+    /// Отдельный потолок для снапшота БД. Под `max_bundle_mb` он не попадает:
+    /// объект грузится потоком по частям, в память целиком не читается, и мерить
+    /// его лимитом in-memory бандла бессмысленно — боевая база уже больше него.
+    #[serde(default = "default_datasets_max_db_gb")]
+    pub max_db_gb: u64,
     /// Разрешить включать вложения чатов в снапшоты. Выключено по умолчанию:
     /// единственный набор, способный вырасти до сотен мегабайт.
     #[serde(default)]
@@ -186,21 +191,34 @@ fn default_datasets_max_bundle_mb() -> u64 {
     256
 }
 
+fn default_datasets_max_db_gb() -> u64 {
+    20
+}
+
 impl Default for DatasetsConfig {
     fn default() -> Self {
         Self {
             keep_per_instance: default_datasets_keep(),
             max_bundle_mb: default_datasets_max_bundle_mb(),
+            max_db_gb: default_datasets_max_db_gb(),
             attachments_enabled: false,
         }
     }
 }
 
 impl DatasetsConfig {
-    /// Эффективный потолок бандла с учётом лимита загрузки в S3.
+    /// Эффективный потолок zip-бандла файловых наборов с учётом лимита загрузки в S3.
     pub fn max_bundle_bytes(&self, s3: &S3Config) -> u64 {
         let own = self.max_bundle_mb.saturating_mul(1024).saturating_mul(1024);
         own.min(s3.max_upload_bytes())
+    }
+
+    /// Потолок для объекта снапшота БД (до сжатия).
+    pub fn max_db_bytes(&self) -> u64 {
+        self.max_db_gb
+            .saturating_mul(1024)
+            .saturating_mul(1024)
+            .saturating_mul(1024)
     }
 }
 
@@ -1115,14 +1133,26 @@ env = "production"
     #[test]
     fn max_bundle_bytes_is_capped_by_s3_upload_limit() {
         let datasets = DatasetsConfig {
-            keep_per_instance: 10,
             max_bundle_mb: 256,
-            attachments_enabled: false,
+            ..DatasetsConfig::default()
         };
         let s3 = S3Config {
             max_upload_mb: 64,
             ..S3Config::default()
         };
         assert_eq!(datasets.max_bundle_bytes(&s3), 64 * 1024 * 1024);
+    }
+
+    /// Лимит снимка БД живёт отдельно: он не должен подрезаться ни
+    /// `max_bundle_mb`, ни `[s3].max_upload_mb` — объект грузится по частям.
+    #[test]
+    fn max_db_bytes_ignores_the_in_memory_bundle_limits() {
+        let datasets = DatasetsConfig {
+            max_bundle_mb: 256,
+            max_db_gb: 20,
+            ..DatasetsConfig::default()
+        };
+        assert_eq!(datasets.max_db_bytes(), 20 * 1024 * 1024 * 1024);
+        assert!(datasets.max_db_bytes() > datasets.max_bundle_bytes(&S3Config::default()));
     }
 }

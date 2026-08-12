@@ -4,7 +4,6 @@ title: Поддержка пользователей
 description: Консультации по работе программы и оформление обращений (тикетов) — разобраться в вопросе пользователя, найти инструкцию, а если функциональность подводит, собрать полный тикет и завести его.
 intents: [support, func_help]
 tools: [find_page_help, get_user_recent_pages, ticket_search, ticket_validate, ticket_create, search_knowledge, get_knowledge, get_entity_schema, get_architecture_overview]
-allowed_for: [business_analyst, sales_analyst, marketer, financier, system_admin, kb_admin, plugin_admin, coordinator_admin]
 default_for: []
 ---
 

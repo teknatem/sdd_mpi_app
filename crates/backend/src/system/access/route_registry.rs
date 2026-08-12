@@ -29,6 +29,26 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
         scope_id: None,
         mode: PolicyMode::Public,
     },
+    // Статус обслуживания читается без авторизации намеренно: страницу-заглушку
+    // надо показать и тому, кто ещё не вошёл. Управление — только админ.
+    RoutePolicy {
+        method: "GET",
+        path: "/api/system/maintenance",
+        scope_id: None,
+        mode: PolicyMode::Public,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/system/maintenance/enable",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/system/maintenance/disable",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
     RoutePolicy {
         method: "POST",
         path: "/api/system/auth/refresh",
@@ -257,6 +277,24 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     RoutePolicy {
         method: "GET",
         path: "/api/sys/datasets/history",
+        scope_id: Some("sys_datasets"),
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/sys/datasets/jobs/active",
+        scope_id: Some("sys_datasets"),
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/sys/datasets/jobs/:job_id",
+        scope_id: Some("sys_datasets"),
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/sys/datasets/jobs/:job_id/cancel",
         scope_id: Some("sys_datasets"),
         mode: PolicyMode::AdminOnly,
     },
@@ -973,6 +1011,24 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
+        path: "/api/a043/wb-finance-reports/list",
+        scope_id: Some("a043_wb_finance_report"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a043/wb-finance-reports/:id",
+        scope_id: Some("a043_wb_finance_report"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a043/wb-finance-reports/:id/lines",
+        scope_id: Some("a043_wb_finance_report"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
         path: "/api/a027/wb-documents/list",
         scope_id: Some("a027_wb_documents"),
         mode: PolicyMode::Auto,
@@ -1610,6 +1666,13 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     RoutePolicy {
         method: "*",
         path: "/api/kb/reload",
+        scope_id: Some("knowledge_base"),
+        mode: PolicyMode::Auto,
+    },
+    // Пересборка карт из БД и рантайма — тем более действие.
+    RoutePolicy {
+        method: "*",
+        path: "/api/kb/generate",
         scope_id: Some("knowledge_base"),
         mode: PolicyMode::Auto,
     },

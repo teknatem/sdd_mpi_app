@@ -140,6 +140,9 @@ pub async fn toggle_scheduled_task_enabled(
 pub async fn run_task_now(
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, axum::http::StatusCode> {
+    let Some(database_activity) = crate::system::maintenance::try_begin_database_activity() else {
+        return Ok(crate::system::maintenance::unavailable_response());
+    };
     let task_id =
         ScheduledTaskId::from_string(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
@@ -225,6 +228,7 @@ pub async fn run_task_now(
         logger,
         registry,
         resource_guard,
+        database_activity,
     });
 
     Ok(Json(RunTaskResponse {

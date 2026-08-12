@@ -4,7 +4,6 @@ title: Финансовая аналитика
 description: Главная книга, сверка выручки (fina/ybuh), взаиморасчёты, комиссии. Источники dv004/dv005/dv007, p907, a034/a035.
 intents: [finance_query]
 tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_scalar, run_data_view_drilldown, execute_query, get_chart_of_accounts, list_gl_turnovers]
-allowed_for: [financier]
 default_for: [financier]
 resources: [intake.md]
 ---

@@ -16,23 +16,31 @@ use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
 use contracts::system::datasets::{
-    BundleManifest, DiffClass, FileDiffEntry, InstanceInfoSummary, RestoreApplyRequest,
-    RestoreMode, RestorePreviewDto, RestorePreviewRequest, RestoreResultDto, RestoreSetResult,
-    RestoreWarning, SetDiff, WarningSeverity, DATASET_BUNDLE_FORMAT_VERSION,
+    BundleManifest, BundleObjectKind, DiffClass, FileDiffEntry, InstanceInfoSummary,
+    RestoreApplyRequest, RestoreMode, RestorePreviewDto, RestorePreviewRequest, RestoreResultDto,
+    RestoreSetResult, RestoreWarning, SetDiff, WarningSeverity, DATASET_BUNDLE_FORMAT_VERSION,
 };
 
+use super::jobs::{stage, JobHandle};
 use super::registry::{self, DatasetDescriptor, HotReload};
 use super::repository::{
     self, TransferLogEntry, OPERATION_RESTORE, STATUS_FAILED, STATUS_OK, STATUS_ROLLED_BACK,
 };
 use super::scan;
-use super::{bundle, publish, ActorInfo};
+use super::{bundle, database, db_restore, publish, ActorInfo};
 use crate::shared::config::{self, Config};
 use crate::system::s3::service as s3_service;
 
 /// Сколько записей дерева отдавать в предпросмотр. Полное дерево может быть в
 /// десятки тысяч файлов — в диалоге его всё равно не прочитать.
 const DIFF_ENTRIES_LIMIT: usize = 200;
+
+/// Режим merge/replace описывает только работу с деревом файлов. База всегда
+/// восстанавливается целиком отдельным объектом, поэтому выбранный файловый
+/// режим не участвует в проверке её совместимости.
+fn supports_requested_mode(descriptor: &DatasetDescriptor, mode: RestoreMode) -> bool {
+    registry::is_database(descriptor) || descriptor.supported_modes.contains(&mode)
+}
 
 // ---------------------------------------------------------------------------
 // Предпросмотр
@@ -51,19 +59,23 @@ pub async fn preview(request: RestorePreviewRequest) -> anyhow::Result<RestorePr
     let manifest = publish::get_manifest(&request.snapshot_id).await?;
     let _ = &cfg;
 
-    let bundle_sha256 = manifest
-        .objects
-        .first()
-        .map(|object| object.sha256.clone())
-        .unwrap_or_default();
-    let bundle_sha256 = if bundle_sha256.is_empty() {
-        summary
-            .objects
-            .first()
+    // Именно ZIP файловых наборов, а не «первый объект»: в снапшоте, снятом с
+    // одной только базы, первым лежит снимок БД, и его sha ушла бы в проверку
+    // архива, которого там нет.
+    let files_sha256 = |objects: &[contracts::system::datasets::SnapshotObject]| {
+        objects
+            .iter()
+            .find(|object| object.kind == BundleObjectKind::FilesZip)
             .map(|object| object.sha256.clone())
             .unwrap_or_default()
-    } else {
-        bundle_sha256
+    };
+    let bundle_sha256 = {
+        let from_manifest = files_sha256(&manifest.objects);
+        if from_manifest.is_empty() {
+            files_sha256(&summary.objects)
+        } else {
+            from_manifest
+        }
     };
 
     let mut sets = Vec::new();
@@ -88,7 +100,7 @@ pub async fn preview(request: RestorePreviewRequest) -> anyhow::Result<RestorePr
             });
             continue;
         };
-        if !descriptor.supported_modes.contains(&request.mode) {
+        if !supports_requested_mode(descriptor, request.mode) {
             warnings.push(RestoreWarning {
                 code: "mode_unsupported".to_string(),
                 severity: WarningSeverity::Blocking,
@@ -147,18 +159,47 @@ async fn collect_warnings(
         });
     }
 
+    let with_database = set_ids.iter().any(|set_id| set_id == "database");
     let local = super::source_info(config).await;
     if manifest.source.schema_version != local.schema_version {
         warnings.push(RestoreWarning {
-            code: "schema_mismatch".to_string(),
+            code: if with_database {
+                "db_schema_mismatch"
+            } else {
+                "schema_mismatch"
+            }
+            .to_string(),
             // Для файловых наборов это не блокер: база знаний и навыки не
-            // завязаны на схему БД. Для набора «База данных» (фаза 2) то же
-            // расхождение станет блокирующим.
+            // завязаны на схему БД. Для самой базы — блокер: чужая схема плюс
+            // локальные миграции дают состояние, которое никто не проверял.
+            severity: if with_database {
+                WarningSeverity::Blocking
+            } else {
+                WarningSeverity::Warning
+            },
+            message: if with_database {
+                format!(
+                    "Версия схемы БД источника ({}) отличается от локальной ({}). \
+                     Восстанавливать базу между разными схемами нельзя: обновите \
+                     приложение до одной версии на обоих экземплярах.",
+                    manifest.source.schema_version, local.schema_version
+                )
+            } else {
+                format!(
+                    "Версия схемы БД источника ({}) отличается от локальной ({}).",
+                    manifest.source.schema_version, local.schema_version
+                )
+            },
+        });
+    }
+    if with_database {
+        warnings.push(RestoreWarning {
+            code: "db_requires_restart".to_string(),
             severity: WarningSeverity::Warning,
-            message: format!(
-                "Версия схемы БД источника ({}) отличается от локальной ({}).",
-                manifest.source.schema_version, local.schema_version
-            ),
+            message: "База данных будет заменена не сразу: файл занят пулом подключений, \
+                      поэтому восстановление подготовит подмену, а применится она при \
+                      следующем запуске бэкенда. Текущая база сохранится в каталоге backups."
+                .to_string(),
         });
     }
     if manifest.source.instance_id == local.instance_id {
@@ -195,12 +236,68 @@ async fn collect_warnings(
     warnings
 }
 
+/// Дифф набора «База данных».
+///
+/// Дерева файлов у него нет — есть один файл, который заменится целиком.
+/// sha256 живого `app.db` не сравнивается со снимком намеренно: `VACUUM INTO`
+/// перестраивает страницы, поэтому даже снимок собственной базы дал бы «другой
+/// файл». Единственное честное утверждение здесь — «база будет заменена», и
+/// сравнивать имеет смысл размеры, а не хеши.
+fn diff_database(
+    config: &Config,
+    descriptor: &DatasetDescriptor,
+    set_manifest: &contracts::system::datasets::SetManifest,
+) -> SetDiff {
+    let local_size = database::local_file_size(config);
+    let bundle_size = set_manifest
+        .files
+        .first()
+        .map(|file| file.size_bytes)
+        .unwrap_or(set_manifest.total_bytes);
+    let local_path = config::resolve_database_path(config)
+        .map(|resolved| resolved.display_path())
+        .unwrap_or_default();
+
+    SetDiff {
+        set_id: descriptor.id.to_string(),
+        label_ru: descriptor.label_ru.to_string(),
+        local_path,
+        local_exists: local_size.is_some(),
+        added: u64::from(local_size.is_none()),
+        modified: u64::from(local_size.is_some()),
+        identical: 0,
+        local_only: 0,
+        bytes_written: bundle_size,
+        bytes_deleted: 0,
+        entries: vec![FileDiffEntry {
+            path: database::DB_ENTRY_NAME.to_string(),
+            class: if local_size.is_some() {
+                DiffClass::Modified
+            } else {
+                DiffClass::Added
+            },
+            bundle_size_bytes: Some(bundle_size),
+            local_size_bytes: local_size,
+            bundle_modified_at: set_manifest
+                .files
+                .first()
+                .and_then(|file| file.modified_at.clone()),
+            local_modified_at: None,
+        }],
+        entries_truncated: false,
+    }
+}
+
 fn diff_set(
     config: &Config,
     descriptor: &DatasetDescriptor,
     set_manifest: &contracts::system::datasets::SetManifest,
     mode: RestoreMode,
 ) -> anyhow::Result<SetDiff> {
+    if registry::is_database(descriptor) {
+        return Ok(diff_database(config, descriptor, set_manifest));
+    }
+
     let root = registry::resolve_root(config, descriptor)
         .ok_or_else(|| anyhow::anyhow!("Для набора '{}' нет пути", descriptor.id))?;
     let local = scan::scan_directory(descriptor, &root.path)?;
@@ -318,25 +415,151 @@ fn diff_order(class: DiffClass) -> u8 {
 // Применение
 // ---------------------------------------------------------------------------
 
+/// Восстановление из снапшота в бакете.
+///
+/// Файловые наборы и база идут разными путями: первые применяются на живом
+/// приложении через staging-каталоги, вторая только готовится к подмене при
+/// следующем старте. Общего у них ровно одно — оба шага должны быть согласованы
+/// с тем диффом, который подтвердил админ.
 pub async fn apply(
     request: RestoreApplyRequest,
     actor: ActorInfo,
+    job: &JobHandle,
 ) -> anyhow::Result<RestoreResultDto> {
+    let config = config::load_config()?;
     let cfg = s3_service::s3_config()?;
+
+    job.set_stage(stage::RESTORE_MANIFEST);
     let catalog = publish::get_catalog().await?;
     let summary = catalog
         .find(&request.snapshot_id)
         .ok_or_else(|| anyhow::anyhow!("Снапшот '{}' не найден", request.snapshot_id))?
         .clone();
 
-    let bytes = publish::fetch_verified_bundle(
-        &cfg,
-        &summary,
-        request.expected_bundle_sha256.as_deref(),
+    let (file_set_ids, with_database) = publish::split_selection(&request.set_ids)?;
+    if file_set_ids.is_empty() && !with_database {
+        anyhow::bail!("Не выбрано ни одного набора");
+    }
+
+    // Восстановление базы обязано идти в режиме обслуживания, и это не про
+    // производительность. Подмена файла происходит при следующем запуске, а всё,
+    // что пользователи запишут между подготовкой и перезапуском, уедет в архив
+    // вместе со старой базой — молча. Режим снимается арендой при любой ошибке;
+    // при успехе он остаётся включённым до перезапуска (см. `keep()` ниже).
+    let maintenance = with_database.then(|| {
+        crate::system::maintenance::MaintenanceLease::acquire(
+            "Идёт восстановление базы данных",
+            format!("auto:restore ({})", actor.created_by()),
+        )
+    });
+    let _database_pause = if with_database {
+        Some(crate::system::maintenance::pause_database_activity().await)
+    } else {
+        None
+    };
+
+    let mut result = if file_set_ids.is_empty() {
+        // Снапшот только с базой: файлового архива в нём может не быть вовсе.
+        RestoreResultDto {
+            snapshot_id: request.snapshot_id.clone(),
+            mode: request.mode,
+            sets: Vec::new(),
+            pre_restore_archive: None,
+            requires_restart: false,
+            warnings: Vec::new(),
+        }
+    } else {
+        job.set_stage(stage::RESTORE_DOWNLOAD_FILES);
+        let bytes = publish::fetch_verified_bundle(
+            &cfg,
+            &summary,
+            request.expected_bundle_sha256.as_deref(),
+        )
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("В снапшоте нет файлового архива"))?;
+        job.check_cancelled()?;
+
+        job.set_stage(stage::RESTORE_APPLY_FILES);
+        apply_from_bytes(
+            bytes,
+            RestoreApplyRequest {
+                snapshot_id: request.snapshot_id.clone(),
+                set_ids: file_set_ids,
+                mode: request.mode,
+                expected_bundle_sha256: request.expected_bundle_sha256.clone(),
+            },
+            actor.clone(),
+        )
+        .await?
+    };
+
+    if with_database {
+        // База восстанавливается последней: файловые наборы к этому моменту уже
+        // легли, и если подготовка базы упадёт, откатывать их не придётся —
+        // рабочая база при этом остаётся нетронутой в любом случае.
+        let staged = restore_database(&config, &cfg, &summary, &actor, job).await?;
+        result.requires_restart = true;
+        result.warnings.push(format!(
+            "База данных подготовлена к подмене ({}). Бэкенд автоматически перезапустится, чтобы она вступила в силу.",
+            staged.display()
+        ));
+        // Файл подготовлен — режим остаётся включённым до перезапуска. Снять его
+        // сейчас значило бы впустить пользователей писать в базу, которую вот-вот
+        // заменят; именно эти записи и терялись бы молча.
+        if let Some(lease) = maintenance {
+            lease.keep();
+        }
+    }
+
+    Ok(result)
+}
+
+/// Скачивает снимок БД, проверяет его и ставит в очередь на подмену.
+async fn restore_database(
+    config: &Config,
+    cfg: &crate::shared::config::S3Config,
+    summary: &contracts::system::datasets::SnapshotSummary,
+    actor: &ActorInfo,
+    job: &JobHandle,
+) -> anyhow::Result<std::path::PathBuf> {
+    let object = summary
+        .objects
+        .iter()
+        .find(|object| object.kind == BundleObjectKind::DatabaseSnapshot)
+        .ok_or_else(|| anyhow::anyhow!("В снапшоте нет снимка базы данных"))?;
+
+    job.set_stage(stage::RESTORE_DOWNLOAD_DB);
+    let unpacked = database::download_and_unpack(
+        cfg,
+        config,
+        &object.key,
+        &object.sha256,
+        &summary.snapshot_id,
+        job,
     )
     .await?;
 
-    apply_from_bytes(bytes, request, actor).await
+    job.set_stage(stage::RESTORE_STAGE_DB);
+    let marker = db_restore::PendingRestore {
+        snapshot_id: summary.snapshot_id.clone(),
+        source_instance_id: summary.source.instance_id.clone(),
+        source_hostname: summary.source.hostname.clone(),
+        schema_version: summary.source.schema_version,
+        sha256: summary
+            .sets
+            .iter()
+            .find(|set| set.set_id == "database")
+            .map(|set| set.sha256.clone())
+            .unwrap_or_default(),
+        staged_at: chrono::Utc::now().to_rfc3339(),
+        actor: Some(actor.created_by()),
+    };
+
+    let staged = db_restore::stage_pending_restore(config, &unpacked, marker);
+    if staged.is_err() {
+        let _ = std::fs::remove_file(&unpacked);
+    }
+    staged
 }
 
 /// Применение из готовых байтов архива — общий путь для восстановления из S3 и
@@ -406,9 +629,7 @@ pub async fn apply_from_bytes(
                 bytes: bytes.len() as i64,
                 files_written: sets.iter().map(|set| set.files_written as i64).sum(),
                 files_deleted: sets.iter().map(|set| set.files_deleted as i64).sum(),
-                pre_restore_archive: pre_restore
-                    .as_ref()
-                    .map(|path| path.display().to_string()),
+                pre_restore_archive: pre_restore.as_ref().map(|path| path.display().to_string()),
                 manifest_json: serde_json::to_string(&parsed.manifest.source).ok(),
                 error: None,
                 actor_user_id: actor.user_id.clone(),
@@ -443,9 +664,7 @@ pub async fn apply_from_bytes(
                 bytes: 0,
                 files_written: 0,
                 files_deleted: 0,
-                pre_restore_archive: pre_restore
-                    .as_ref()
-                    .map(|path| path.display().to_string()),
+                pre_restore_archive: pre_restore.as_ref().map(|path| path.display().to_string()),
                 manifest_json: None,
                 error: Some(error.to_string()),
                 actor_user_id: actor.user_id,
@@ -472,6 +691,7 @@ async fn snapshot_before_restore(
         Some("Автоснапшот перед восстановлением".to_string()),
         &ActorInfo::system("pre-restore"),
         format!("local/pre-restore-{snapshot_id}.zip"),
+        None,
     )
     .await?;
 
@@ -690,12 +910,7 @@ fn stage_and_swap(
         ));
     }
 
-    Ok((
-        had_target.then_some(backup),
-        written,
-        deleted,
-        bytes,
-    ))
+    Ok((had_target.then_some(backup), written, deleted, bytes))
 }
 
 /// Возвращает наборы к состоянию до применения.
@@ -826,7 +1041,10 @@ async fn reload_cache(
         HotReload::QualityChecks => {
             let report = crate::quality::registry::reload().await;
             if !report.ok {
-                anyhow::bail!("реестр проверок отверг каталог: {}", report.diagnostics.join("; "));
+                anyhow::bail!(
+                    "реестр проверок отверг каталог: {}",
+                    report.diagnostics.join("; ")
+                );
             }
             Ok(Some("Проверки качества перечитаны".to_string()))
         }
@@ -853,6 +1071,15 @@ mod tests {
 
     fn read(root: &Path, relative: &str) -> Option<String> {
         std::fs::read_to_string(root.join(relative)).ok()
+    }
+
+    #[test]
+    fn database_ignores_the_file_restore_mode() {
+        let database = lookup("database").unwrap();
+
+        assert!(!database.supported_modes.contains(&RestoreMode::Merge));
+        assert!(supports_requested_mode(database, RestoreMode::Merge));
+        assert!(supports_requested_mode(database, RestoreMode::Replace));
     }
 
     #[test]
@@ -911,7 +1138,10 @@ mod tests {
         assert_eq!(read(&target, "shared.md").as_deref(), Some("new"));
         assert!(read(&target, "mine.md").is_none());
         // Рабочее окружение Obsidian не относится к данным и пережило replace.
-        assert_eq!(read(&target, ".obsidian/workspace.json").as_deref(), Some("{}"));
+        assert_eq!(
+            read(&target, ".obsidian/workspace.json").as_deref(),
+            Some("{}")
+        );
 
         if let Some(backup) = backup {
             std::fs::remove_dir_all(backup).ok();

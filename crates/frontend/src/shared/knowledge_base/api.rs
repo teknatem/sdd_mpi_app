@@ -21,6 +21,9 @@ pub struct KbArticleSummary {
     pub source_path: Option<String>,
     pub display_path: String,
     pub is_embedded: bool,
+    /// Корпус: `business` | `app` | `generated`.
+    #[serde(default)]
+    pub kind: String,
     #[serde(default)]
     pub summary: String,
     #[serde(default)]
@@ -34,6 +37,8 @@ pub struct KbArticleSummary {
     pub staleness_pct: Option<u32>,
     #[serde(default)]
     pub unknown_tags: Vec<String>,
+    #[serde(default)]
+    pub unknown_anchors: Vec<String>,
     #[serde(default)]
     pub metrics: KbArticleMetrics,
 }
@@ -50,6 +55,8 @@ pub struct KbArticleDetail {
     pub display_path: String,
     pub is_embedded: bool,
     #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
     pub summary: String,
     #[serde(default)]
     pub status: String,
@@ -62,6 +69,8 @@ pub struct KbArticleDetail {
     pub staleness_pct: Option<u32>,
     #[serde(default)]
     pub unknown_tags: Vec<String>,
+    #[serde(default)]
+    pub unknown_anchors: Vec<String>,
     #[serde(default)]
     pub metrics: KbArticleMetrics,
     pub content: String,
@@ -82,6 +91,20 @@ pub struct KbStatsResponse {
     pub total_articles: usize,
     pub file_articles: usize,
     pub embedded_articles: usize,
+    /// Разбивка по корпусам: знание организации, техдоки, машинные карты.
+    #[serde(default)]
+    pub business_articles: usize,
+    #[serde(default)]
+    pub app_articles: usize,
+    #[serde(default)]
+    pub generated_articles: usize,
+    /// Работа куратора: связи в никуда и якоря на несуществующие объекты.
+    #[serde(default)]
+    pub dangling_links: usize,
+    #[serde(default)]
+    pub unknown_anchor_count: usize,
+    #[serde(default)]
+    pub anchored_entities: usize,
     pub total_tags: usize,
     pub total_related: usize,
     pub total_folders: usize,
@@ -124,6 +147,18 @@ pub struct KbVocabularyTerm {
     pub aliases: Vec<String>,
     pub description: String,
     pub articles: usize,
+}
+
+/// Итог пересборки карт корпуса `generated`.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct KbGenerateResponse {
+    pub files: Vec<String>,
+    pub tables_profiled: usize,
+    pub plugins: usize,
+    pub skills: usize,
+    pub quality_checks: usize,
+    #[serde(default)]
+    pub errors: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -186,6 +221,23 @@ pub async fn post_kb_reload() -> Result<KbReloadResponse, String> {
     }
     response
         .json::<KbReloadResponse>()
+        .await
+        .map_err(|e| format!("Ошибка парсинга: {}", e))
+}
+
+/// Пересобрать карты из БД и рантайма. Отдельно от «Перечитать базу»: та читает
+/// файлы, а эта их производит — с обходом всех таблиц каталога.
+pub async fn post_kb_generate() -> Result<KbGenerateResponse, String> {
+    let url = format!("{}{}", api_base(), "/api/kb/generate");
+    let response = Request::post(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка сети: {}", e))?;
+    if !response.ok() {
+        return Err(format!("Ошибка сервера: HTTP {}", response.status()));
+    }
+    response
+        .json::<KbGenerateResponse>()
         .await
         .map_err(|e| format!("Ошибка парсинга: {}", e))
 }

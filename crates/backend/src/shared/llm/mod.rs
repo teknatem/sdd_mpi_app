@@ -10,6 +10,7 @@ pub mod frontmatter;
 pub mod funnel_repair_tools;
 pub mod golden_set;
 pub mod kb_admin_tools;
+pub mod kb_generated;
 pub mod kb_metrics;
 pub mod kb_search;
 pub mod kb_tools;

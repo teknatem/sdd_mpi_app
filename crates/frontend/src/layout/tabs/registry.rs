@@ -81,6 +81,8 @@ use crate::domain::a040_wb_search_analytics_daily::ui::details::WbSearchAnalytic
 use crate::domain::a040_wb_search_analytics_daily::ui::list::WbSearchAnalyticsList;
 use crate::domain::a042_agent_task::ui::details::AgentTaskDetails;
 use crate::domain::a042_agent_task::ui::list::AgentTaskList;
+use crate::domain::a043_wb_finance_report::ui::details::WbFinanceReportDetail as WbFinanceReportV1Detail;
+use crate::domain::a043_wb_finance_report::ui::list::WbFinanceReportsList;
 use crate::general_ledger::ui::{
     GeneralLedgerDetailsPage, GeneralLedgerDimensionsPage, GeneralLedgerEntitiesPage,
     GeneralLedgerLayerTurnoverMatrixPage, GeneralLedgerLayersPage, GeneralLedgerPage,
@@ -108,9 +110,9 @@ use crate::shared::bi_timeline::ui::{BiTimelineInitial, BiTimelinePage};
 use crate::shared::drilldown_report::DrilldownReportPage;
 use crate::shared::knowledge_base::ui::{KnowledgeArticlePage, KnowledgeBaseWorkspace};
 use crate::shared::universal_dashboard::{SchemaBrowser, UniversalDashboard};
+use crate::system::datasets::ui::DatasetsPage;
 use crate::system::pages::style_guide::StyleGuidePage;
 use crate::system::pages::thaw_test::ThawTestPage;
-use crate::system::datasets::ui::DatasetsPage;
 use crate::system::raw_storage::ui::RawStoragePage;
 use crate::system::s3::ui::list::S3FilesPage;
 use crate::system::tasks::ui::details::ScheduledTaskDetails;
@@ -547,6 +549,16 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
                 />
             }
             .into_any()
+        }
+        "a043_wb_finance_report" => view! { <WbFinanceReportsList /> }.into_any(),
+        k if k.starts_with("a043_wb_finance_report_details_") => {
+            let id = k.strip_prefix("a043_wb_finance_report_details_").unwrap().to_string();
+            view! {
+                <WbFinanceReportV1Detail id=id on_close=Callback::new({
+                    let key_for_close = key_for_close.clone();
+                    move |_| tabs_store.close_tab(&key_for_close)
+                }) />
+            }.into_any()
         }
         "a027_wb_documents" => view! { <WbDocumentsList /> }.into_any(),
         k if k.starts_with("a027_wb_documents_details_") => {

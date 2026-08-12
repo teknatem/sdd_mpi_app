@@ -35,6 +35,9 @@ use contracts::domain::a040_wb_search_analytics_daily::aggregate::{
     WbSearchAnalyticsDailySourceMeta, WbSearchAnalyticsDailyTotals, WbSearchMetrics,
     WbSearchQueryStat,
 };
+use contracts::domain::a043_wb_finance_report::{
+    WbFinanceReport, WbFinanceReportHeader, WbFinanceReportSourceMeta,
+};
 use contracts::domain::common::AggregateId;
 use contracts::system::tasks::progress::TaskProgress;
 use contracts::usecases::u504_import_from_wildberries::{
@@ -68,6 +71,11 @@ struct AdvertDayAccumulator {
 }
 
 const WB_ADVERT_MIN_REQUEST_INTERVAL_MS: u64 = 250;
+const WB_ADVERT_CAMPAIGN_BATCH_SIZE: usize = 50;
+
+fn wb_advert_info_batches(ids: &[i64]) -> std::slice::Chunks<'_, i64> {
+    ids.chunks(WB_ADVERT_CAMPAIGN_BATCH_SIZE)
+}
 const WB_ADVERT_FULLSTATS_CHUNK_DELAY_SECS: u64 = 21;
 const WB_ADVERT_FULLSTATS_CHUNK_SIZE: usize = 50;
 const WB_ADVERT_RATE_LIMIT_MARKER: &str = "WB Advert API fullstats: 429";
@@ -424,6 +432,10 @@ impl ImportExecutor {
 
     /// Запустить импорт (создает async task и возвращает session_id)
     pub async fn start_import(&self, request: ImportRequest) -> Result<ImportResponse> {
+        let database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Импорт недоступен во время обслуживания базы данных")
+            })?;
         // Валидация запроса
         let connection_id = Uuid::parse_str(&request.connection_id)
             .map_err(|_| anyhow::anyhow!("Invalid connection_id"))?;
@@ -444,6 +456,7 @@ impl ImportExecutor {
                 "a015_wb_orders" => "Заказы Wildberries (Backfill)",
                 "a012_wb_sales" => "Продажи Wildberries",
                 "p903_wb_finance_report" => "Финансовый отчет WB",
+                "a043_wb_finance_report" => "Финансовые отчёты WB (Finance API v1)",
                 "p905_wb_commission_history" => "История комиссий WB",
                 "p908_wb_goods_prices" => "Цены товаров WB",
                 "a020_wb_promotion" => "Акции WB (Календарь)",
@@ -469,6 +482,7 @@ impl ImportExecutor {
         let connection_clone = connection.clone();
 
         tokio::spawn(async move {
+            let _database_activity = database_activity;
             if let Err(e) = self_clone
                 .execute_import(&session_id_clone, &request_clone, &connection_clone)
                 .await
@@ -508,6 +522,7 @@ impl ImportExecutor {
             "a015_wb_orders" => "Заказы Wildberries (Backfill)",
             "a012_wb_sales" => "Продажи Wildberries",
             "p903_wb_finance_report" => "Финансовый отчет WB",
+            "a043_wb_finance_report" => "Финансовые отчёты WB (Finance API v1)",
             "p905_wb_commission_history" => "История комиссий WB",
             "p908_wb_goods_prices" => "Цены товаров WB",
             "a020_wb_promotion" => "Акции WB (Календарь)",
@@ -632,6 +647,15 @@ impl ImportExecutor {
                 }
                 "p903_wb_finance_report" => {
                     self.import_wb_finance_report(
+                        session_id,
+                        connection,
+                        request.date_from,
+                        request.date_to,
+                    )
+                    .await?;
+                }
+                "a043_wb_finance_report" => {
+                    self.import_wb_finance_report_v1(
                         session_id,
                         connection,
                         request.date_from,
@@ -2061,6 +2085,125 @@ impl ImportExecutor {
     }
 
     /// Импорт истории комиссий Wildberries в p905
+    /// Новый независимый Finance API → a043. Не создаёт проекций и не затрагивает p903.
+    async fn import_wb_finance_report_v1(
+        &self,
+        session_id: &str,
+        connection: &contracts::domain::a006_connection_mp::aggregate::ConnectionMP,
+        date_from: chrono::NaiveDate,
+        date_to: chrono::NaiveDate,
+    ) -> Result<()> {
+        let aggregate_index = "a043_wb_finance_report";
+        let minimum = chrono::NaiveDate::from_ymd_opt(2025, 1, 1).expect("valid date");
+        if date_from < minimum {
+            anyhow::bail!("a043: период не может начинаться раньше 2025-01-01");
+        }
+        self.progress_tracker.set_current_item(
+            session_id,
+            aggregate_index,
+            Some(format!(
+                "WB Finance API v1: ежедневные отчёты {date_from}–{date_to}"
+            )),
+        );
+
+        let reports = self
+            .api_client
+            .fetch_finance_reports_v1(connection, date_from, date_to)
+            .await?;
+        let total = reports.len() as i32;
+        let mut saved = 0i32;
+        let mut total_lines = 0i32;
+
+        fn text(raw: &serde_json::Value, name: &str) -> Option<String> {
+            match raw.get(name)? {
+                serde_json::Value::String(v) => Some(v.clone()),
+                serde_json::Value::Number(v) => Some(v.to_string()),
+                _ => None,
+            }
+        }
+        fn money(raw: &serde_json::Value, name: &str) -> Option<String> {
+            text(raw, name).filter(|v| !v.trim().is_empty())
+        }
+
+        for fetched in reports {
+            self.progress_tracker.set_current_item(
+                session_id,
+                aggregate_index,
+                Some(format!(
+                    "Сохранение отчёта WB {} ({} строк)",
+                    fetched.report_id,
+                    fetched.lines.len()
+                )),
+            );
+            let create_date = text(&fetched.header, "createDate").unwrap_or_default();
+            let header = WbFinanceReportHeader {
+                document_no: fetched.report_id.clone(),
+                document_date: create_date.clone(),
+                connection_id: connection.to_string_id(),
+                organization_id: connection.organization_ref.clone(),
+                marketplace_id: connection.marketplace_id.clone(),
+                report_id: fetched.report_id.clone(),
+                period: "daily".into(),
+                date_from: text(&fetched.header, "dateFrom").unwrap_or_default(),
+                date_to: text(&fetched.header, "dateTo").unwrap_or_default(),
+                create_date,
+                seller_finance_name: text(&fetched.header, "sellerFinanceName").unwrap_or_default(),
+                currency: text(&fetched.header, "currency").unwrap_or_default(),
+                report_type: fetched.header.get("reportType").and_then(|v| v.as_i64()),
+                retail_amount_sum: money(&fetched.header, "retailAmountSum"),
+                for_pay_sum: money(&fetched.header, "forPaySum"),
+                avg_sale_percent: fetched.header.get("avgSalePercent").cloned(),
+                delivery_service_sum: money(&fetched.header, "deliveryServiceSum"),
+                paid_storage_sum: money(&fetched.header, "paidStorageSum"),
+                paid_acceptance_sum: money(&fetched.header, "paidAcceptanceSum"),
+                deduction_sum: money(&fetched.header, "deductionSum"),
+                penalty_sum: money(&fetched.header, "penaltySum"),
+                additional_payment_sum: money(&fetched.header, "additionalPaymentSum"),
+                cashback_amount_sum: money(&fetched.header, "cashbackAmountSum"),
+                cashback_discount_sum: money(&fetched.header, "cashbackDiscountSum"),
+                cashback_commission_change_sum: money(
+                    &fetched.header,
+                    "cashbackCommissionChangeSum",
+                ),
+                payment_schedule: text(&fetched.header, "paymentSchedule"),
+                bank_payment_sum: money(&fetched.header, "bankPaymentSum"),
+                raw: fetched.header.clone(),
+            };
+            let source_meta = WbFinanceReportSourceMeta {
+                source: "wb_finance_api_v1".into(),
+                list_endpoint: "/api/finance/v1/sales-reports/list".into(),
+                detail_endpoint: format!(
+                    "/api/finance/v1/sales-reports/detailed/{}",
+                    fetched.report_id
+                ),
+                fetched_at: chrono::Utc::now().to_rfc3339(),
+                pages_count: fetched.pages_count,
+                last_rrd_id: fetched.last_rrd_id,
+            };
+            total_lines += fetched.lines.len() as i32;
+            let document = WbFinanceReport::new_for_insert(header, fetched.lines, source_meta);
+            crate::domain::a043_wb_finance_report::service::upsert_complete(&document).await?;
+            saved += 1;
+            self.progress_tracker.update_aggregate(
+                session_id,
+                aggregate_index,
+                saved,
+                Some(total),
+                saved,
+                0,
+            );
+        }
+        self.progress_tracker
+            .complete_aggregate(session_id, aggregate_index);
+        tracing::info!(
+            connection = %connection.to_string_id(),
+            saved,
+            total_lines,
+            "WB Finance API v1 import complete"
+        );
+        Ok(())
+    }
+
     async fn import_commission_history(
         &self,
         session_id: &str,
@@ -2565,57 +2708,44 @@ impl ImportExecutor {
             }
         }
 
-        // Build the ordered list of IDs to fetch, then take at most 50 (one API call).
-        // Remaining IDs are deferred to the next run; the upsert preserves their info_json.
-        let mut need_info_ids: Vec<i64> = priority1
+        // Fetch every new or changed campaign in API-sized batches. A failed batch is
+        // intentionally absent from info_by_id, so the upsert preserves its old info_json.
+        let need_info_ids: Vec<i64> = priority1
             .into_iter()
             .chain(priority4)
             .chain(priority2)
             .collect();
-
-        const MAX_INFO_IDS_PER_RUN: usize = 50;
-        let deferred_count = need_info_ids.len().saturating_sub(MAX_INFO_IDS_PER_RUN);
-        need_info_ids.truncate(MAX_INFO_IDS_PER_RUN);
-
-        let cached_count = summaries.len() - need_info_ids.len() - deferred_count;
+        let cached_count = summaries.len() - need_info_ids.len();
         tracing::info!(
-            "WB advert campaign info: total={}, cached={}, fetch_now={}, deferred_to_next_run={}",
+            "WB advert campaign info: total={}, cached={}, fetch_now={}, batches={}",
             summaries.len(),
             cached_count,
             need_info_ids.len(),
-            deferred_count,
+            need_info_ids.len().div_ceil(WB_ADVERT_CAMPAIGN_BATCH_SIZE),
         );
-        if deferred_count > 0 {
-            tracing::warn!(
-                "WB advert API rate limit: only {} of {} campaigns will get fresh info_json \
-                 this run (limit=1 req/hour). Deferred {} campaigns will be updated on \
-                 subsequent runs.",
-                need_info_ids.len(),
-                summaries.len(),
-                deferred_count,
-            );
-        }
 
-        // Fetch info_json for the selected campaigns (at most one API call).
         let mut info_by_id: HashMap<i64, serde_json::Value> = HashMap::new();
-        if !need_info_ids.is_empty() {
-            tokio::time::sleep(tokio::time::Duration::from_millis(
-                WB_ADVERT_MIN_REQUEST_INTERVAL_MS,
-            ))
-            .await;
-
+        for (batch_index, ids) in wb_advert_info_batches(&need_info_ids).enumerate() {
+            if batch_index > 0 {
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    WB_ADVERT_MIN_REQUEST_INTERVAL_MS,
+                ))
+                .await;
+            }
             self.progress_tracker.set_current_item(
                 session_id,
                 aggregate_index,
                 Some(format!(
-                    "Свойства {} кампаний из WB API",
-                    need_info_ids.len()
+                    "Свойства кампаний из WB API: batch {}/{} ({} ID)",
+                    batch_index + 1,
+                    need_info_ids.len().div_ceil(WB_ADVERT_CAMPAIGN_BATCH_SIZE),
+                    ids.len()
                 )),
             );
 
             match self
                 .api_client
-                .fetch_advert_campaign_info_values(connection, &need_info_ids)
+                .fetch_advert_campaign_info_values(connection, ids)
                 .await
             {
                 Ok(values) => {
@@ -2629,16 +2759,19 @@ impl ImportExecutor {
                         }
                     }
                     tracing::info!(
-                        "WB advert campaign info fetched: requested={}, received={}",
-                        need_info_ids.len(),
-                        info_by_id.len(),
+                        "WB advert campaign info batch fetched: requested={}, accumulated={}",
+                        ids.len(),
+                        info_by_id.len()
                     );
                 }
                 Err(err) => {
                     let message = format!(
-                        "WB advert campaign info fetch failed; saving all campaigns without \
-                         fresh info_json (existing info_json is preserved by upsert): {}",
-                        err
+                        "WB advert campaign info batch {}/{} failed for {} IDs; existing \
+                         info_json is preserved by upsert: {}",
+                        batch_index + 1,
+                        need_info_ids.len().div_ceil(WB_ADVERT_CAMPAIGN_BATCH_SIZE),
+                        ids.len(),
+                        err,
                     );
                     tracing::warn!("{}", message);
                     self.progress_tracker.add_error(
@@ -2697,12 +2830,11 @@ impl ImportExecutor {
         self.progress_tracker
             .complete_aggregate(session_id, aggregate_index);
         tracing::info!(
-            "WB Advert campaigns synced: connection={}, total={}, new={}, api_fetched={}, deferred={}",
+            "WB Advert campaigns synced: connection={}, total={}, new={}, api_fetched={}",
             connection.to_string_id(),
             total_count,
             new_count,
             api_fetched_count,
-            deferred_count,
         );
         Ok(total_count)
     }
@@ -5113,5 +5245,21 @@ mod wb_funnel_enrichment_tests {
         assert!(conflict);
         assert_eq!(selected.base.description, "Товар");
         assert_eq!(selected.nomenclature_ref, None);
+    }
+}
+
+#[cfg(test)]
+mod wb_advert_batch_tests {
+    use super::*;
+
+    #[test]
+    fn more_than_fifty_campaigns_are_split_without_deferral() {
+        let ids: Vec<i64> = (1..=121).collect();
+        let batches: Vec<Vec<i64>> = wb_advert_info_batches(&ids).map(<[i64]>::to_vec).collect();
+        assert_eq!(
+            batches.iter().map(Vec::len).collect::<Vec<_>>(),
+            [50, 50, 21]
+        );
+        assert_eq!(batches.concat(), ids);
     }
 }

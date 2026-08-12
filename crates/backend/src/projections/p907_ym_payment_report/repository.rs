@@ -426,6 +426,64 @@ pub async fn list_with_filters(
     Ok((items, total_count))
 }
 
+/// Выгрузка строк отчёта по платежам YM за период для внешнего BI-API
+/// (`/api/ext/v1/ym-payment-report`) — полный аналог `p903::list_raw_for_ext`.
+///
+/// Фильтр по `transaction_date` (верхняя граница инклюзивна вместе со временем),
+/// опционально по кабинету. Порядок стабилен (`transaction_date`, затем `record_key`),
+/// чтобы постраничная выгрузка через `limit`/`offset` не дублировала и не теряла строки.
+/// `total` считается ограниченным сканом (не более `MAX_TOTAL_COUNT`).
+pub async fn list_raw_for_ext(
+    date_from: &str,
+    date_to: &str,
+    connection_mp_ref: Option<String>,
+    limit: i32,
+    offset: i32,
+) -> Result<(Vec<Model>, i32)> {
+    let db = get_connection();
+    const MAX_LIMIT: i32 = 20_000;
+    const MAX_TOTAL_COUNT: i32 = 200_000;
+    const COUNT_SCAN_LIMIT: u64 = (MAX_TOTAL_COUNT as u64) + 1;
+
+    let safe_limit = limit.max(1).min(MAX_LIMIT);
+    let safe_offset = offset.max(0);
+    let date_from_bound = normalize_date_filter(date_from);
+    let date_to_bound = inclusive_date_to_bound(date_to);
+
+    let apply_filters = |mut q: sea_orm::Select<Entity>| -> sea_orm::Select<Entity> {
+        if let Some(ref bound) = date_from_bound {
+            q = q.filter(Column::TransactionDate.gte(bound));
+        }
+        if let Some(ref bound) = date_to_bound {
+            q = q.filter(Column::TransactionDate.lte(bound));
+        }
+        if let Some(conn) = connection_mp_ref.as_deref().filter(|v| !v.is_empty()) {
+            q = q.filter(Column::ConnectionMpRef.eq(conn));
+        }
+        q
+    };
+
+    let total_count = apply_filters(Entity::find())
+        .select_only()
+        .column(Column::RecordKey)
+        .limit(COUNT_SCAN_LIMIT)
+        .into_tuple::<String>()
+        .all(db)
+        .await?
+        .len() as i32;
+    let total_count = total_count.min(MAX_TOTAL_COUNT);
+
+    let items = apply_filters(Entity::find())
+        .order_by_asc(Column::TransactionDate)
+        .order_by_asc(Column::RecordKey)
+        .limit(safe_limit as u64)
+        .offset(safe_offset as u64)
+        .all(db)
+        .await?;
+
+    Ok((items, total_count))
+}
+
 pub async fn list_filter_options(
     date_from: &str,
     date_to: &str,

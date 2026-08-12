@@ -4,7 +4,6 @@ title: Аналитика продаж
 description: Продажи, выручка, заказы, маржа/прибыль по маркетплейсам. Источники dv001/dv003/ds03 (p904), заказы a013/a015.
 intents: [sales_query]
 tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_scalar, run_data_view_drilldown, execute_query]
-allowed_for: [sales_analyst, marketer]
 default_for: [sales_analyst]
 ---
 
@@ -46,7 +45,9 @@ default_for: [sales_analyst]
    `dv001`/`dv003`. Сырой SQL — fallback для нестандартных разрезов (один SELECT/WITH).
 2. Сравнение периодов — через встроенный 2-периодный механизм DataView.
 3. Термин/методология (что входит в выручку, как считается себестоимость) —
-   `search_knowledge` (теги: `sales`, `revenue`, `p904`, `dv001`).
+   `search_knowledge(query="...")` своими словами; теги (`sales`, `revenue`) — необязательное
+   уточнение. Вопрос про конкретный объект — `search_knowledge(entities=["p904"])`: жёсткая
+   выборка всего привязанного к нему.
 4. Нужен график/таблица — активируй `chart-builder` / `table-builder`; глубокая
    финансовая сверка (fina/ybuh, GL) — навык `finance-analytics`; реклама/воронка —
    `marketing-analytics`.

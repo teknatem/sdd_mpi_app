@@ -58,6 +58,7 @@ pub fn configure_business_routes() -> Router {
         .merge(a032_routes())
         .merge(a033_routes())
         .merge(a042_routes())
+        .merge(a043_routes())
         // External integrations (API-key auth, no JWT required)
         .merge(ext_routes())
         // Usecases — each with their own scope
@@ -897,6 +898,10 @@ fn a018_routes() -> Router {
             get(handlers::a018_llm_chat::get_by_id).delete(handlers::a018_llm_chat::delete),
         )
         .route(
+            "/api/a018-llm-chat/:id/model",
+            post(handlers::a018_llm_chat::set_model),
+        )
+        .route(
             "/api/a018-llm-chat/:id/messages",
             get(handlers::a018_llm_chat::get_messages).post(handlers::a018_llm_chat::send_message),
         )
@@ -1167,6 +1172,16 @@ fn a040_routes() -> Router {
                 check_scope("a040_wb_search_analytics_daily", req, next).await
             },
         ))
+}
+
+fn a043_routes() -> Router {
+    Router::new()
+        .route("/api/a043/wb-finance-reports/list", get(handlers::a043_wb_finance_report::list))
+        .route("/api/a043/wb-finance-reports/:id", get(handlers::a043_wb_finance_report::get))
+        .route("/api/a043/wb-finance-reports/:id/lines", get(handlers::a043_wb_finance_report::lines))
+        .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
+            check_scope("a043_wb_finance_report", req, next).await
+        }))
 }
 
 fn a034_routes() -> Router {
@@ -2465,7 +2480,7 @@ fn general_ledger_routes() -> Router {
 // ============================================================================
 
 fn ext_routes() -> Router {
-    Router::new()
+    let data_routes = Router::new()
         .route(
             "/api/ext/v1/wb-supplies",
             get(handlers::ext_1c_wb_supply::list_supplies),
@@ -2490,9 +2505,23 @@ fn ext_routes() -> Router {
             "/api/ext/v1/wb-finance-report",
             get(handlers::ext_bi_wb_finance::list_finance_report),
         )
+        .route(
+            "/api/ext/v1/ym-payment-report",
+            get(handlers::ext_bi_ym_payments::list_payment_report),
+        )
         .layer(middleware::from_fn(
             crate::system::auth::middleware::check_api_key,
-        ))
+        ));
+
+    Router::new()
+        .merge(data_routes)
+        // Документация — вне check_api_key: потребитель читает её до того, как
+        // получит ключ, и данных она не раскрывает.
+        .route(
+            "/api/ext/v1/openapi.json",
+            get(handlers::ext_docs::openapi_spec),
+        )
+        .route("/api/ext/v1/docs", get(handlers::ext_docs::docs_page))
         // Слои применяются снизу вверх, поэтому рекордер оборачивает check_api_key
         // снаружи — и в лог попадают 401 (неверный ключ) и 503 (ключ не настроен).
         // Именно эти случаи и есть «контроль корректности» интеграции.
@@ -2598,6 +2627,7 @@ fn kb_read_routes() -> Router {
     // к check_scope_read и POST через него не пройдёт.
     let mutating = Router::new()
         .route("/api/kb/reload", post(handlers::kb_read::reload))
+        .route("/api/kb/generate", post(handlers::kb_read::generate))
         .layer(middleware::from_fn(
             |req: Request<Body>, next: Next| async move {
                 check_scope("knowledge_base", req, next).await
@@ -2618,5 +2648,45 @@ mod tests {
         let _app: axum::Router = axum::Router::new()
             .merge(crate::system::api::configure_system_routes())
             .merge(super::configure_business_routes());
+    }
+
+    /// Спека внешнего API пишется руками — единственное, что удерживает её от
+    /// расхождения с кодом, это данный тест: эндпоинт без описания (или описание
+    /// без эндпоинта) валит сборку. Сами страницы документации из сверки
+    /// исключены — они не часть контракта данных.
+    #[test]
+    fn openapi_spec_covers_every_ext_route() {
+        const DOCS_PATHS: [&str; 2] = ["/api/ext/v1/openapi.json", "/api/ext/v1/docs"];
+
+        let src = include_str!("routes.rs");
+        let mut routed: Vec<String> = src
+            .match_indices("\"/api/ext/v1")
+            .map(|(i, _)| {
+                let rest = &src[i + 1..];
+                let end = rest.find('"').expect("незакрытый литерал пути");
+                // axum `:id` → OpenAPI `{id}`
+                rest[..end].replace(":id", "{id}")
+            })
+            // Отсекаем совпадения с литералами самого теста: голый префикс без
+            // сегмента (искомая подстрока) и страницы документации.
+            .filter(|p| p.len() > "/api/ext/v1".len() && !DOCS_PATHS.contains(&p.as_str()))
+            .collect();
+        routed.sort();
+        routed.dedup();
+
+        let spec: serde_json::Value = serde_json::from_str(include_str!("handlers/ext_openapi.json"))
+            .expect("ext_openapi.json — невалидный JSON");
+        let mut documented: Vec<String> = spec["paths"]
+            .as_object()
+            .expect("в спеке нет объекта `paths`")
+            .keys()
+            .cloned()
+            .collect();
+        documented.sort();
+
+        assert_eq!(
+            routed, documented,
+            "список путей /api/ext/v1/* в routes.rs разошёлся с handlers/ext_openapi.json"
+        );
     }
 }

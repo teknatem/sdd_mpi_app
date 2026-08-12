@@ -6,7 +6,7 @@
 //! которые их перечисляют, продолжают резолвиться.
 
 use super::kb_metrics::{self, ArticleRef};
-use super::knowledge_base::{self, kb_read, KbStatus};
+use super::knowledge_base::{self, kb_read, DocKind, KbStatus};
 use super::types::ToolDefinition;
 use serde_json::{json, Value};
 
@@ -24,7 +24,7 @@ const ISSUE_ESCALATION_THRESHOLD: i64 = 3;
 /// Минимальная длина тела статьи — ниже это заметка, а не знание.
 const MIN_BODY_CHARS: usize = 400;
 /// Выше этого предлагаем разбить статью на части (но всё равно записываем).
-const LARGE_ARTICLE_TOKENS: u32 = 6000;
+pub(super) const LARGE_ARTICLE_TOKENS: u32 = 6000;
 
 pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
     vec![
@@ -35,7 +35,8 @@ pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
                           поддерживается. Ищет по заголовкам, тегам и ПОЛНОМУ ТЕКСТУ статей, \
                           затем добирает связанные статьи по графу. Возвращает `summary` и \
                           `token_cost` каждой статьи — читай через get_knowledge только те, \
-                          что действительно нужны для ответа."
+                          что действительно нужны для ответа. Второй способ — `entities`: \
+                          собрать всё, что привязано к объекту системы (a012, p904), без текста."
                 .into(),
             parameters: json!({
                 "type": "object",
@@ -50,6 +51,21 @@ pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
                         "items": { "type": "string" },
                         "description": "Необязательное уточнение тегами (нормализуются по словарю: 'вб' → 'wildberries'). \
                                         Тег повышает статью в выдаче, но НЕ отсекает остальные."
+                    },
+                    "entities": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Коды объектов системы ('a012', 'p904', принимается и 'a012_wb_sales'). \
+                                        В отличие от тегов — ЖЁСТКИЙ фильтр: вернётся только привязанное \
+                                        к этим объектам. Работает и без query."
+                    },
+                    "corpus": {
+                        "type": "string",
+                        "enum": ["default", "business", "app", "generated", "all"],
+                        "default": "default",
+                        "description": "Где искать. 'default' — знание об организации + техдоки приложения. \
+                                        'generated' — карты, собранные из БД и рантайма (профиль таблиц, \
+                                        плагины, навыки, проверки); в обычную выдачу они не попадают."
                     },
                     "limit": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
                     "include_drafts": {
@@ -191,18 +207,31 @@ fn search_knowledge(args: &Value) -> Value {
         .unwrap_or_default()
         .to_string();
     let raw_tags = string_array(args, "tags");
+    let raw_entities = string_array(args, "entities");
 
-    if query_text.trim().is_empty() && raw_tags.is_empty() {
+    if query_text.trim().is_empty() && raw_tags.is_empty() && raw_entities.is_empty() {
         return json!({
-            "error": "Нужен 'query' (свободный текст вопроса) или 'tags'. Предпочитай query."
+            "error": "Нужен 'query' (свободный текст вопроса), 'tags' или 'entities'. Предпочитай query."
         });
     }
+
+    // Якорь принимается под любым именем объекта — приводим к коду реестра.
+    // Неизвестное имя оставляем как есть: пусть выдача будет пустой, а не тихо
+    // расширенной до всей базы.
+    let entities: Vec<String> = raw_entities
+        .iter()
+        .map(|raw| {
+            super::knowledge_base::canonical_anchor(raw).unwrap_or_else(|| raw.trim().to_string())
+        })
+        .collect();
 
     let kb = kb_read();
     let tag_refs: Vec<&str> = raw_tags.iter().map(|s| s.as_str()).collect();
     let query = super::kb_search::Query {
         text: query_text.clone(),
         tags: kb.normalize_tags(&tag_refs),
+        entities,
+        kinds: parse_corpus(args.get("corpus").and_then(|v| v.as_str())),
         limit: args
             .get("limit")
             .and_then(|v| v.as_u64())
@@ -248,7 +277,11 @@ fn search_knowledge(args: &Value) -> Value {
                 "tags": doc.canonical_tags,
                 "status": doc.status.as_str(),
                 "token_cost": doc.token_cost,
+                "corpus": doc.kind.as_str(),
             });
+            if !doc.anchors.is_empty() {
+                item["entities"] = json!(doc.anchors);
+            }
             if let Some(stars) = doc.stars {
                 item["stars"] = json!(stars);
             }
@@ -272,6 +305,19 @@ fn search_knowledge(args: &Value) -> Value {
         "hint": "Читай через get_knowledge(id) только нужные статьи — ориентируйся на summary и \
                  token_cost. Использовал статью в ответе — сошлись строкой kb://article/<id>."
     })
+}
+
+/// `corpus` из аргументов инструмента → список корпусов поиска.
+fn parse_corpus(raw: Option<&str>) -> Vec<DocKind> {
+    match raw.unwrap_or("default").trim().to_lowercase().as_str() {
+        "business" => vec![DocKind::Business],
+        "app" => vec![DocKind::App],
+        "generated" => vec![DocKind::Generated],
+        "all" => vec![DocKind::Business, DocKind::App, DocKind::Generated],
+        // Сгенерированные карты в выдачу по умолчанию не попадают: их десятки,
+        // они переписываются машиной и утопили бы курируемые статьи.
+        _ => vec![DocKind::Business, DocKind::App],
+    }
 }
 
 fn get_knowledge(args: &Value) -> Value {
@@ -710,7 +756,7 @@ async fn propose_article(args: &Value, chat_id: &str, agent_id: &str) -> Value {
             kb.all_docs()
                 .iter()
                 .fold((Vec::new(), Vec::new()), |mut acc, doc| {
-                    if doc.is_embedded {
+                    if doc.is_embedded() {
                         acc.1.push(doc.id.clone());
                     } else {
                         acc.0.push(doc.id.clone());

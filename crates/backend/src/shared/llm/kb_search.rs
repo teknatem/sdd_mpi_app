@@ -7,7 +7,7 @@
 //! нужного тега была невидима для LLM. Теперь основной вход — свободный текст,
 //! а теги стали бустом, а не фильтром.
 
-use super::knowledge_base::{KbStatus, KnowledgeDoc};
+use super::knowledge_base::{DocKind, KbStatus, KnowledgeDoc};
 use std::collections::{HashMap, HashSet};
 
 // ─── Параметры движка ────────────────────────────────────────────────────────
@@ -26,6 +26,8 @@ const W_BODY: f32 = 1.0;
 // полностью подавляет текстовую релевантность, а на большом — теряется в ней.
 /// Вклад одного совпавшего канонического тега, в «сильных совпадениях терма».
 const TAG_HIT_WEIGHT: f32 = 1.0;
+/// Вклад якоря. Выше тега: якорь — точная привязка к объекту, а не тема.
+const ANCHOR_HIT_WEIGHT: f32 = 2.0;
 /// Бонус, если запрос покрывает заголовок целиком.
 const TITLE_COVER_WEIGHT: f32 = 1.5;
 
@@ -412,6 +414,13 @@ pub struct Query {
     pub text: String,
     /// Необязательное уточнение; теги уже нормализованы вызывающим по словарю.
     pub tags: Vec<String>,
+    /// Коды объектов системы. В отличие от тегов — жёсткий фильтр: спрашивая
+    /// «что есть про a012», ждут ровно привязанное к a012, а не похожее по тексту.
+    /// Пустой текст запроса при этом допустим: якорь сам выбирает документы.
+    pub entities: Vec<String>,
+    /// В каких корпусах искать. По умолчанию — курируемое знание и техдоки;
+    /// сгенерированные карты берутся только по явному запросу.
+    pub kinds: Vec<DocKind>,
     pub limit: usize,
     pub include_drafts: bool,
     pub include_deprecated: bool,
@@ -422,6 +431,8 @@ impl Default for Query {
         Self {
             text: String::new(),
             tags: Vec::new(),
+            entities: Vec::new(),
+            kinds: vec![DocKind::Business, DocKind::App],
             limit: DEFAULT_LIMIT,
             include_drafts: true,
             include_deprecated: false,
@@ -444,6 +455,10 @@ pub struct Corpus<'a> {
     pub tag_index: &'a HashMap<String, Vec<String>>,
     /// Обратные рёбра `related`.
     pub back_links: &'a HashMap<String, Vec<String>>,
+    /// Код объекта → id документов, привязанных якорем.
+    pub anchor_index: &'a HashMap<String, Vec<String>>,
+    /// Короткое имя → полные id (техдоки живут в подкаталоге `app/`).
+    pub by_basename: &'a HashMap<String, Vec<String>>,
 }
 
 /// Результат поиска до отсечки по `limit`.
@@ -473,6 +488,18 @@ pub fn search(index: &SearchIndex, corpus: &Corpus<'_>, query: &Query) -> Search
         }
     }
 
+    // 2b. Якоря, наоборот, и вносят кандидатов, и отсекают чужих (шаг 4):
+    //     запрос по объекту должен собирать всё привязанное к нему, даже когда
+    //     свободного текста нет вовсе.
+    for entity in &query.entities {
+        let Some(ids) = corpus.anchor_index.get(entity) else {
+            continue;
+        };
+        for id in ids {
+            *scores.entry(id.clone()).or_insert(0.0) += ANCHOR_HIT_WEIGHT * boost_unit;
+        }
+    }
+
     // 3. Бонус за покрытие заголовка.
     if !terms.is_empty() {
         let query_set: HashSet<&String> = terms.iter().collect();
@@ -495,7 +522,7 @@ pub fn search(index: &SearchIndex, corpus: &Corpus<'_>, query: &Query) -> Search
         let Some(doc) = corpus.docs.get(&id) else {
             continue;
         };
-        let Some(status_factor) = status_factor(doc.status, query) else {
+        let Some(status_factor) = admission_factor(doc, query) else {
             continue;
         };
         let final_score = base * quality_factor(doc) * freshness_factor(doc) * status_factor;
@@ -567,7 +594,7 @@ fn expand_graph(direct: &[(String, f32)], corpus: &Corpus<'_>, query: &Query) ->
             let Some(doc) = corpus.docs.get(&neighbour_id) else {
                 continue;
             };
-            let Some(status_factor) = status_factor(doc.status, query) else {
+            let Some(status_factor) = admission_factor(doc, query) else {
                 continue;
             };
             let score = seed_score * GRAPH_DECAY * status_factor;
@@ -589,17 +616,42 @@ fn expand_graph(direct: &[(String, f32)], corpus: &Corpus<'_>, query: &Query) ->
         .collect()
 }
 
-/// Запись `related` → {статья с таким id} ∪ {статьи с таким каноническим тегом}.
+/// Запись `related` → {статья с таким id} ∪ {статья с таким коротким именем}
+/// ∪ {статьи с таким каноническим тегом} ∪ {статьи с таким якорем}.
 fn resolve_related(entry: &str, corpus: &Corpus<'_>) -> Vec<String> {
     let mut out = Vec::new();
     if corpus.docs.contains_key(entry) {
         out.push(entry.to_string());
+    } else if let Some(ids) = corpus.by_basename.get(entry) {
+        out.extend(ids.iter().cloned());
     }
     let key = super::kb_vocabulary::normalize_form(entry);
     if let Some(ids) = corpus.tag_index.get(&key) {
         out.extend(ids.iter().cloned());
     }
+    if let Some(ids) = super::knowledge_base::canonical_anchor(entry)
+        .and_then(|code| corpus.anchor_index.get(&code))
+    {
+        out.extend(ids.iter().cloned());
+    }
     out
+}
+
+/// Допуск документа в выдачу: корпус, запрошенные якоря, статус.
+/// `None` — документ исключается целиком.
+fn admission_factor(doc: &KnowledgeDoc, query: &Query) -> Option<f32> {
+    if !query.kinds.contains(&doc.kind) {
+        return None;
+    }
+    if !query.entities.is_empty()
+        && !query
+            .entities
+            .iter()
+            .any(|entity| doc.anchors.contains(entity))
+    {
+        return None;
+    }
+    status_factor(doc.status, query)
 }
 
 /// `None` — документ исключается из выдачи целиком.
@@ -621,8 +673,8 @@ fn quality_factor(doc: &KnowledgeDoc) -> f32 {
 /// Протухание понижает скор не более чем на 40 %: устаревшая статья остаётся
 /// findable, просто уступает свежей при прочих равных.
 fn freshness_factor(doc: &KnowledgeDoc) -> f32 {
-    // Embedded-доки едут вместе с бинарником — они по определению свежие.
-    if doc.is_embedded {
+    // Техдоки едут вместе с бинарником, карты перегенерируются — по определению свежие.
+    if doc.is_embedded() {
         return 1.0;
     }
     let staleness = match (doc.age_days, doc.ttl_days) {
@@ -654,6 +706,8 @@ mod tests {
         docs: HashMap<String, KnowledgeDoc>,
         tag_index: HashMap<String, Vec<String>>,
         back_links: HashMap<String, Vec<String>>,
+        anchor_index: HashMap<String, Vec<String>>,
+        by_basename: HashMap<String, Vec<String>>,
         index: SearchIndex,
     }
 
@@ -661,12 +715,25 @@ mod tests {
         fn new(docs: Vec<KnowledgeDoc>) -> Self {
             let mut tag_index: HashMap<String, Vec<String>> = HashMap::new();
             let mut back_links: HashMap<String, Vec<String>> = HashMap::new();
+            let mut anchor_index: HashMap<String, Vec<String>> = HashMap::new();
+            let mut by_basename: HashMap<String, Vec<String>> = HashMap::new();
             for d in &docs {
                 for t in &d.canonical_tags {
                     tag_index.entry(t.clone()).or_default().push(d.id.clone());
                 }
                 for r in &d.related {
                     back_links.entry(r.clone()).or_default().push(d.id.clone());
+                }
+                for a in &d.anchors {
+                    anchor_index.entry(a.clone()).or_default().push(d.id.clone());
+                }
+                if let Some(base) = d.id.rsplit("__").next() {
+                    if base != d.id {
+                        by_basename
+                            .entry(base.to_string())
+                            .or_default()
+                            .push(d.id.clone());
+                    }
                 }
             }
             let index = SearchIndex::build(docs.iter());
@@ -675,6 +742,8 @@ mod tests {
                 docs,
                 tag_index,
                 back_links,
+                anchor_index,
+                by_basename,
                 index,
             }
         }
@@ -684,6 +753,8 @@ mod tests {
                 docs: &self.docs,
                 tag_index: &self.tag_index,
                 back_links: &self.back_links,
+                anchor_index: &self.anchor_index,
+                by_basename: &self.by_basename,
             }
         }
 

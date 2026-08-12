@@ -4,7 +4,6 @@ title: Почта
 description: Чтение входящих и отправка писем от лица почтового ящика системы (IMAP/SMTP): найти письмо, прочитать, ответить или написать новое.
 intents: [mailbox]
 tools: [list_emails, read_email, send_email]
-allowed_for: [business_analyst]
 default_for: []
 ---
 

@@ -222,12 +222,15 @@ fn last_day_of_month(year: i32, month: u32) -> u32 {
 /// Фоновый цикл прунинга: при старте и далее раз в сутки.
 pub async fn run_prune_loop() {
     loop {
-        match prune_old().await {
-            Ok(n) if n > 0 => {
-                println!("[ext-api-log] pruned {n} rows older than {RETENTION_DAYS} days")
+        if let Some(_database_activity) = crate::system::maintenance::try_begin_database_activity()
+        {
+            match prune_old().await {
+                Ok(n) if n > 0 => {
+                    println!("[ext-api-log] pruned {n} rows older than {RETENTION_DAYS} days")
+                }
+                Ok(_) => {}
+                Err(e) => tracing::warn!("[ext-api-log] prune failed: {e}"),
             }
-            Ok(_) => {}
-            Err(e) => tracing::warn!("[ext-api-log] prune failed: {e}"),
         }
         tokio::time::sleep(std::time::Duration::from_secs(24 * 60 * 60)).await;
     }

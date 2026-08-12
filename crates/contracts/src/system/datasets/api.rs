@@ -267,6 +267,72 @@ pub struct RestoreResultDto {
 }
 
 // ---------------------------------------------------------------------------
+// Фоновые задачи переноса
+// ---------------------------------------------------------------------------
+
+/// Что делает фоновая задача. Одновременно выполняется не больше одной:
+/// снапшот и восстановление работают с одними и теми же каталогами.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DatasetJobKind {
+    Snapshot,
+    Restore,
+}
+
+impl DatasetJobKind {
+    pub fn label_ru(&self) -> &'static str {
+        match self {
+            Self::Snapshot => "Выгрузка снапшота",
+            Self::Restore => "Восстановление",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DatasetJobStatus {
+    Running,
+    Done,
+    Failed,
+    Cancelled,
+}
+
+impl DatasetJobStatus {
+    pub fn is_terminal(&self) -> bool {
+        !matches!(self, Self::Running)
+    }
+}
+
+/// Ответ на запуск операции: сама работа идёт в фоне, клиент опрашивает
+/// `GET /api/sys/datasets/jobs/:job_id`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatasetJobStartedDto {
+    pub job_id: String,
+}
+
+/// Состояние фоновой задачи. Прогресс двухуровневый: стадия (что вообще
+/// происходит) и байты внутри стадии (сколько уже сделано) — для снимка БД одна
+/// «выгрузка» идёт минутами, и без байтов стадия выглядела бы как зависание.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatasetJobDto {
+    pub job_id: String,
+    pub kind: DatasetJobKind,
+    pub status: DatasetJobStatus,
+    /// Индекс текущей стадии в `stages`.
+    pub stage_index: usize,
+    pub stage_label: String,
+    pub stages: Vec<String>,
+    pub bytes_done: u64,
+    /// `0`, если объём заранее неизвестен — тогда полоса индетерминированная.
+    pub bytes_total: u64,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub error: Option<String>,
+    pub snapshot_result: Option<CreateSnapshotResponse>,
+    pub restore_result: Option<RestoreResultDto>,
+}
+
+// ---------------------------------------------------------------------------
 // Журнал операций
 // ---------------------------------------------------------------------------
 

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/metadata.schema.json",
+  "schema_version": "1.0",
+  "entity_type": "aggregate",
+  "entity_name": "WbFinanceReport",
+  "entity_index": "a043",
+  "collection_name": "wb_finance_report",
+  "table_name": "a043_wb_finance_report",
+  "ui": {
+    "element_name": "Финансовый отчёт WB",
+    "element_name_en": "WB Finance Report",
+    "list_name": "Финансовые отчёты WB (новый API)",
+    "list_name_en": "WB Finance Reports (new API)",
+    "icon": "money"
+  },
+  "ai": {
+    "tags": ["wb", "wildberries", "finance", "api", "report"],
+    "description": "Ежедневные финансовые отчёты реализации Wildberries из Finance API v1. Один документ соответствует одному reportId и содержит исходную шапку и строки детализации в lines_json. Проекций и проводок пока нет; legacy p903 не заменяется.",
+    "questions": ["Какие ежедневные финансовые отчёты WB загружены?", "Каковы итоговые суммы отчёта WB по reportId?"],
+    "related": ["a006_connection_mp", "p903_wb_finance_report"]
+  },
+  "access": {
+    "scope_id": "a043_wb_finance_report",
+    "operations": [
+      {"id": "list", "required_mode": "read"},
+      {"id": "read", "required_mode": "read"}
+    ]
+  },
+  "fields": [
+    {"name":"id","rust_type":"WbFinanceReportId","field_type":"primitive","source":"base","ui":{"label":"ID","visible_in_list":false,"visible_in_form":false},"validation":{"required":true},"ai_hint":"Детерминированный UUID по кабинету, period и reportId."},
+    {"name":"report_id","rust_type":"String","field_type":"primitive","source":"specific","ui":{"label":"Report ID","visible_in_list":true,"visible_in_form":true},"validation":{"required":true},"ai_hint":"ID отчёта WB хранится строкой для безопасности BigInt."},
+    {"name":"document_date","rust_type":"String","field_type":"primitive","source":"specific","ui":{"label":"Дата создания","visible_in_list":true,"visible_in_form":true},"validation":{"required":true},"ai_hint":"createDate из списка отчётов."},
+    {"name":"connection_id","rust_type":"String","field_type":"aggregate_ref","source":"specific","ui":{"label":"Кабинет","visible_in_list":true,"visible_in_form":true},"validation":{"required":true},"ref_aggregate":"a006_connection_mp","ai_hint":"Подключение WB."},
+    {"name":"seller_finance_name","rust_type":"String","field_type":"primitive","source":"specific","ui":{"label":"Продавец","visible_in_list":true,"visible_in_form":true},"validation":{},"ai_hint":"sellerFinanceName из WB."},
+    {"name":"currency","rust_type":"String","field_type":"primitive","source":"specific","ui":{"label":"Валюта","visible_in_list":true,"visible_in_form":true},"validation":{},"ai_hint":"Валюта денежных строк отчёта."},
+    {"name":"lines_json","rust_type":"Vec<serde_json::Value>","field_type":"nested_table","source":"specific","physical":false,"ui":{"label":"Строки","visible_in_list":false,"visible_in_form":true},"validation":{},"ai_hint":"Полная детализация нового WB Finance API без проекций."}
+  ]
+}

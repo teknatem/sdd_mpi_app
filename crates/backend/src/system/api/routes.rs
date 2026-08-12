@@ -17,6 +17,25 @@ pub fn configure_system_routes() -> Router {
         // ========================================
         // SYSTEM AUTH ROUTES (PUBLIC)
         // ========================================
+        // ========================================
+        // MAINTENANCE MODE
+        // ========================================
+        // Статус — публичный: страницу-заглушку надо показать и тому, кто ещё
+        // не вошёл. Включение и снятие — только админ.
+        .route(
+            "/api/system/maintenance",
+            get(handlers::maintenance::get_status),
+        )
+        .route(
+            "/api/system/maintenance/enable",
+            post(handlers::maintenance::enable)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/system/maintenance/disable",
+            post(handlers::maintenance::disable)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
         .route("/api/system/auth/login", post(handlers::auth::login))
         .route("/api/system/auth/refresh", post(handlers::auth::refresh))
         .route("/api/system/auth/logout", post(handlers::auth::logout))
@@ -365,6 +384,23 @@ pub fn configure_system_routes() -> Router {
         .route(
             "/api/sys/datasets/history",
             get(handlers::datasets::get_history)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        // Фоновые задачи переноса. `/jobs/active` объявлен ДО `/jobs/:job_id`
+        // ради читаемости; axum разводит статический сегмент и параметр сам.
+        .route(
+            "/api/sys/datasets/jobs/active",
+            get(handlers::datasets::get_active_job)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/jobs/:job_id",
+            get(handlers::datasets::get_job)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/sys/datasets/jobs/:job_id/cancel",
+            post(handlers::datasets::cancel_job)
                 .layer(middleware::from_fn(auth::middleware::require_admin)),
         )
         // ========================================

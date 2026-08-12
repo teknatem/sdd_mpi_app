@@ -171,6 +171,15 @@ const FINANCE_LINKS: &[NavLink] = &[
         entity_type: EntityType::Aggregate,
     },
     NavLink {
+        tab_key: "a043_wb_finance_report",
+        label: "Финансовые отчёты WB (новый API)",
+        annotation: "Ежедневные отчёты реализации Finance API v1; без проекций",
+        icon: "receipt",
+        scope_id: Some("a043_wb_finance_report"),
+        marketplaces: LinkScope::Only(WB_ONLY),
+        entity_type: EntityType::Aggregate,
+    },
+    NavLink {
         tab_key: "p903_wb_finance_report",
         label: "Недельный отчёт WB",
         annotation: "Сводный финансовый отчёт Wildberries по неделям",
@@ -438,3 +447,24 @@ pub const BLOCKS: &[NavBlock] = &[
         links: SETTINGS_LINKS,
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wb_finance_report_is_listed_in_finance_block_only() {
+        let containing_blocks: Vec<&str> = BLOCKS
+            .iter()
+            .filter(|block| {
+                block
+                    .links
+                    .iter()
+                    .any(|link| link.tab_key == "a043_wb_finance_report")
+            })
+            .map(|block| block.id)
+            .collect();
+
+        assert_eq!(containing_blocks, vec!["finance"]);
+    }
+}

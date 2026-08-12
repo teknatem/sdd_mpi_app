@@ -4,7 +4,6 @@ title: Разработка проверок качества
 description: Создание и изменение внешних read-only MJS-проверок: шаблон, инспекция, валидация, атомарная публикация и контрольный запуск.
 intents: [quality_check_dev]
 tools: [list_quality_checks, get_latest_quality_check, run_quality_check, quality_check_template, quality_check_get, quality_check_validate, quality_check_upsert, list_entities, get_join_hint, query_data_schema, execute_query]
-allowed_for: [plugin_admin]
 default_for: [plugin_admin]
 ---
 
@@ -36,4 +35,3 @@ default_for: [plugin_admin]
 
 Не объединяй «заодно» дополнительные проверки. Не меняй смысл существующего стабильного `id`:
 для другого инварианта создай новый пакет.
-

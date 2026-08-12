@@ -4,7 +4,6 @@ title: Разработка плагинов
 description: Создание/доработка/тест JS-плагинов (client+server) из чата: шаблоны, примеры, валидация, upsert, invoke, журнал запусков.
 intents: [plugin_dev]
 tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_drilldown, execute_query, plugin_list, plugin_get, plugin_validate, plugin_smoke_test, plugin_upsert, plugin_invoke, plugin_template, plugin_examples, get_plugin_ui_contract, plugin_data_catalog, plugin_runs, chart_template, chart_examples, get_chart_ui_contract, table_template, table_examples, get_table_ui_contract]
-allowed_for: [plugin_admin]
 default_for: [plugin_admin]
 ---
 

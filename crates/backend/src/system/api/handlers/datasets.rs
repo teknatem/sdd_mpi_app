@@ -1,9 +1,14 @@
 //! HTTP-слой подсистемы наборов данных.
 //!
-//! Операции синхронные: файловые наборы — единицы мегабайт, а восстановление
-//! обязано быть интерактивным. Вынос в фоновую задачу разорвал бы связку
-//! «увидел этот дифф — подтвердил этот дифф»: между предпросмотром и
-//! применением состояние диска успело бы измениться.
+//! Выгрузка и восстановление уезжают в фоновую задачу и опрашиваются через
+//! `/jobs/:job_id`: снимок базы — это `VACUUM INTO` нескольких гигабайт, сжатие
+//! и многочастная загрузка, то есть минуты, которых не переживёт ни один
+//! разумный HTTP-таймаут. Связка «увидел этот дифф — подтвердил этот дифф» при
+//! этом сохраняется: её держит `expected_bundle_sha256` внутри запроса, а не
+//! синхронность вызова.
+//!
+//! Остальные операции (предпросмотр, удаление, скачивание архива) остаются
+//! синхронными — они укладываются в один запрос.
 
 use axum::body::Body;
 use axum::extract::{Multipart, Path, Query};
@@ -11,15 +16,15 @@ use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderValue, Response, StatusCode};
 use axum::Json;
 use contracts::system::datasets::{
-    CreateSnapshotRequest, CreateSnapshotResponse, DatasetCatalogResponse, DatasetsStatusDto,
-    RestoreApplyRequest, RestorePreviewDto, RestorePreviewRequest, RestoreResultDto,
-    SnapshotManifestResponse, TransferLogResponse,
+    CreateSnapshotRequest, DatasetCatalogResponse, DatasetJobDto, DatasetJobKind,
+    DatasetJobStartedDto, DatasetsStatusDto, RestoreApplyRequest, RestorePreviewDto,
+    RestorePreviewRequest, RestoreResultDto, SnapshotManifestResponse, TransferLogResponse,
 };
 use serde::Deserialize;
 
 use crate::shared::config;
 use crate::system::auth::extractor::CurrentUser;
-use crate::system::datasets::{publish, restore, status, ActorInfo};
+use crate::system::datasets::{jobs, publish, restore, status, ActorInfo};
 
 /// Ошибки конфигурации S3 — это не сбой сервера, а не выполненная настройка:
 /// отвечаем 503, чтобы UI показал «хранилище не настроено», а не «всё сломалось».
@@ -58,20 +63,61 @@ pub async fn get_catalog() -> Result<Json<DatasetCatalogResponse>, (StatusCode, 
     }))
 }
 
+/// Запускает выгрузку в фоне. 409 — уже идёт другая операция переноса.
 pub async fn create_snapshot(
     CurrentUser(claims): CurrentUser,
     Json(request): Json<CreateSnapshotRequest>,
-) -> Result<Json<CreateSnapshotResponse>, (StatusCode, String)> {
-    publish::create_snapshot(request, actor(&claims))
-        .await
-        .map(Json)
-        .map_err(map_error)
+) -> Result<(StatusCode, Json<DatasetJobStartedDto>), (StatusCode, String)> {
+    let job = jobs::start(DatasetJobKind::Snapshot, jobs::stage::SNAPSHOT_STAGES)
+        .map_err(|error| (StatusCode::CONFLICT, error.to_string()))?;
+    let job_id = job.job_id().to_string();
+    let actor = actor(&claims);
+
+    tokio::spawn(async move {
+        let _guard = jobs::ActiveGuard::new(job.clone());
+        match publish::create_snapshot(request, actor, &job).await {
+            Ok(response) => job.finish_snapshot(response),
+            Err(error) => {
+                tracing::error!("datasets: выгрузка снапшота не удалась: {error:?}");
+                job.finish_error(&error);
+            }
+        }
+    });
+
+    Ok((StatusCode::ACCEPTED, Json(DatasetJobStartedDto { job_id })))
+}
+
+pub async fn get_job(
+    Path(job_id): Path<String>,
+) -> Result<Json<DatasetJobDto>, (StatusCode, String)> {
+    jobs::get(&job_id).map(Json).ok_or((
+        StatusCode::NOT_FOUND,
+        "Операция не найдена: она завершилась давно и уже выгружена из памяти.".to_string(),
+    ))
+}
+
+/// Текущая операция, если она есть. Позволяет странице подхватить прогресс
+/// работы, запущенной до перезагрузки вкладки.
+pub async fn get_active_job() -> Json<Option<DatasetJobDto>> {
+    Json(jobs::active())
+}
+
+pub async fn cancel_job(Path(job_id): Path<String>) -> Result<StatusCode, (StatusCode, String)> {
+    if jobs::cancel(&job_id) {
+        return Ok(StatusCode::NO_CONTENT);
+    }
+    Err((
+        StatusCode::NOT_FOUND,
+        "Операция не найдена или уже завершена.".to_string(),
+    ))
 }
 
 pub async fn get_manifest(
     Path(snapshot_id): Path<String>,
 ) -> Result<Json<SnapshotManifestResponse>, (StatusCode, String)> {
-    let manifest = publish::get_manifest(&snapshot_id).await.map_err(map_error)?;
+    let manifest = publish::get_manifest(&snapshot_id)
+        .await
+        .map_err(map_error)?;
     Ok(Json(SnapshotManifestResponse { manifest }))
 }
 
@@ -115,11 +161,33 @@ pub async fn restore_preview(
 pub async fn restore_apply(
     CurrentUser(claims): CurrentUser,
     Json(request): Json<RestoreApplyRequest>,
-) -> Result<Json<RestoreResultDto>, (StatusCode, String)> {
-    restore::apply(request, actor(&claims))
-        .await
-        .map(Json)
-        .map_err(map_error)
+) -> Result<(StatusCode, Json<DatasetJobStartedDto>), (StatusCode, String)> {
+    let job = jobs::start(DatasetJobKind::Restore, jobs::stage::RESTORE_STAGES)
+        .map_err(|error| (StatusCode::CONFLICT, error.to_string()))?;
+    let job_id = job.job_id().to_string();
+    let actor = actor(&claims);
+
+    tokio::spawn(async move {
+        let _guard = jobs::ActiveGuard::new(job.clone());
+        match restore::apply(request, actor, &job).await {
+            Ok(response) => {
+                let restart = response.requires_restart;
+                job.finish_restore(response);
+                // Даём секундному polling UI забрать финальный результат, затем
+                // штатно закрываем HTTP-сервер. NSSM поднимет процесс снова и
+                // bootstrap применит pending_restore до открытия пула БД.
+                if restart {
+                    crate::system::restart::schedule(std::time::Duration::from_secs(5));
+                }
+            }
+            Err(error) => {
+                tracing::error!("datasets: восстановление не удалось: {error:?}");
+                job.finish_error(&error);
+            }
+        }
+    });
+
+    Ok((StatusCode::ACCEPTED, Json(DatasetJobStartedDto { job_id })))
 }
 
 /// Восстановление из загруженного zip — запасной путь, когда S3 недоступен,

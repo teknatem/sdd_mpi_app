@@ -17,14 +17,15 @@ use bytes::Bytes;
 use chrono::Utc;
 use contracts::system::datasets::{
     BundleManifest, BundleObjectKind, Compression, CreateSnapshotRequest, CreateSnapshotResponse,
-    DatasetCatalog, SetManifest, SetSummary, SnapshotObject, SnapshotSummary,
-    DATASET_BUNDLE_FORMAT_VERSION, DATASET_CATALOG_FORMAT_VERSION,
+    DatasetCatalog, DatasetKind, FileEntry, PathOrigin, SetManifest, SetSummary, SnapshotObject,
+    SnapshotSummary, DATASET_BUNDLE_FORMAT_VERSION, DATASET_CATALOG_FORMAT_VERSION,
 };
 
+use super::jobs::{stage, JobHandle};
 use super::registry::{self, DatasetDescriptor};
 use super::repository::{self, TransferLogEntry, OPERATION_SNAPSHOT, STATUS_FAILED, STATUS_OK};
 use super::scan::{self, DatasetScan};
-use super::{bundle, ActorInfo};
+use super::{bundle, database, ActorInfo};
 use crate::shared::config::{self, Config, S3Config};
 use crate::system::s3::client;
 use crate::system::s3::service as s3_service;
@@ -39,8 +40,20 @@ pub fn bundle_key(instance_id: &str, snapshot_id: &str) -> String {
     format!("{}/bundle.zip", snapshot_prefix(instance_id, snapshot_id))
 }
 
+/// Снимок БД лежит отдельным объектом: в zip файловых наборов он не влезает ни
+/// по размеру, ни по способу доставки (потоковая многочастная загрузка).
+pub fn database_key(instance_id: &str, snapshot_id: &str) -> String {
+    format!(
+        "{}/database.db.gz",
+        snapshot_prefix(instance_id, snapshot_id)
+    )
+}
+
 pub fn manifest_key(instance_id: &str, snapshot_id: &str) -> String {
-    format!("{}/manifest.json", snapshot_prefix(instance_id, snapshot_id))
+    format!(
+        "{}/manifest.json",
+        snapshot_prefix(instance_id, snapshot_id)
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -102,16 +115,20 @@ pub async fn download_bundle(snapshot_id: &str) -> anyhow::Result<(String, Bytes
 /// Проверка до распаковки — обязательная: содержимое архива подставляется в
 /// файловые операции на принимающей стороне, и применять надо ровно тот бандл,
 /// который был показан в диффе.
+/// `None` — в снапшоте нет файлового архива: снимали одну базу. Это законное
+/// состояние, а не ошибка.
 pub(super) async fn fetch_verified_bundle(
     cfg: &S3Config,
     summary: &SnapshotSummary,
     expected_sha256: Option<&str>,
-) -> anyhow::Result<Bytes> {
-    let files_object = summary
+) -> anyhow::Result<Option<Bytes>> {
+    let Some(files_object) = summary
         .objects
         .iter()
         .find(|object| object.kind == BundleObjectKind::FilesZip)
-        .ok_or_else(|| anyhow::anyhow!("В снапшоте нет файлового архива"))?;
+    else {
+        return Ok(None);
+    };
 
     if let Some(expected) = expected_sha256 {
         if expected != files_object.sha256 {
@@ -132,14 +149,40 @@ pub(super) async fn fetch_verified_bundle(
             files_object.sha256
         );
     }
-    Ok(object.bytes)
+    Ok(Some(object.bytes))
 }
 
 // ---------------------------------------------------------------------------
 // Создание снапшота
 // ---------------------------------------------------------------------------
 
-/// Сканирует выбранные наборы. Возвращает сканы в порядке реестра.
+/// Делит выбранные наборы на файловые и набор БД: у них разные объекты в S3 и
+/// принципиально разный способ снятия.
+pub(super) fn split_selection(set_ids: &[String]) -> anyhow::Result<(Vec<String>, bool)> {
+    let mut files = Vec::new();
+    let mut database = false;
+    for set_id in set_ids {
+        let descriptor = registry::lookup(set_id)
+            .ok_or_else(|| anyhow::anyhow!("Неизвестный набор данных '{set_id}'"))?;
+        if !descriptor.available {
+            anyhow::bail!(
+                "Набор «{}» пока недоступен: {}",
+                descriptor.label_ru,
+                descriptor
+                    .unavailable_reason
+                    .unwrap_or("причина не указана")
+            );
+        }
+        if registry::is_database(descriptor) {
+            database = true;
+        } else {
+            files.push(set_id.clone());
+        }
+    }
+    Ok((files, database))
+}
+
+/// Сканирует выбранные файловые наборы. Возвращает сканы в порядке реестра.
 pub(super) fn scan_selected(
     config: &Config,
     set_ids: &[String],
@@ -152,7 +195,9 @@ pub(super) fn scan_selected(
             anyhow::bail!(
                 "Набор «{}» пока недоступен: {}",
                 descriptor.label_ru,
-                descriptor.unavailable_reason.unwrap_or("причина не указана")
+                descriptor
+                    .unavailable_reason
+                    .unwrap_or("причина не указана")
             );
         }
         let root = registry::resolve_root(config, descriptor)
@@ -163,9 +208,33 @@ pub(super) fn scan_selected(
     Ok(result)
 }
 
+/// Каркас манифеста без единого объекта — основа, к которой пристраиваются
+/// объекты снапшота. Нужен отдельно, потому что снапшот может состоять из одной
+/// только базы, без zip файловых наборов.
+pub(super) async fn empty_manifest(
+    config: &Config,
+    snapshot_id: &str,
+    note: Option<String>,
+    actor: &ActorInfo,
+) -> BundleManifest {
+    BundleManifest {
+        format_version: DATASET_BUNDLE_FORMAT_VERSION,
+        snapshot_id: snapshot_id.to_string(),
+        created_at: Utc::now().to_rfc3339(),
+        created_by: actor.created_by(),
+        note,
+        source: super::source_info(config).await,
+        objects: Vec::new(),
+        sets: Vec::new(),
+    }
+}
+
 /// Собирает манифест и zip по результатам сканов. Общая часть выгрузки в S3 и
 /// автоснапшота перед восстановлением — форматы обязаны совпадать, иначе откат
 /// нельзя сделать штатным восстановлением.
+///
+/// `job` отсутствует у автоснапшота перед восстановлением: он снимается внутри
+/// чужой операции и своих стадий не имеет.
 pub(super) async fn build_snapshot(
     config: &Config,
     snapshot_id: &str,
@@ -173,8 +242,12 @@ pub(super) async fn build_snapshot(
     note: Option<String>,
     actor: &ActorInfo,
     object_key: String,
+    job: Option<&JobHandle>,
 ) -> anyhow::Result<(BundleManifest, Vec<u8>)> {
     let scans = scan_selected(config, set_ids)?;
+    if let Some(job) = job {
+        job.set_stage(stage::SNAPSHOT_BUNDLE);
+    }
     let source = super::source_info(config).await;
 
     let total_raw: u64 = scans.iter().map(|(_, scan)| scan.total_bytes).sum();
@@ -246,6 +319,51 @@ pub(super) async fn build_snapshot(
     Ok((manifest, bytes))
 }
 
+/// Описание набора «База данных» в манифесте.
+///
+/// Дерево файлов у него вырожденное — одна запись `app.db`. Она не косметика:
+/// по ней считается дифф при восстановлении и показывается сравнение размеров,
+/// то есть набор описывается ровно теми же полями, что и файловые.
+fn database_set_manifest(
+    config: &Config,
+    object_index: u32,
+    snapshot: &database::DbSnapshotFile,
+    plain_sha256: &str,
+) -> SetManifest {
+    let descriptor = registry::lookup("database");
+    let resolved = config::resolve_database_path(config).ok();
+    let entry = FileEntry {
+        path: database::DB_ENTRY_NAME.to_string(),
+        size_bytes: snapshot.size_bytes,
+        sha256: plain_sha256.to_string(),
+        modified_at: Some(Utc::now().to_rfc3339()),
+    };
+
+    SetManifest {
+        set_id: "database".to_string(),
+        label_ru: descriptor
+            .map(|descriptor| descriptor.label_ru.to_string())
+            .unwrap_or_else(|| "База данных".to_string()),
+        kind: DatasetKind::Database,
+        object_index,
+        source_path: resolved
+            .as_ref()
+            .map(|resolved| resolved.display_path())
+            .unwrap_or_default(),
+        path_origin: resolved
+            .as_ref()
+            .map(|resolved| resolved.origin)
+            .unwrap_or(PathOrigin::DataRoot),
+        existed: true,
+        file_count: 1,
+        total_bytes: snapshot.size_bytes,
+        sha256: scan::tree_sha256(std::slice::from_ref(&entry)),
+        files: vec![entry],
+        skipped: Vec::new(),
+        db_stats: snapshot.stats.clone(),
+    }
+}
+
 fn heaviest_files(scans: &[(&'static DatasetDescriptor, DatasetScan)], take: usize) -> Vec<String> {
     let mut files: Vec<(u64, String)> = scans
         .iter()
@@ -294,6 +412,7 @@ fn summarize(manifest: &BundleManifest) -> SnapshotSummary {
 pub async fn create_snapshot(
     request: CreateSnapshotRequest,
     actor: ActorInfo,
+    job: &JobHandle,
 ) -> anyhow::Result<CreateSnapshotResponse> {
     if request.set_ids.is_empty() {
         anyhow::bail!("Не выбрано ни одного набора данных");
@@ -304,6 +423,24 @@ pub async fn create_snapshot(
     let snapshot_id = super::new_snapshot_id();
     let key = bundle_key(&identity.id, &snapshot_id);
 
+    // Снимок базы читает её несколько минут: долгий читатель не даёт checkpoint'у
+    // обрезать WAL, и под записью тот заметно распухает, а диск занят целиком.
+    // Целостности снимка это не угрожает (VACUUM INTO берёт согласованный
+    // снимок), но работать в это время всё равно незачем. Аренда снимет режим
+    // сама — при ошибке, отмене и панике тоже.
+    let (_, with_database) = split_selection(&request.set_ids)?;
+    let _maintenance = with_database.then(|| {
+        crate::system::maintenance::MaintenanceLease::acquire(
+            "Идёт выгрузка снимка базы данных в S3",
+            format!("auto:snapshot ({})", actor.created_by()),
+        )
+    });
+    let _database_pause = if with_database {
+        Some(crate::system::maintenance::pause_database_activity().await)
+    } else {
+        None
+    };
+
     let outcome = create_snapshot_inner(
         &config,
         &cfg,
@@ -312,6 +449,7 @@ pub async fn create_snapshot(
         key.clone(),
         &request,
         &actor,
+        job,
     )
     .await;
 
@@ -367,24 +505,101 @@ async fn create_snapshot_inner(
     key: String,
     request: &CreateSnapshotRequest,
     actor: &ActorInfo,
+    job: &JobHandle,
 ) -> anyhow::Result<CreateSnapshotResponse> {
-    let (manifest, bytes) = build_snapshot(
-        config,
-        snapshot_id,
-        &request.set_ids,
-        request.note.clone(),
-        actor,
-        key.clone(),
-    )
-    .await?;
+    let (file_set_ids, with_database) = split_selection(&request.set_ids)?;
 
-    let size_bytes = bytes.len() as u64;
-    let sha256 = manifest.objects[0].sha256.clone();
+    // Объекты снапшота: zip файловых наборов и/или снимок БД. Индексы
+    // проставляются подряд, а `SetManifest.object_index` ссылается на нужный —
+    // поэтому «только база, без файловых наборов» не требует спецслучая.
+    job.set_stage(stage::SNAPSHOT_SCAN);
+    let (mut manifest, files_bytes) = if file_set_ids.is_empty() {
+        (
+            empty_manifest(config, snapshot_id, request.note.clone(), actor).await,
+            None,
+        )
+    } else {
+        let (manifest, bytes) = build_snapshot(
+            config,
+            snapshot_id,
+            &file_set_ids,
+            request.note.clone(),
+            actor,
+            key.clone(),
+            Some(job),
+        )
+        .await?;
+        (manifest, Some(bytes))
+    };
 
-    client::put_object(cfg, &key, Some("application/zip"), Bytes::from(bytes)).await?;
+    // Снимок БД снимается ДО выгрузки чего-либо: VACUUM INTO может упасть по
+    // месту на диске или по целостности, и узнать об этом лучше до того, как в
+    // бакете появились объекты, которые придётся подчищать.
+    let mut db_snapshot = None;
+    if with_database {
+        job.set_stage(stage::SNAPSHOT_DB_DUMP);
+        let snapshot = database::snapshot_to_file(config, snapshot_id, job).await?;
+        let limit = config.datasets.max_db_bytes();
+        if snapshot.size_bytes > limit {
+            anyhow::bail!(
+                "Снимок базы {:.1} ГБ превышает лимит {:.1} ГБ ([datasets].max_db_gb).",
+                snapshot.size_bytes as f64 / 1024.0 / 1024.0 / 1024.0,
+                limit as f64 / 1024.0 / 1024.0 / 1024.0
+            );
+        }
+        db_snapshot = Some(snapshot);
+    }
 
-    // Манифест кладём вторым объектом. Если этот шаг не пройдёт, оставшийся в
-    // бакете архив не попадёт в каталог и останется недоступным — убираем его,
+    job.set_stage(stage::SNAPSHOT_UPLOAD);
+    // Ключи всех выгруженных объектов — чтобы прибрать за собой, если снапшот
+    // так и не доедет до каталога.
+    let mut uploaded_keys: Vec<String> = Vec::new();
+
+    if let Some(bytes) = files_bytes {
+        job.set_bytes_total(bytes.len() as u64);
+        client::put_object(cfg, &key, Some("application/zip"), Bytes::from(bytes)).await?;
+        job.add_bytes(manifest.objects[0].size_bytes);
+        uploaded_keys.push(key.clone());
+    }
+
+    if let Some(snapshot) = &db_snapshot {
+        let db_key = database_key(instance_id, snapshot_id);
+        let object_index = manifest.objects.len() as u32;
+        let uploaded = match database::compress_and_upload(cfg, &db_key, &snapshot.path, job).await
+        {
+            Ok(uploaded) => uploaded,
+            Err(error) => {
+                for existing in &uploaded_keys {
+                    let _ = client::delete_object(cfg, existing).await;
+                }
+                return Err(error);
+            }
+        };
+        uploaded_keys.push(db_key.clone());
+
+        manifest.objects.push(SnapshotObject {
+            object_index,
+            key: db_key,
+            kind: BundleObjectKind::DatabaseSnapshot,
+            size_bytes: uploaded.size_bytes,
+            sha256: uploaded.sha256,
+            compression: Compression::Deflate,
+            multipart: true,
+        });
+        manifest.sets.push(database_set_manifest(
+            config,
+            object_index,
+            snapshot,
+            &uploaded.plain_sha256,
+        ));
+    }
+    // Снимок больше не нужен: файл на гигабайты убирается сразу, не дожидаясь
+    // конца операции.
+    drop(db_snapshot);
+
+    job.set_stage(stage::SNAPSHOT_CATALOG);
+    // Манифест кладём отдельным объектом. Если этот шаг не пройдёт, оставшиеся в
+    // бакете объекты не попадут в каталог и станут недоступными — убираем их,
     // чтобы не копить мусор (S3 и запись каталога не в одной транзакции).
     let manifest_object_key = manifest_key(instance_id, snapshot_id);
     let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
@@ -396,9 +611,22 @@ async fn create_snapshot_inner(
     )
     .await
     {
-        let _ = client::delete_object(cfg, &key).await;
+        for existing in &uploaded_keys {
+            let _ = client::delete_object(cfg, existing).await;
+        }
         return Err(error);
     }
+
+    let size_bytes: u64 = manifest
+        .objects
+        .iter()
+        .map(|object| object.size_bytes)
+        .sum();
+    let sha256 = manifest
+        .objects
+        .first()
+        .map(|object| object.sha256.clone())
+        .unwrap_or_default();
 
     let summary = summarize(&manifest);
     let mut catalog = read_catalog(cfg).await?;
@@ -429,7 +657,9 @@ async fn create_snapshot_inner(
     if let Err(error) = write_catalog(cfg, &catalog).await {
         // Каталог — единственный указатель на снапшот. Не записался — снапшота
         // фактически нет, и оставлять недостижимые объекты незачем.
-        let _ = client::delete_object(cfg, &key).await;
+        for existing in &uploaded_keys {
+            let _ = client::delete_object(cfg, existing).await;
+        }
         let _ = client::delete_object(cfg, &manifest_object_key).await;
         return Err(error);
     }
@@ -476,10 +706,7 @@ pub fn plan_rotation(
     }
     let mut own: Vec<&SnapshotSummary> = catalog.by_instance(instance_id);
     own.sort_by(|left, right| right.created_at.cmp(&left.created_at));
-    own.into_iter()
-        .skip(keep)
-        .cloned()
-        .collect()
+    own.into_iter().skip(keep).cloned().collect()
 }
 
 /// Удаляет снапшот из бакета и каталога.

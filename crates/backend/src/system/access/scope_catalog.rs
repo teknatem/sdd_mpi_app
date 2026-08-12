@@ -223,6 +223,16 @@ pub const SCOPE_CATALOG: &[ScopeDescriptor] = &[
         all_label: "Управление поисковой аналитикой WB",
     },
     ScopeDescriptor {
+        scope_id: "a043_wb_finance_report",
+        scope_type: ScopeType::Aggregate,
+        label: "Финансовые отчёты WB (новый API)",
+        description: "Ежедневные отчёты реализации WB Finance API v1 без проекций",
+        icon: "money",
+        category: "marketplace_data",
+        read_label: "Просмотр новых финансовых отчётов WB",
+        all_label: "Управление новыми финансовыми отчётами WB",
+    },
+    ScopeDescriptor {
         scope_id: "a034_ym_realization",
         scope_type: ScopeType::Aggregate,
         label: "Реализация YM (Отчёт о реализации)",

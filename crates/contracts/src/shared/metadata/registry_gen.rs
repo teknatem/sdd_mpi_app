@@ -228,6 +228,11 @@ pub const ALL_ENTITIES: &[EntityRegistration] = &[
         meta: &crate::domain::a042_agent_task::ENTITY_METADATA,
         fields: crate::domain::a042_agent_task::FIELDS,
     },
+    // a043
+    EntityRegistration {
+        meta: &crate::domain::a043_wb_finance_report::ENTITY_METADATA,
+        fields: crate::domain::a043_wb_finance_report::FIELDS,
+    },
     // p900
     EntityRegistration {
         meta: &crate::projections::p900_mp_sales_register::ENTITY_METADATA,

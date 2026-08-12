@@ -21,6 +21,9 @@ use std::sync::{Arc, RwLock};
 /// Имя файла словаря тегов внутри каталога базы знаний.
 pub const VOCABULARY_FILE: &str = "_vocabulary.md";
 
+/// Подкаталог базы знаний под карты, собранные генератором из БД и рантайма.
+pub const GENERATED_DOCS_SUBDIR: &str = "generated";
+
 /// Срок годности знания по умолчанию, если в статье не указан `ttl_days`.
 pub const DEFAULT_TTL_DAYS: u32 = 180;
 
@@ -56,6 +59,41 @@ impl KbStatus {
     }
 }
 
+/// Кто и как создаёт документ. Определяет корпус, в котором его ищут.
+///
+/// Разделение нужно потому, что корпуса растут независимо: бизнес-статей будут
+/// сотни (их пишут люди), а карт — десятки, и они переписываются генератором при
+/// каждом запуске. Смешивать их в одной выдаче значит утопить курируемое знание
+/// в машинном и обессмыслить статистику `search/read/cited`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DocKind {
+    /// Знание об организации: пишется человеком и LLM, курируется, протухает.
+    #[default]
+    Business,
+    /// Техдокументация приложения: канон в репозитории, копия в `app/`.
+    App,
+    /// Карта из БД и рантайма (`generated/`): переписывается генератором.
+    Generated,
+}
+
+impl DocKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Business => "business",
+            Self::App => "app",
+            Self::Generated => "generated",
+        }
+    }
+
+    pub fn from_str(raw: &str) -> Self {
+        match raw.trim().to_lowercase().as_str() {
+            "app" => Self::App,
+            "generated" => Self::Generated,
+            _ => Self::Business,
+        }
+    }
+}
+
 /// Один документ базы знаний (один MD-файл).
 #[derive(Debug, Clone, Default)]
 pub struct KnowledgeDoc {
@@ -65,8 +103,11 @@ pub struct KnowledgeDoc {
     pub title: String,
     /// Теги из frontmatter `tags: [...]` — как написано в файле
     pub tags: Vec<String>,
-    /// Связанные статьи/теги/агрегаты из frontmatter `related: [...]`
+    /// Связанные статьи/теги/агрегаты из frontmatter `related: [...]`,
+    /// дополненные `[[wiki-ссылками]]` из тела.
     pub related: Vec<String>,
+    /// Явные якоря из frontmatter `entities: [...]` — как написано в файле.
+    pub entities: Vec<String>,
     /// Тело MD без frontmatter-блока
     pub content: String,
     pub source_path: Option<String>,
@@ -98,8 +139,14 @@ pub struct KnowledgeDoc {
     pub unknown_tags: Vec<String>,
     /// Оценка стоимости чтения статьи в токенах.
     pub token_cost: u32,
-    /// Встроенная в бинарник техдокументация (а не бизнес-статья из Obsidian).
-    pub is_embedded: bool,
+    /// Корпус документа (из frontmatter `kind:`).
+    pub kind: DocKind,
+    /// Коды объектов системы, к которым привязан документ: `entities` плюс те
+    /// записи `related`, что резолвятся в реестр метаданных. Канонический вид —
+    /// индекс сущности (`a012_wb_sales` → `a012`).
+    pub anchors: Vec<String>,
+    /// Записи `entities`, которых нет в реестре — рабочий список куратора.
+    pub unknown_anchors: Vec<String>,
     /// Дней с даты `verified` (иначе `updated`, иначе mtime файла).
     pub age_days: Option<u32>,
 }
@@ -110,9 +157,15 @@ impl KnowledgeDoc {
         self.uid.clone().unwrap_or_else(|| self.id.clone())
     }
 
+    /// Документ не написан руками: техдок приложения или сгенерированная карта.
+    /// Такие не протухают — они переезжают вместе с кодом или перегенерируются.
+    pub fn is_embedded(&self) -> bool {
+        self.kind != DocKind::Business
+    }
+
     /// Насколько статья протухла, 0–100 %. `None` — срок неприменим.
     pub fn staleness_pct(&self) -> Option<u32> {
-        if self.is_embedded {
+        if self.is_embedded() {
             return None;
         }
         let age = self.age_days?;
@@ -129,11 +182,19 @@ pub struct KnowledgeBase {
     docs: HashMap<String, KnowledgeDoc>,
     /// Обратные рёбра `related`: doc_id → кто на него ссылается.
     back_links: HashMap<String, Vec<String>>,
+    /// Код объекта → документы всех корпусов, привязанные к нему якорем.
+    anchor_index: HashMap<String, Vec<String>>,
+    /// Последний сегмент id → полные id. Ссылка `general-ledger` должна вести в
+    /// `app__general-ledger`: техдоки переехали в подкаталог, а записи `related`
+    /// в файлах остались короткими.
+    by_basename: HashMap<String, Vec<String>>,
     retrieval: SearchIndex,
     vocabulary: Vocabulary,
     loaded_at: DateTime<Utc>,
     /// Проблемы загрузки: коллизии id, теги вне словаря, ошибки разбора.
     diagnostics: Vec<String>,
+    /// Ссылки, не ведущие ни в статью, ни в тег, ни в объект системы.
+    dangling_links: usize,
 }
 
 // ─── Глобальный синглтон ─────────────────────────────────────────────────────
@@ -168,10 +229,15 @@ pub fn knowledge_base_dir() -> PathBuf {
 pub fn reload_knowledge_base() -> anyhow::Result<()> {
     let path = knowledge_base_dir();
     let loaded = KnowledgeBase::load(&path);
-    let mut guard = KNOWLEDGE_BASE
-        .write()
-        .map_err(|_| anyhow::anyhow!("KnowledgeBase lock poisoned"))?;
-    *guard = loaded;
+    {
+        let mut guard = KNOWLEDGE_BASE
+            .write()
+            .map_err(|_| anyhow::anyhow!("KnowledgeBase lock poisoned"))?;
+        *guard = loaded;
+    }
+    // `get_entity_schema` отдаёт список привязанных статей и кэшируется на весь
+    // процесс — без сброса он показывал бы состав базы на момент старта.
+    super::tool_executor::invalidate_metadata_tool_cache();
     Ok(())
 }
 
@@ -185,6 +251,14 @@ pub fn write_kb_document(relative_path: &str, content: &str) -> anyhow::Result<P
     std::fs::write(&target, content)?;
     Ok(target)
 }
+
+/// Подкаталог базы знаний под техдокументацию приложения.
+///
+/// Канон — файлы в репозитории (список `EMBEDDED_LLM_DOCS`), они едут в
+/// бинарнике. Здесь лежит их копия: база знаний должна быть полной на уровне
+/// файлов, а техстатьи — того же класса, что и бизнес-статьи (те же атрибуты,
+/// тот же поиск, то же дерево в UI).
+pub const APP_DOCS_SUBDIR: &str = "app";
 
 struct EmbeddedKnowledgeSource {
     id: &'static str,
@@ -288,6 +362,189 @@ const EMBEDDED_LLM_DOCS: &[EmbeddedKnowledgeSource] = &[
         source_path: "crates/backend/src/shared/llm/docs/finance_metrics.md",
         raw: include_str!("docs/finance_metrics.md"),
     },
+    // ─── Справочник внешних API маркетплейсов ───
+    // Живут рядом с клиентом соответствующего импорта: там же, где код, который
+    // эти эндпоинты вызывает.
+    EmbeddedKnowledgeSource {
+        id: "wb-api-overview",
+        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-overview.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-overview.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-connection",
+        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-connection.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-connection.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-content-cards",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-content-cards.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-content-cards.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-statistics-sales",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-statistics-sales.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-statistics-sales.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-statistics-orders",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-statistics-orders.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-statistics-orders.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-finance-report",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-finance-report.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-finance-report.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-tariffs-commission",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-tariffs-commission.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-tariffs-commission.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-prices",
+        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-prices.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-prices.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-promotions",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-promotions.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-promotions.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-advert-campaigns",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-advert-campaigns.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-advert-campaigns.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-advert-fullstats",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-advert-fullstats.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-advert-fullstats.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-funnel-products",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-funnel-products.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-funnel-products.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-funnel-history",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-funnel-history.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-funnel-history.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-funnel-detail-report",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-funnel-detail-report.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-funnel-detail-report.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-search-analytics",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-search-analytics.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-search-analytics.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-marketplace-orders",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-marketplace-orders.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-marketplace-orders.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-marketplace-supplies",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-marketplace-supplies.md",
+        raw: include_str!(
+            "../../usecases/u504_import_from_wildberries/api/wb-api-marketplace-supplies.md"
+        ),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-documents",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-documents.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-documents.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "wb-api-returns-claims",
+        source_path:
+            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-returns-claims.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-returns-claims.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-overview",
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-overview.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-overview.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-campaigns",
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-campaigns.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-campaigns.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-offer-mappings",
+        source_path:
+            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-offer-mappings.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-offer-mappings.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-orders",
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-orders.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-orders.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-returns",
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-returns.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-returns.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-united-netting",
+        source_path:
+            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-united-netting.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-united-netting.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-goods-realization",
+        source_path:
+            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-goods-realization.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-goods-realization.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-shows-sales",
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-shows-sales.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-shows-sales.md"),
+    },
+    EmbeddedKnowledgeSource {
+        id: "ym-api-reports-machinery",
+        source_path:
+            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-reports-machinery.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-reports-machinery.md"),
+    },
 ];
 
 // ─── Реализация ──────────────────────────────────────────────────────────────
@@ -305,10 +562,14 @@ impl KnowledgeBase {
         let mut docs: HashMap<String, KnowledgeDoc> = HashMap::new();
         let mut diagnostics: Vec<String> = Vec::new();
 
-        // 1. Словарь тегов. Отсутствует — база работает, все теги «неизвестные».
+        // 1. Разложить техдокументацию файлами — до обхода каталога, чтобы она
+        //    попала в базу тем же путём, что и бизнес-статьи.
+        materialize_app_docs(dir, &mut diagnostics);
+
+        // 2. Словарь тегов. Отсутствует — база работает, все теги «неизвестные».
         let vocabulary = load_vocabulary(dir, &mut diagnostics);
 
-        // 2. Бизнес-статьи из Obsidian.
+        // 3. Статьи из каталога знаний: бизнес-база + разложенная техдокументация.
         let mut loaded = 0usize;
         if dir.exists() {
             for path in walk_markdown_files(dir) {
@@ -319,8 +580,19 @@ impl KnowledgeBase {
                 match std::fs::read_to_string(&path) {
                     Ok(raw) => {
                         let mut doc = parse_doc(id, &raw, &vocabulary);
-                        doc.source_path = Some(path.display().to_string());
-                        doc.is_embedded = false;
+                        // Каталог сильнее frontmatter: `app/` и `generated/`
+                        // принадлежат машине целиком, и файл, попавший туда без
+                        // метки (или с чужой), не должен притворяться статьёй.
+                        if let Some(kind) = kind_by_subdir(&doc.id) {
+                            doc.kind = kind;
+                        }
+                        // У техдока показываем канонический путь в репозитории:
+                        // копию в `app/` править бессмысленно — её перезапишет
+                        // следующая загрузка.
+                        doc.source_path = Some(match app_doc_source_path(&doc.id) {
+                            Some(canonical) => canonical.to_string(),
+                            None => path.display().to_string(),
+                        });
                         doc.age_days = compute_age_days(&doc, Some(&path));
                         insert_doc(&mut docs, doc, Origin::File, &mut diagnostics);
                         loaded += 1;
@@ -342,17 +614,11 @@ impl KnowledgeBase {
             );
         }
 
-        // 3. Встроенная техдокументация приложения.
-        for source in EMBEDDED_LLM_DOCS {
-            let mut doc = parse_doc(source.id.to_string(), source.raw, &vocabulary);
-            doc.source_path = Some(source.source_path.to_string());
-            doc.is_embedded = true;
-            insert_doc(&mut docs, doc, Origin::Embedded, &mut diagnostics);
-        }
-
         // 4. Производные индексы.
         let index = build_tag_index(&docs);
-        let back_links = build_back_links(&docs);
+        let by_basename = build_basename_index(&docs);
+        let back_links = build_back_links(&docs, &by_basename);
+        let anchor_index = build_anchor_index(&docs);
         let retrieval = SearchIndex::build(docs.values());
 
         let unknown_tags: usize = docs.values().map(|d| d.unknown_tags.len()).sum();
@@ -362,23 +628,44 @@ impl KnowledgeBase {
                 unknown_tags
             ));
         }
+        let unknown_anchors: usize = docs.values().map(|d| d.unknown_anchors.len()).sum();
+        if unknown_anchors > 0 {
+            diagnostics.push(format!(
+                "якорей вне реестра метаданных: {} (поле entities ссылается на несуществующий объект)",
+                unknown_anchors
+            ));
+        }
+        let dangling = count_dangling_links(&docs, &by_basename, &index);
+        if dangling > 0 {
+            diagnostics.push(format!(
+                "ссылок related/[[wiki]] в никуда: {} (не статья, не тег, не объект)",
+                dangling
+            ));
+        }
 
+        let count_kind = |kind: DocKind| docs.values().filter(|d| d.kind == kind).count();
         tracing::info!(
-            "KnowledgeBase: loaded {} business + {} embedded docs from '{}', {} vocabulary terms",
+            "KnowledgeBase: loaded {} docs ({} business + {} app + {} generated) from '{}', {} vocabulary terms, {} anchored entities",
             loaded,
-            EMBEDDED_LLM_DOCS.len(),
+            count_kind(DocKind::Business),
+            count_kind(DocKind::App),
+            count_kind(DocKind::Generated),
             dir.display(),
-            vocabulary.len()
+            vocabulary.len(),
+            anchor_index.len()
         );
 
         Self {
             index,
             docs,
             back_links,
+            anchor_index,
+            by_basename,
             retrieval,
             vocabulary,
             loaded_at: Utc::now(),
             diagnostics,
+            dangling_links: dangling,
         }
     }
 
@@ -412,6 +699,8 @@ impl KnowledgeBase {
             docs: &self.docs,
             tag_index: &self.index,
             back_links: &self.back_links,
+            anchor_index: &self.anchor_index,
+            by_basename: &self.by_basename,
         };
         let outcome = super::kb_search::search(&self.retrieval, &corpus, query);
         let hits = outcome
@@ -437,8 +726,17 @@ impl KnowledgeBase {
     }
 
     /// Получить документ по id.
+    /// Статья по id. Короткое имя тоже принимается: техдоки переехали в `app/`,
+    /// и ссылки вида `kb://article/general-ledger` из прошлых чатов, статистики
+    /// и тикетов иначе перестали бы открываться. Неоднозначное имя не резолвим.
     pub fn get(&self, id: &str) -> Option<&KnowledgeDoc> {
-        self.docs.get(id)
+        if let Some(doc) = self.docs.get(id) {
+            return Some(doc);
+        }
+        match self.by_basename.get(id)?.as_slice() {
+            [single] => self.docs.get(single),
+            _ => None,
+        }
     }
 
     /// Вернуть все документы.
@@ -454,6 +752,16 @@ impl KnowledgeBase {
         &self.diagnostics
     }
 
+    /// Ссылки в никуда — рабочий список куратора.
+    pub fn dangling_links(&self) -> usize {
+        self.dangling_links
+    }
+
+    /// Сколько объектов системы имеют хотя бы один привязанный документ.
+    pub fn anchored_entity_count(&self) -> usize {
+        self.anchor_index.len()
+    }
+
     pub fn loaded_at(&self) -> DateTime<Utc> {
         self.loaded_at
     }
@@ -466,6 +774,19 @@ impl KnowledgeBase {
     /// Сколько статей несёт данный канонический тег.
     pub fn tag_count(&self, tag: &str) -> usize {
         self.index.get(tag).map(|v| v.len()).unwrap_or(0)
+    }
+
+    /// Документы, привязанные якорем к объекту системы. Принимает любое имя
+    /// сущности (`a012`, `a012_wb_sales`) — резолвится тем же правилом, что и
+    /// реестр метаданных.
+    pub fn docs_for_anchor(&self, entity: &str) -> Vec<&KnowledgeDoc> {
+        let Some(code) = canonical_anchor(entity) else {
+            return Vec::new();
+        };
+        self.anchor_index
+            .get(&code)
+            .map(|ids| ids.iter().filter_map(|id| self.docs.get(id)).collect())
+            .unwrap_or_default()
     }
 
     /// Подсказать теги по свободному тексту — вход в базу, когда поиск пуст.
@@ -562,19 +883,93 @@ fn build_tag_index(docs: &HashMap<String, KnowledgeDoc>) -> HashMap<String, Vec<
     index
 }
 
+/// Последний сегмент id (`app__wb-api-overview` → `wb-api-overview`).
+fn id_basename(id: &str) -> &str {
+    id.rsplit("__").next().unwrap_or(id)
+}
+
+/// Корпус по каталогу, в котором лежит файл (id склеен из сегментов пути).
+/// `None` — файл лежит вне машинных каталогов, корпус берётся из frontmatter.
+fn kind_by_subdir(doc_id: &str) -> Option<DocKind> {
+    match doc_id.split_once("__")?.0 {
+        APP_DOCS_SUBDIR => Some(DocKind::App),
+        GENERATED_DOCS_SUBDIR => Some(DocKind::Generated),
+        _ => None,
+    }
+}
+
+/// Индекс коротких имён: ссылка `general-ledger` должна вести в `app__general-ledger`.
+fn build_basename_index(docs: &HashMap<String, KnowledgeDoc>) -> HashMap<String, Vec<String>> {
+    let mut index: HashMap<String, Vec<String>> = HashMap::new();
+    let mut ids: Vec<&String> = docs.keys().collect();
+    ids.sort();
+    for id in ids {
+        let base = id_basename(id);
+        if base == id {
+            continue; // короткое имя и есть id — отдельная запись не нужна
+        }
+        index.entry(base.to_string()).or_default().push(id.clone());
+    }
+    index
+}
+
+/// Код объекта → документы, привязанные к нему якорем.
+fn build_anchor_index(docs: &HashMap<String, KnowledgeDoc>) -> HashMap<String, Vec<String>> {
+    let mut index: HashMap<String, Vec<String>> = HashMap::new();
+    let mut ids: Vec<&String> = docs.keys().collect();
+    ids.sort();
+    for id in ids {
+        for anchor in &docs[id].anchors {
+            let bucket = index.entry(anchor.clone()).or_default();
+            if !bucket.contains(id) {
+                bucket.push(id.clone());
+            }
+        }
+    }
+    index
+}
+
+/// Ссылки, которые не ведут никуда: ни в статью (в т.ч. по короткому имени),
+/// ни в тег, ни в объект системы. Рабочий список куратора.
+fn count_dangling_links(
+    docs: &HashMap<String, KnowledgeDoc>,
+    by_basename: &HashMap<String, Vec<String>>,
+    tag_index: &HashMap<String, Vec<String>>,
+) -> usize {
+    docs.values()
+        .flat_map(|doc| doc.related.iter())
+        .filter(|entry| {
+            let normalized = super::kb_vocabulary::normalize_form(entry);
+            !docs.contains_key(*entry)
+                && !by_basename.contains_key(*entry)
+                && !tag_index.contains_key(&normalized)
+                && canonical_anchor(entry).is_none()
+        })
+        .count()
+}
+
 /// Обратные рёбра графа: если `A.related = [B]`, то из B достижим A.
-fn build_back_links(docs: &HashMap<String, KnowledgeDoc>) -> HashMap<String, Vec<String>> {
+fn build_back_links(
+    docs: &HashMap<String, KnowledgeDoc>,
+    by_basename: &HashMap<String, Vec<String>>,
+) -> HashMap<String, Vec<String>> {
     let mut back: HashMap<String, Vec<String>> = HashMap::new();
     let mut ids: Vec<&String> = docs.keys().collect();
     ids.sort();
     for id in ids {
         for target in &docs[id].related {
-            if !docs.contains_key(target) {
-                continue; // ребро в тег или код агрегата — резолвится при поиске
-            }
-            let bucket = back.entry(target.clone()).or_default();
-            if !bucket.contains(id) {
-                bucket.push(id.clone());
+            // Ссылка резолвится в статью напрямую либо по короткому имени;
+            // всё прочее — тег или код объекта, они разрешаются при поиске.
+            let targets: Vec<String> = if docs.contains_key(target) {
+                vec![target.clone()]
+            } else {
+                by_basename.get(target).cloned().unwrap_or_default()
+            };
+            for target in targets {
+                let bucket = back.entry(target).or_default();
+                if !bucket.contains(id) {
+                    bucket.push(id.clone());
+                }
             }
         }
     }
@@ -654,6 +1049,79 @@ fn build_doc_id(base_dir: &Path, path: &Path) -> String {
     }
 }
 
+/// Канонический путь техдока в репозитории по его id в базе знаний.
+///
+/// id разложенного файла — `app__<id источника>`: обход каталога склеивает
+/// сегменты пути через `__` (см. `build_doc_id`).
+fn app_doc_source_path(doc_id: &str) -> Option<&'static str> {
+    let stem = doc_id.strip_prefix(&format!("{APP_DOCS_SUBDIR}__"))?;
+    EMBEDDED_LLM_DOCS
+        .iter()
+        .find(|source| source.id == stem)
+        .map(|source| source.source_path)
+}
+
+/// Проставить `kind: app` во frontmatter копии.
+///
+/// Метка ставится здесь, а не в самих файлах, потому что «техдок» — это ровно
+/// «состоит в `EMBEDDED_LLM_DOCS`». Автор нового файла не сможет забыть поле,
+/// и никакой техдок не утечёт в базу под видом бизнес-статьи.
+fn ensure_app_kind(raw: &str) -> String {
+    let Some(rest) = raw.strip_prefix("---\n").or_else(|| raw.strip_prefix("---\r\n")) else {
+        return format!("---\nkind: {APP_DOCS_SUBDIR}\n---\n\n{}", raw.trim_start());
+    };
+    let Some(end) = rest.find("\n---") else {
+        return format!("---\nkind: {APP_DOCS_SUBDIR}\n---\n\n{}", raw.trim_start());
+    };
+    if rest[..end]
+        .lines()
+        .any(|line| line.trim_start().starts_with("kind:"))
+    {
+        return raw.to_string();
+    }
+    format!("---\nkind: {APP_DOCS_SUBDIR}\n{rest}")
+}
+
+/// Разложить встроенную техдокументацию файлами в `<knowledge>/app/`.
+///
+/// Пишем только изменившееся: `reload` дёргается из UI и из фоновых задач, а
+/// безусловная перезапись обнуляла бы mtime — по нему считается возраст статьи
+/// у файлов без даты во frontmatter.
+fn materialize_app_docs(dir: &Path, diagnostics: &mut Vec<String>) {
+    let target_dir = dir.join(APP_DOCS_SUBDIR);
+    if let Err(e) = std::fs::create_dir_all(&target_dir) {
+        diagnostics.push(format!(
+            "каталог техдокументации '{}' не создан: {e}",
+            target_dir.display()
+        ));
+        tracing::warn!(
+            "KnowledgeBase: cannot create '{}': {}",
+            target_dir.display(),
+            e
+        );
+        return;
+    }
+
+    let mut expected: Vec<String> = Vec::with_capacity(EMBEDDED_LLM_DOCS.len());
+    for source in EMBEDDED_LLM_DOCS {
+        let file_name = format!("{}.md", source.id);
+        let path = target_dir.join(&file_name);
+        expected.push(file_name);
+        let content = ensure_app_kind(source.raw);
+        if std::fs::read_to_string(&path).is_ok_and(|existing| existing == content) {
+            continue;
+        }
+        if let Err(e) = std::fs::write(&path, &content) {
+            diagnostics.push(format!("техдок '{}' не записан: {e}", path.display()));
+            tracing::warn!("KnowledgeBase: cannot write '{}': {}", path.display(), e);
+        }
+    }
+
+    for stale in prune_stale_docs(&target_dir, &expected) {
+        tracing::info!("KnowledgeBase: удалён устаревший техдок '{}'", stale);
+    }
+}
+
 fn sanitize_relative_kb_path(relative_path: &str) -> anyhow::Result<PathBuf> {
     let path = Path::new(relative_path);
     if path.is_absolute() {
@@ -684,7 +1152,51 @@ fn sanitize_relative_kb_path(relative_path: &str) -> anyhow::Result<PathBuf> {
         ));
     }
 
+    // `app/` и `generated/` принадлежат машине: первый — копия техдокументации
+    // (канон в репозитории), второй — карты генератора. Правка здесь молча
+    // пропадёт при следующей загрузке, а статья — выпадет из обычной выдачи.
+    let machine_dir = clean.components().next().and_then(|c| {
+        [APP_DOCS_SUBDIR, GENERATED_DOCS_SUBDIR]
+            .into_iter()
+            .find(|sub| c.as_os_str().eq_ignore_ascii_case(sub))
+    });
+    if let Some(subdir) = machine_dir {
+        return Err(anyhow::anyhow!(
+            "'{subdir}/' заполняется приложением и перезаписывается при загрузке базы; \
+             статью кладите в корень базы знаний или в тематический подкаталог: {relative_path}"
+        ));
+    }
+
     Ok(clean)
+}
+
+/// Убрать из машинного каталога `*.md`, которых нет в списке ожидаемых.
+///
+/// Каталог принадлежит генератору целиком, поэтому лишний файл — это след
+/// переименования: он продолжал бы грузиться в базу и отвечать на поиск от
+/// имени документа, которого больше нет.
+pub fn prune_stale_docs(dir: &Path, expected: &[String]) -> Vec<String> {
+    let mut removed = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return removed;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if expected.iter().any(|e| e == name) {
+            continue;
+        }
+        match std::fs::remove_file(&path) {
+            Ok(_) => removed.push(name.to_string()),
+            Err(e) => tracing::warn!("KnowledgeBase: cannot remove '{}': {}", path.display(), e),
+        }
+    }
+    removed
 }
 
 // ─── Парсинг frontmatter ─────────────────────────────────────────────────────
@@ -769,12 +1281,44 @@ fn parse_doc(id: String, raw: &str, vocabulary: &Vocabulary) -> KnowledgeDoc {
         .and_then(|f| parse_u32(f, "stars"))
         .map(|s| s.clamp(1, 5) as u8);
 
+    // `[[wiki-ссылки]]` — те же рёбра графа, что и `related`: в Obsidian связь
+    // ставят в тексте, и без этого шага она для LLM не существует.
+    let mut related = list("related");
+    for link in extract_wiki_links(&content) {
+        if !related.contains(&link) {
+            related.push(link);
+        }
+    }
+
+    // Якоря: явные `entities` плюс коды объектов, уже лежащие в `related`.
+    // Второе даёт рабочий индекс без единой правки файлов.
+    let entities = list("entities");
+    let mut anchors: Vec<String> = Vec::new();
+    let mut unknown_anchors: Vec<String> = Vec::new();
+    for entity in &entities {
+        match canonical_anchor(entity) {
+            Some(code) if !anchors.contains(&code) => anchors.push(code),
+            Some(_) => {}
+            None => unknown_anchors.push(entity.clone()),
+        }
+    }
+    for entry in &related {
+        if let Some(code) = canonical_anchor(entry) {
+            if !anchors.contains(&code) {
+                anchors.push(code);
+            }
+        }
+    }
+
     KnowledgeDoc {
         token_cost: estimate_tokens(&content),
         id,
         title,
         tags,
-        related: list("related"),
+        related,
+        entities,
+        anchors,
+        unknown_anchors,
         content,
         source_path: None,
         uid: scalar("uid"),
@@ -791,15 +1335,54 @@ fn parse_doc(id: String, raw: &str, vocabulary: &Vocabulary) -> KnowledgeDoc {
         author: scalar("author").unwrap_or_else(|| "human".to_string()),
         canonical_tags,
         unknown_tags,
-        is_embedded: false,
+        // `kind: app` — техдокументация приложения из `app/`, `kind: generated` —
+        // карта из `generated/`; всё остальное (в т.ч. файлы без поля) —
+        // бизнес-знание организации.
+        kind: scalar("kind")
+            .map(|k| DocKind::from_str(&k))
+            .unwrap_or_default(),
         age_days: None,
     }
 }
 
+/// `[[статья]]`, `[[статья|подпись]]`, `[[статья#раздел]]` → `статья`.
+fn extract_wiki_links(content: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for chunk in content.split("[[").skip(1) {
+        let Some((inner, _)) = chunk.split_once("]]") else {
+            continue;
+        };
+        let target = inner
+            .split(['|', '#'])
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if !target.is_empty() && !out.contains(&target) {
+            out.push(target);
+        }
+    }
+    out
+}
+
+/// Имя объекта системы → канонический код-якорь (`a012_wb_sales` → `a012`).
+/// `None` — такого объекта в реестре метаданных нет, значит это не якорь.
+pub fn canonical_anchor(reference: &str) -> Option<String> {
+    let reference = reference.trim();
+    if reference.is_empty() {
+        return None;
+    }
+    super::metadata_registry::METADATA_REGISTRY
+        .canonical_index(reference)
+        .map(|code| code.to_string())
+}
+
 /// Вставить документ, разрешив коллизию id.
 ///
-/// Embedded-доки грузятся последними и раньше молча затирали одноимённую
-/// бизнес-статью. Теперь embedded поверх файла переезжает на `app__<id>`.
+/// Техдокументация раскладывается файлами в `app/` и грузится общим обходом,
+/// поэтому в норме коллизий уже нет. Ветка `Origin::Embedded` остаётся защитой:
+/// док, пришедший поверх бизнес-статьи, переезжает на `app__<id>`, а не затирает
+/// её молча.
 fn insert_doc(
     docs: &mut HashMap<String, KnowledgeDoc>,
     mut doc: KnowledgeDoc,
@@ -808,7 +1391,7 @@ fn insert_doc(
 ) {
     if let Some(existing) = docs.get(&doc.id) {
         match origin {
-            Origin::Embedded if !existing.is_embedded => {
+            Origin::Embedded if !existing.is_embedded() => {
                 let renamed = format!("app__{}", doc.id);
                 diagnostics.push(format!(
                     "коллизия id '{}': встроенный документ перенесён в '{}', бизнес-статья сохранена",
@@ -878,15 +1461,138 @@ author: llm
     fn kb_from(docs: Vec<KnowledgeDoc>) -> KnowledgeBase {
         let docs: HashMap<String, KnowledgeDoc> =
             docs.into_iter().map(|d| (d.id.clone(), d)).collect();
+        let by_basename = build_basename_index(&docs);
         KnowledgeBase {
             index: build_tag_index(&docs),
-            back_links: build_back_links(&docs),
+            back_links: build_back_links(&docs, &by_basename),
+            anchor_index: build_anchor_index(&docs),
+            by_basename,
             retrieval: SearchIndex::build(docs.values()),
             docs,
             vocabulary: vocab(),
             loaded_at: Utc::now(),
             diagnostics: Vec::new(),
+            dangling_links: 0,
         }
+    }
+
+    #[test]
+    fn anchors_come_from_related_without_touching_files() {
+        // Главное свойство якорей: индекс работает на уже написанных статьях,
+        // где коды объектов лежат в `related`, а поля `entities` нет вовсе.
+        let doc = parse_doc("wb-promotions".to_string(), SAMPLE, &Vocabulary::default());
+        assert!(doc.anchors.contains(&"a006".to_string()));
+        assert!(doc.anchors.contains(&"a012".to_string()));
+        assert!(doc.unknown_anchors.is_empty());
+
+        // Полное имя таблицы — тот же якорь, что и короткий код.
+        let full = parse_doc(
+            "x".to_string(),
+            "---\ntitle: T\nentities: [a012_wb_sales, нет-такого]\n---\n\n# T\n",
+            &Vocabulary::default(),
+        );
+        assert_eq!(full.anchors, vec!["a012".to_string()]);
+        assert_eq!(full.unknown_anchors, vec!["нет-такого".to_string()]);
+    }
+
+    #[test]
+    fn wiki_links_become_graph_edges() {
+        let doc = parse_doc(
+            "drr".to_string(),
+            "---\ntitle: ДРР\nrelated: [a008]\n---\n\n# ДРР\n\nСм. [[a012]] и [[funnel-overview|воронку]].\n",
+            &Vocabulary::default(),
+        );
+        assert!(doc.related.contains(&"a012".to_string()));
+        assert!(doc.related.contains(&"funnel-overview".to_string()));
+        // Ссылка из тела тоже даёт якорь.
+        assert!(doc.anchors.contains(&"a012".to_string()));
+    }
+
+    #[test]
+    fn short_link_resolves_into_subdirectory_article() {
+        // Техдоки переехали в `app/`, а записи `related` в файлах остались
+        // короткими — без резолва по короткому имени граф рвётся.
+        let kb = kb_from(vec![
+            KnowledgeDoc {
+                id: "app__general-ledger".into(),
+                title: "GL".into(),
+                kind: DocKind::App,
+                ..Default::default()
+            },
+            KnowledgeDoc {
+                id: "fina-layer".into(),
+                title: "Слой fina".into(),
+                related: vec!["general-ledger".into()],
+                ..Default::default()
+            },
+        ]);
+        assert_eq!(kb.back_links("app__general-ledger"), ["fina-layer"]);
+    }
+
+    #[test]
+    fn generated_corpus_stays_out_of_default_search() {
+        let kb = kb_from(vec![
+            KnowledgeDoc {
+                id: "profile".into(),
+                title: "Профиль данных".into(),
+                content: "воронка выкуп заказы".into(),
+                kind: DocKind::Generated,
+                ..Default::default()
+            },
+            KnowledgeDoc {
+                id: "funnel".into(),
+                title: "Воронка".into(),
+                content: "воронка выкуп заказы".into(),
+                ..Default::default()
+            },
+        ]);
+
+        let found = |kinds: Vec<DocKind>| -> Vec<String> {
+            kb.search(&super::super::kb_search::Query {
+                text: "воронка выкуп".into(),
+                kinds,
+                ..Default::default()
+            })
+            .into_iter()
+            .map(|(doc, _)| doc.id.clone())
+            .collect()
+        };
+
+        assert_eq!(found(vec![DocKind::Business, DocKind::App]), ["funnel"]);
+        assert_eq!(found(vec![DocKind::Generated]), ["profile"]);
+        // По id сгенерированный документ читается всегда — фильтр только у поиска.
+        assert!(kb.get("profile").is_some());
+    }
+
+    #[test]
+    fn entity_filter_is_hard_and_works_without_text() {
+        let kb = kb_from(vec![
+            KnowledgeDoc {
+                id: "about-a012".into(),
+                title: "Продажи WB".into(),
+                anchors: vec!["a012".into()],
+                content: "текст про продажи".into(),
+                ..Default::default()
+            },
+            KnowledgeDoc {
+                id: "about-other".into(),
+                title: "Прочее".into(),
+                anchors: vec!["a013".into()],
+                content: "текст про продажи".into(),
+                ..Default::default()
+            },
+        ]);
+
+        let hits: Vec<String> = kb
+            .search(&super::super::kb_search::Query {
+                entities: vec!["a012".into()],
+                ..Default::default()
+            })
+            .into_iter()
+            .map(|(doc, _)| doc.id.clone())
+            .collect();
+        assert_eq!(hits, ["about-a012"]);
+        assert_eq!(kb.docs_for_anchor("a012").len(), 1);
     }
 
     #[test]
@@ -989,7 +1695,7 @@ author: llm
         let mut diagnostics = Vec::new();
 
         let mut business = parse_doc("general-ledger".into(), SAMPLE, &Vocabulary::default());
-        business.is_embedded = false;
+        business.kind = DocKind::Business;
         insert_doc(&mut docs, business, Origin::File, &mut diagnostics);
 
         let mut embedded = parse_doc(
@@ -997,12 +1703,94 @@ author: llm
             "# Техдок\n",
             &Vocabulary::default(),
         );
-        embedded.is_embedded = true;
+        embedded.kind = DocKind::App;
         insert_doc(&mut docs, embedded, Origin::Embedded, &mut diagnostics);
 
         assert_eq!(docs["general-ledger"].title, "Акции Wildberries");
         assert!(docs.contains_key("app__general-ledger"));
         assert!(diagnostics.iter().any(|d| d.contains("коллизия id")));
+    }
+
+    #[test]
+    fn kind_app_marks_doc_as_technical() {
+        let business = parse_doc("wb-promotions".into(), SAMPLE, &Vocabulary::default());
+        assert!(!business.is_embedded(), "статья без `kind` — бизнес-знание");
+
+        let tech = parse_doc(
+            "app__wb-api-sales".into(),
+            "---\ntitle: T\nkind: app\n---\n\n# T\n",
+            &Vocabulary::default(),
+        );
+        assert!(tech.is_embedded());
+    }
+
+    #[test]
+    fn ensure_app_kind_stamps_frontmatter_once() {
+        // Есть frontmatter без `kind` — поле добавляется, остальное не трогаем.
+        let stamped = ensure_app_kind("---\ntitle: T\ntags: [a]\n---\n\n# T\n");
+        assert!(stamped.starts_with("---\nkind: app\ntitle: T\n"));
+        assert!(stamped.contains("tags: [a]"));
+
+        // Повторный проход ничего не меняет — иначе файл переписывался бы вечно.
+        assert_eq!(ensure_app_kind(&stamped), stamped);
+
+        // Frontmatter отсутствует — создаётся минимальный.
+        let bare = ensure_app_kind("# Только тело\n");
+        assert_eq!(bare, "---\nkind: app\n---\n\n# Только тело\n");
+        assert!(parse_doc("x".into(), &bare, &Vocabulary::default()).is_embedded());
+    }
+
+    #[test]
+    fn machine_subdirs_are_not_writable_through_kb_tools() {
+        assert!(sanitize_relative_kb_path("app/wb-api-sales.md").is_err());
+        assert!(sanitize_relative_kb_path("generated/data-profile.md").is_err());
+        assert!(sanitize_relative_kb_path("funnel-overview.md").is_ok());
+        assert!(sanitize_relative_kb_path("marketplaces/wb.md").is_ok());
+    }
+
+    #[test]
+    fn corpus_is_decided_by_directory_not_by_frontmatter() {
+        // Файл в машинном каталоге — машинный, что бы ни было написано в шапке.
+        assert_eq!(kind_by_subdir("app__wb-api-sales"), Some(DocKind::App));
+        assert_eq!(
+            kind_by_subdir("generated__data-profile"),
+            Some(DocKind::Generated)
+        );
+        // Статья в корне и статья в тематическом подкаталоге — бизнес-знание.
+        assert_eq!(kind_by_subdir("app"), None);
+        assert_eq!(kind_by_subdir("marketplaces__wb"), None);
+    }
+
+    #[test]
+    fn short_id_still_opens_the_moved_tech_doc() {
+        // Техдоки переехали в `app/`, а ссылки `kb://article/<id>` из прошлых
+        // чатов и строки статистики остались короткими.
+        let kb = kb_from(vec![
+            KnowledgeDoc {
+                id: "app__general-ledger".into(),
+                title: "GL".into(),
+                kind: DocKind::App,
+                ..Default::default()
+            },
+            KnowledgeDoc {
+                id: "fina-layer".into(),
+                title: "Слой fina".into(),
+                ..Default::default()
+            },
+        ]);
+        assert_eq!(kb.get("general-ledger").map(|d| d.id.as_str()), Some("app__general-ledger"));
+        assert_eq!(kb.get("fina-layer").map(|d| d.id.as_str()), Some("fina-layer"));
+        assert!(kb.get("нет-такой").is_none());
+    }
+
+    #[test]
+    fn app_doc_source_path_points_at_repo_canon() {
+        let first = EMBEDDED_LLM_DOCS.first().expect("список техдоков пуст");
+        assert_eq!(
+            app_doc_source_path(&format!("app__{}", first.id)),
+            Some(first.source_path)
+        );
+        assert_eq!(app_doc_source_path("funnel-overview"), None);
     }
 
     #[test]
@@ -1047,7 +1835,7 @@ author: llm
         doc.ttl_days = Some(180);
         assert_eq!(doc.staleness_pct(), Some(50));
 
-        doc.is_embedded = true;
+        doc.kind = DocKind::App;
         assert_eq!(doc.staleness_pct(), None);
     }
 
@@ -1069,14 +1857,22 @@ author: llm
             .parent()?
             .join("config.toml");
         let raw = std::fs::read_to_string(config_path).ok()?;
-        let value = raw.lines().find_map(|line| {
-            line.trim()
-                .strip_prefix("knowledge_base_path")?
-                .trim_start()
-                .strip_prefix('=')
-                .map(|v| v.trim().trim_matches('"').to_string())
-        })?;
-        let dir = PathBuf::from(value);
+        let scalar = |key: &str| {
+            raw.lines().find_map(|line| {
+                line.trim()
+                    .strip_prefix(key)?
+                    .trim_start()
+                    .strip_prefix('=')
+                    .map(|v| v.trim().trim_matches('"').to_string())
+            })
+        };
+        // Штатно каталог выводится из общего корня данных; отдельный
+        // `knowledge_base_path` — отклонение и потому побеждает.
+        let dir = match scalar("knowledge_base_path") {
+            Some(explicit) => PathBuf::from(explicit),
+            None => PathBuf::from(scalar("root")?)
+                .join(crate::shared::config::SUBDIR_KNOWLEDGE),
+        };
         dir.join(VOCABULARY_FILE).exists().then_some(dir)
     }
 
@@ -1096,7 +1892,7 @@ author: llm
         let unknown: Vec<(&str, &Vec<String>)> = kb
             .all_docs()
             .iter()
-            .filter(|d| !d.is_embedded && !d.unknown_tags.is_empty())
+            .filter(|d| !d.is_embedded() && !d.unknown_tags.is_empty())
             .map(|d| (d.id.as_str(), &d.unknown_tags))
             .collect();
         assert!(
@@ -1122,6 +1918,46 @@ author: llm
         assert!(
             ozon.verified.is_none(),
             "черновик не может быть верифицирован"
+        );
+    }
+
+    /// Справочник по API разложен в `app/` и находится поиском.
+    ///
+    /// Смысл теста — не в самом факте записи файлов, а в том, что вопрос про
+    /// конкретный лимит выводит на статью этого эндпоинта, а не на обзор.
+    #[test]
+    fn live_api_reference_is_materialized_and_searchable() {
+        let Some(dir) = live_kb_dir() else {
+            eprintln!("пропуск: каталог знаний недоступен");
+            return;
+        };
+        let kb = KnowledgeBase::load(&dir);
+
+        for id in [
+            "app__wb-api-overview",
+            "app__wb-api-advert-fullstats",
+            "app__ym-api-overview",
+            "app__ym-api-shows-sales",
+        ] {
+            let doc = kb.get(id).unwrap_or_else(|| panic!("нет статьи {id}"));
+            assert!(doc.is_embedded(), "{id} должна быть техдоком");
+            assert!(!doc.summary.is_empty(), "{id} без summary");
+            assert!(
+                doc.token_cost < super::super::kb_tools::LARGE_ARTICLE_TOKENS,
+                "{id} переросла порог: {} токенов",
+                doc.token_cost
+            );
+        }
+
+        let (hits, _) = kb.search_with_total(&super::super::kb_search::Query {
+            text: "почему запросы рекламной статистики wildberries режутся по месяцам".into(),
+            ..Default::default()
+        });
+        assert_eq!(
+            hits.first().map(|(d, _)| d.id.as_str()),
+            Some("app__wb-api-advert-fullstats"),
+            "ожидали статью про fullstats первой, получили: {:?}",
+            hits.iter().map(|(d, _)| &d.id).collect::<Vec<_>>()
         );
     }
 

@@ -683,6 +683,14 @@ pub fn ImportWidget() -> impl IntoView {
                             selected_connection=selected_connection
                         />
                         <ServiceRow
+                            row_id="a043"
+                            title="Финансы WB: новый Finance API v1"
+                            details_text="Загружает список ежедневных отчётов реализации и полную детализацию каждого reportId в независимый агрегат a043. Не изменяет legacy p903, проводки и сверки. API доступен с 2025-01-01 и ограничен одним запросом в минуту."
+                            aggregate="a043_wb_finance_report"
+                            needs_period=true
+                            selected_connection=selected_connection
+                        />
+                        <ServiceRow
                             row_id="p905"
                             title="Финансы WB: комиссии"
                             details_text="Загружает актуальные ставки комиссий Wildberries по категориям, чтобы система могла использовать свежие правила расчета комиссионной нагрузки по ассортименту."

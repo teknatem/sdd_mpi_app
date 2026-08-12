@@ -3,9 +3,16 @@
 //! Применение стартует из этого же диалога и с тем же `bundle_sha256`, который
 //! был посчитан для показанного диффа — иначе можно применить не то, что
 //! подтвердил админ.
+//!
+//! Вёрстка обязана держаться на классах ядра `.modal-header` / `.modal-body` /
+//! `.modal-footer` (`static/themes/core/components.css`): именно у `.modal-body`
+//! есть `overflow-y: auto`, а сама `.modal` — `max-height: 90vh; overflow: hidden`.
+//! Раньше здесь стояли `modal__header` / `modal__body` и `modal--wide`, которых
+//! нет ни в одной таблице стилей, поэтому диалог обрезался без скролла вместе с
+//! кнопками применения.
 
 use contracts::system::datasets::{
-    DiffClass, RestoreApplyRequest, RestoreMode, RestorePreviewDto, WarningSeverity,
+    DiffClass, RestoreApplyRequest, RestoreMode, RestorePreviewDto, SetDiff, WarningSeverity,
 };
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -49,28 +56,16 @@ pub fn DiffDialog(
             expected_bundle_sha256: Some(dto.bundle_sha256.clone()),
         };
 
-        state.busy_label.set(Some("Восстановление данных...".to_string()));
         state.error.set(None);
         state.notice.set(None);
+        // Диалог закрывается сразу: дальше всё видно в баннере прогресса, а
+        // держать поверх него неактуальный дифф незачем.
+        preview.set(None);
         spawn_local(async move {
             match api::restore_apply(&request).await {
-                Ok(result) => {
-                    let written: u64 = result.sets.iter().map(|set| set.files_written).sum();
-                    let removed: u64 = result.sets.iter().map(|set| set.files_deleted).sum();
-                    let archive = result
-                        .pre_restore_archive
-                        .clone()
-                        .map(|path| format!(" Архив прежнего состояния: {path}"))
-                        .unwrap_or_default();
-                    state.notice.set(Some(format!(
-                        "Восстановлено: записано {written} файлов, удалено {removed}.{archive}"
-                    )));
-                    preview.set(None);
-                    state.reload.run(());
-                }
+                Ok(started) => state.watch_job.run(started.job_id),
                 Err(err) => state.error.set(Some(err)),
             }
-            state.busy_label.set(None);
         });
     };
 
@@ -84,13 +79,18 @@ pub fn DiffDialog(
                 let blocking = dto.blocking;
 
                 view! {
-                    <ModalFrame on_close=close modal_class="modal--wide".to_string()>
-                        <div class="modal__header">
-                            <h2 class="modal__title">"Различия перед восстановлением"</h2>
+                    <ModalFrame
+                        on_close=close
+                        modal_style="width: min(1180px, calc(100vw - 48px)); max-width: none; \
+                                     max-height: calc(100vh - 48px);"
+                            .to_string()
+                    >
+                        <div class="modal-header">
+                            <h2 class="modal-title">"Различия перед восстановлением"</h2>
                             <button class="modal__close" on:click=move |_| close.run(())>"×"</button>
                         </div>
 
-                        <div class="modal__body datasets__diff">
+                        <div class="modal-body datasets__diff">
                             <div class="datasets__diff-source">
                                 <div>
                                     <span class="text-muted">"Источник: "</span>
@@ -108,7 +108,7 @@ pub fn DiffDialog(
                                     )}
                                 </div>
                                 <div>
-                                    <span class="text-muted">"Режим: "</span>
+                                    <span class="text-muted">"Режим файлов: "</span>
                                     {dto.mode.label_ru()}
                                 </div>
                             </div>
@@ -173,49 +173,13 @@ pub fn DiffDialog(
                                 <FilterButton current=class_filter value=Some(DiffClass::Identical) label="без изменений" />
                             </div>
 
-                            {dto.sets.iter().map(|set| {
-                                let entries = set.entries.clone();
-                                let truncated = set.entries_truncated;
-                                let label = set.label_ru.clone();
-                                view! {
-                                    <div class="datasets__diff-set">
-                                        <h3 class="datasets__diff-set-title">{label}</h3>
-                                        <div class="table-wrapper datasets__diff-files">
-                                            <table class="table__data table--striped">
-                                                <tbody>
-                                                    {move || {
-                                                        let filter = class_filter.get();
-                                                        entries.iter()
-                                                            .filter(|entry| filter.is_none_or(|class| entry.class == class))
-                                                            .map(|entry| view! {
-                                                                <tr class="table__row">
-                                                                    <td class="table__cell datasets__col-class">
-                                                                        <span class=diff_class_badge(entry.class)>
-                                                                            {entry.class.label_ru()}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td class="table__cell datasets__mono">{entry.path.clone()}</td>
-                                                                    <td class="table__cell datasets__col-num text-muted">
-                                                                        {size_column(entry.local_size_bytes, entry.bundle_size_bytes)}
-                                                                    </td>
-                                                                </tr>
-                                                            })
-                                                            .collect_view()
-                                                    }}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        {truncated.then(|| view! {
-                                            <div class="text-muted">
-                                                "Показаны первые записи — полный список есть в манифесте снапшота."
-                                            </div>
-                                        })}
-                                    </div>
-                                }
-                            }).collect_view()}
+                            // Пофайловые списки свёрнуты: у шести наборов даже по
+                            // 200 записей это несколько экранов, из-за которых
+                            // сводка и кнопки уезжали из виду.
+                            {dto.sets.iter().map(|set| view! { <DiffSetBlock set=set.clone() class_filter=class_filter /> }).collect_view()}
                         </div>
 
-                        <div class="modal__footer">
+                        <div class="modal-footer">
                             <button class="button button--secondary" on:click=move |_| close.run(())>
                                 "Отмена"
                             </button>
@@ -235,6 +199,96 @@ pub fn DiffDialog(
                 }.into_any()
             }}
         </Show>
+    }
+}
+
+/// Один набор в диффе: свёрнутый блок со списком файлов либо карточка сравнения
+/// для набора «База данных» (у него ровно один «файл» — сам `app.db`, и пустая
+/// таблица на одну строку сказала бы меньше, чем размеры рядом).
+#[component]
+fn DiffSetBlock(set: SetDiff, class_filter: RwSignal<Option<DiffClass>>) -> impl IntoView {
+    let is_database = set.set_id == "database";
+    let entries = set.entries.clone();
+    let truncated = set.entries_truncated;
+    let counters = format!(
+        "добавится {} · изменится {} · только локально {} · без изменений {}",
+        set.added, set.modified, set.local_only, set.identical
+    );
+
+    let body = if is_database {
+        let entry = set.entries.first().cloned();
+        view! {
+            <div class="datasets__diff-db">
+                <div class="datasets__diff-db-row">
+                    <span class="text-muted">"Локальный файл"</span>
+                    <span class="datasets__mono">
+                        {entry.as_ref()
+                            .and_then(|entry| entry.local_size_bytes)
+                            .map(format_bytes_compact)
+                            .unwrap_or_else(|| "нет".to_string())}
+                    </span>
+                </div>
+                <div class="datasets__diff-db-row">
+                    <span class="text-muted">"Файл из снапшота"</span>
+                    <span class="datasets__mono">
+                        {entry.as_ref()
+                            .and_then(|entry| entry.bundle_size_bytes)
+                            .map(format_bytes_compact)
+                            .unwrap_or_else(|| "—".to_string())}
+                    </span>
+                </div>
+                <div class="alert alert--warning">
+                    "База данных подменяется целиком при автоматическом перезапуске бэкенда: \
+                     файл держит открытым пул подключений, поэтому восстановление только \
+                     готовит подмену. Текущая база сохранится в каталоге backups."
+                </div>
+            </div>
+        }
+        .into_any()
+    } else {
+        view! {
+            <div class="table-wrapper datasets__diff-files">
+                <table class="table__data table--striped">
+                    <tbody>
+                        {move || {
+                            let filter = class_filter.get();
+                            entries.iter()
+                                .filter(|entry| filter.is_none_or(|class| entry.class == class))
+                                .map(|entry| view! {
+                                    <tr class="table__row">
+                                        <td class="table__cell datasets__col-class">
+                                            <span class=diff_class_badge(entry.class)>
+                                                {entry.class.label_ru()}
+                                            </span>
+                                        </td>
+                                        <td class="table__cell datasets__mono">{entry.path.clone()}</td>
+                                        <td class="table__cell datasets__col-num text-muted">
+                                            {size_column(entry.local_size_bytes, entry.bundle_size_bytes)}
+                                        </td>
+                                    </tr>
+                                })
+                                .collect_view()
+                        }}
+                    </tbody>
+                </table>
+            </div>
+            {truncated.then(|| view! {
+                <div class="text-muted">
+                    "Показаны первые записи — полный список есть в манифесте снапшота."
+                </div>
+            })}
+        }
+        .into_any()
+    };
+
+    view! {
+        <details class="datasets__diff-set" open=is_database>
+            <summary class="datasets__diff-set-summary">
+                <span class="datasets__diff-set-title">{set.label_ru.clone()}</span>
+                <span class="text-muted datasets__diff-set-counters">{counters}</span>
+            </summary>
+            {body}
+        </details>
     }
 }
 

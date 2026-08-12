@@ -59,6 +59,12 @@ impl ScheduledTaskWorker {
     }
 
     async fn process_due_tasks(&self) -> Result<()> {
+        // В maintenance не трогаем даже таблицу настроек планировщика: операция
+        // переноса БД должна получить полностью тихое окно.
+        if crate::system::maintenance::is_active() {
+            info!("Maintenance is active — skipping scheduled task check");
+            return Ok(());
+        }
         if !crate::system::settings::service::get_scheduler_enabled().await? {
             info!("Scheduler is disabled — skipping task check");
             return Ok(());
@@ -74,6 +80,11 @@ impl ScheduledTaskWorker {
         let coordinator = get_global_resource_coordinator();
 
         for task in tasks {
+            let Some(database_activity) = crate::system::maintenance::try_begin_database_activity()
+            else {
+                info!("Database maintenance started — stopping this scheduler pass");
+                break;
+            };
             let should_run = task.next_run_at.map_or(true, |t| t <= now);
             if !should_run {
                 continue;
@@ -153,6 +164,7 @@ impl ScheduledTaskWorker {
                 logger: Arc::clone(&self.logger),
                 registry: Arc::clone(&self.registry),
                 resource_guard,
+                database_activity,
             });
         }
         Ok(())

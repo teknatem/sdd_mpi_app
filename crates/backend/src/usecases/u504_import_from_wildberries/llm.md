@@ -1,8 +1,8 @@
 ---
 title: U504 Import From Wildberries
 tags: [wb, import, api, indicators, usecase, u504]
-related: [a012_wb_sales, p904_sales_data]
-updated: 2026-03-17
+related: [app__wb-api-overview, app__wb-api-statistics-sales, a012_wb_sales, p904_sales_data]
+updated: 2026-08-11
 ---
 
 # Summary
@@ -15,34 +15,14 @@ updated: 2026-03-17
 - Основная DTO для строк продаж: `WbSaleRow`.
 - Поля DTO отражают API-имена WB, например `nmId`, `supplierArticle`, `forPay`, `finishedPrice`, `saleID`.
 
-# Used WB Endpoints
+# Where To Look For Endpoints
 
-- `POST /content/v2/get/cards/list`
-  Content API для загрузки карточек товаров WB. В `u504` используется как источник товарного справочника и связки `nmId` <-> карточка/бренд/предмет/баркод. По документации WB это cursor-based endpoint: в теле запроса передаются `settings.cursor` и `limit`. В коде используется пагинация по `cursor.updatedAt` и `cursor.nmID`, без фильтра `findByNmID`.
-- `GET /api/v1/supplier/sales`
-  Statistics API для строк продаж и возвратов. Это основной upstream для `a012_wb_sales`. По документации WB ключевые параметры: `dateFrom`, `dateTo`, `flag`. В `u504` этот endpoint читается как интервал продаж, а тип события выводится из знака `quantity`: отрицательное значение трактуется как возврат.
-- `GET /api/v1/supplier/orders`
-  Statistics API для заказов. В usecase он нужен как соседний источник WB-операций, но не является главным downstream-источником для индикаторов выручки. По документации основной параметр отбора — `dateFrom`; в коде используется backfill по `lastChangeDate` с `flag=0`, а `dateTo` служит soft-stop уже на стороне приложения.
-- `GET /api/v5/supplier/reportDetailByPeriod`
-  Statistics API для детального финансового отчета за период. Используется для финансового слоя WB, который затем участвует в BI-расчетах. По документации и по коду важны `dateFrom`, `dateTo`, `rrdid`, `limit`. Эндпоинт имеет жесткое ограничение частоты запросов; в коде это учтено через ожидание после `429 Too Many Requests` и пагинацию по `rrdid`.
-- `GET /api/v1/tariffs/commission?locale=ru`
-  Common API для комиссий WB по предметам/категориям. В `u504` endpoint используется как справочник комиссий для обогащения локальных расчетов. Параметр `locale=ru` влияет на язык категорий в ответе.
-- `GET /api/v2/list/goods/filter?limit={limit}&offset={offset}`
-  Prices and Discounts API для цен и скидок по товарам. В usecase применяется как источник текущих ценовых параметров WB. По документации у endpoint offset-based pagination; в коде используется пара `limit/offset`.
-- `GET /api/v1/calendar/promotions`
-  Promotion Calendar API для списка активных и будущих акций. В коде вызывается с `startDateTime`, `endDateTime`, `allPromo`; объединяются `promotions` и `upcomingPromos` из ответа.
-- `GET /api/v1/calendar/promotions/details`
-  Promotion Calendar API для детальной информации по акциям. В коде используется batched-запрос по `promotionIDs`, поскольку детализация нужна уже после получения списка акций.
-- `GET /api/v1/calendar/promotions/nomenclatures`
-  Promotion Calendar API для получения `nmId`, относящихся к акции. По документации обязательны `promotionID` и `inAction`; в коде дополнительно используется пагинация `limit/offset` и запрашиваются оба состояния `inAction=true` и `inAction=false`. Для акций типа `auto` endpoint пропускается, потому что WB его для них не поддерживает.
+Описание самих эндпоинтов WB — их параметров, лимитов, глубины хранения, расписания и цепочек
+потребления — вынесено в отдельный справочник, каталог `api/` рядом с этим файлом. Точка
+входа: `app__wb-api-overview` (карта всех эндпоинтов и сводка расхождений).
 
-# Endpoint Notes
-
-- Все используемые методы требуют seller API key в заголовке `Authorization`.
-- Для product cards, prices и promotions usecase в основном строит справочники и enrichments; главный источник фактов по продажам для цепочки индикаторов — `GET /api/v1/supplier/sales`.
-- Для финансовых индикаторов нельзя опираться только на Sales API: часть сумм и удержаний берется из `reportDetailByPeriod`.
-- `a012_wb_sales` — это нормализованный локальный документ после маппинга WB API, а не прямой снимок ответа одного endpoint.
-- Для BI и dashboard downstream-источником является не raw WB DTO, а уже локальная проекция `p904_sales_data`.
+Здесь остаётся то, что справочник не описывает: семантика полей продаж и правила их
+преобразования в `a012_wb_sales`.
 
 # WB Sales Field Semantics
 
@@ -117,11 +97,3 @@ updated: 2026-03-17
 - Для построения индикаторов по выручке и прибыли правильным downstream-источником является `p904_sales_data`, не raw DTO и не `a012_wb_sales`.
 - `dateTo` поддерживается не всеми WB Statistics endpoints одинаково; для `orders` в `u504` он используется как ограничение на стороне приложения, а не как полноценный server-side filter.
 - Нельзя смешивать product, sales, finance и promotion endpoints как один источник истины: они описывают разные аспекты данных WB и сходятся только после локального маппинга и projection logic.
-
-# Official Docs
-
-- Reports and statistics: `https://dev.wildberries.ru/openapi/reports`
-- Content / product cards: `https://dev.wildberries.ru/openapi/work-with-products`
-- Prices and discounts: `https://dev.wildberries.ru/openapi/prices-and-discounts`
-- Tariffs: `https://dev.wildberries.ru/openapi/tariffs`
-- Promotions: `https://dev.wildberries.ru/openapi/promotion`

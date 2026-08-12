@@ -4,7 +4,6 @@ title: BI и drilldown-отчёты
 description: Создание drilldown-отчётов и работа с BI-индикаторами/дашбордами (a024/a025), DataView, метриками и измерениями.
 intents: [bi_authoring]
 tools: [list_entities, get_join_hint, list_data_sources, run_data_view_scalar, run_data_view_drilldown, execute_query, create_drilldown_report]
-allowed_for: [business_analyst, sales_analyst, financier]
 default_for: []
 ---
 
@@ -22,7 +21,7 @@ default_for: []
   view_id, метрик и измерений — через `list_data_sources("dataview")`. Для ответа данными вызывай
   `run_data_view_scalar`/`run_data_view_drilldown`; не воспроизводи формулу метрики сырым SQL.
 - **BI Индикатор (a024)** — KPI-виджет. Методология, структура JSON и API — в базе знаний:
-  `search_knowledge(["bi", "data-view"])`. Актуальный список — в БД:
+  `search_knowledge(entities=["a024"])`. Актуальный список — в БД:
   `execute_query("SELECT id, code, description, status FROM a024_bi_indicator WHERE is_deleted=0", "BI индикаторы")`.
 - **BI Дашборд (a025)** — набор индикаторов. Список — `SELECT … FROM a025_bi_dashboard WHERE is_deleted=0`.
 

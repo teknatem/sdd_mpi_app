@@ -64,6 +64,10 @@ pub async fn record_ext_api_call(req: Request<Body>, next: Next) -> Response {
     // Fire-and-forget: запись в SQLite не должна попадать в горячий путь ответа.
     // Внешних вызовов мало, поэтому канал/батчинг избыточны.
     tokio::spawn(async move {
+        let Some(_database_activity) = crate::system::maintenance::try_begin_database_activity()
+        else {
+            return;
+        };
         if let Err(e) = service::record(row).await {
             tracing::warn!("[ext-api-log] failed to record call: {e}");
         }

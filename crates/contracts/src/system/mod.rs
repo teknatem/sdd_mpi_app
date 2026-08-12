@@ -5,6 +5,7 @@ pub mod datasets;
 pub mod ext_api_log;
 pub mod favorites;
 pub mod history;
+pub mod maintenance;
 pub mod raw_storage;
 pub mod roles;
 pub mod s3;

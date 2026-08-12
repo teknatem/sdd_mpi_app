@@ -8,12 +8,16 @@ mod catalog_tab;
 mod diagnostics_tab;
 mod diff_dialog;
 mod export_tab;
+mod job_progress;
 mod journal_tab;
 
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use contracts::system::datasets::{DatasetCatalogResponse, DatasetsStatusDto, TransferLogEntryDto};
+use contracts::system::datasets::{
+    DatasetCatalogResponse, DatasetJobDto, DatasetJobStatus, DatasetsStatusDto, TransferLogEntryDto,
+};
 
 use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;
@@ -24,7 +28,13 @@ use crate::system::datasets::api;
 pub use catalog_tab::CatalogTab;
 pub use diagnostics_tab::DiagnosticsTab;
 pub use export_tab::ExportTab;
+pub use job_progress::JobProgress;
 pub use journal_tab::JournalTab;
+
+/// Как часто опрашивать состояние фоновой операции. Секунда — компромисс:
+/// полоса движется заметно, а на многочасовой выгрузке это несколько тысяч
+/// дешёвых запросов к памяти процесса, не к БД.
+const JOB_POLL_MS: u32 = 1000;
 
 /// Единый формат отметок времени на странице. Все даты приезжают с бэкенда в
 /// UTC (RFC3339) и показываются в местном поясе — см. `format_datetime_utc_local`.
@@ -54,10 +64,39 @@ pub struct DatasetsState {
     pub catalog: RwSignal<Option<DatasetCatalogResponse>>,
     pub history: RwSignal<Vec<TransferLogEntryDto>>,
     pub loading: RwSignal<bool>,
+    /// Короткие синхронные операции (предпросмотр, удаление, скачивание) —
+    /// текстовая плашка со спиннером. Длительные живут в `job`.
     pub busy_label: RwSignal<Option<String>>,
     pub error: RwSignal<Option<String>>,
     pub notice: RwSignal<Option<String>>,
     pub reload: Callback<()>,
+    /// Состояние фоновой операции переноса, если она есть.
+    pub job: RwSignal<Option<DatasetJobDto>>,
+    /// Подключает опрос к задаче с этим идентификатором.
+    pub watch_job: Callback<String>,
+}
+
+/// Итог завершённой операции одной строкой. Подробности (ключ объекта,
+/// предупреждения, требование перезапуска) остаются во вкладках.
+fn job_summary(job: &DatasetJobDto) -> String {
+    if let Some(snapshot) = &job.snapshot_result {
+        return format!(
+            "Снапшот {} записан ({})",
+            snapshot.snapshot.snapshot_id,
+            crate::shared::date_utils::format_bytes_compact(snapshot.bundle_size_bytes)
+        );
+    }
+    if let Some(restore) = &job.restore_result {
+        let written: u64 = restore.sets.iter().map(|set| set.files_written).sum();
+        let removed: u64 = restore.sets.iter().map(|set| set.files_deleted).sum();
+        let restart = if restore.requires_restart {
+            " Бэкенд автоматически перезапускается."
+        } else {
+            ""
+        };
+        return format!("Восстановлено: записано {written} файлов, удалено {removed}.{restart}");
+    }
+    "Операция завершена".to_string()
 }
 
 #[component]
@@ -96,8 +135,61 @@ fn DatasetsContent() -> impl IntoView {
         });
     });
 
+    let job = RwSignal::<Option<DatasetJobDto>>::new(None);
+
+    // Опрос живёт на уровне страницы, а не вкладки: выгрузка стартует из одной
+    // вкладки, восстановление из другой, а переключение вкладок не должно
+    // обрывать наблюдение за операцией.
+    let watch_job = Callback::new(move |job_id: String| {
+        spawn_local(async move {
+            loop {
+                match api::fetch_job(&job_id).await {
+                    Ok(dto) => {
+                        let status = dto.status;
+                        let finished = status.is_terminal();
+                        job.set(Some(dto.clone()));
+                        if finished {
+                            match status {
+                                DatasetJobStatus::Done => {
+                                    notice.set(Some(job_summary(&dto)));
+                                    error.set(None);
+                                }
+                                DatasetJobStatus::Cancelled => {
+                                    notice.set(Some("Операция прервана.".to_string()));
+                                }
+                                _ => error.set(Some(dto.error.clone().unwrap_or_else(|| {
+                                    "Операция завершилась с ошибкой".to_string()
+                                }))),
+                            }
+                            // Результат остаётся на экране: он несёт ключ объекта,
+                            // предупреждения и требование перезапуска.
+                            reload.run(());
+                            break;
+                        }
+                    }
+                    // Задачу выгрузили из памяти либо связь пропала — прекращаем
+                    // опрос, чтобы не крутить бесконечный цикл ошибок.
+                    Err(message) => {
+                        error.set(Some(message));
+                        job.set(None);
+                        break;
+                    }
+                }
+                TimeoutFuture::new(JOB_POLL_MS).await;
+            }
+        });
+    });
+
     Effect::new(move |_| {
         reload.run(());
+        // Операция могла быть запущена до перезагрузки вкладки — подхватываем её.
+        spawn_local(async move {
+            if let Ok(Some(active)) = api::fetch_active_job().await {
+                let job_id = active.job_id.clone();
+                job.set(Some(active));
+                watch_job.run(job_id);
+            }
+        });
     });
 
     let state = DatasetsState {
@@ -109,6 +201,8 @@ fn DatasetsContent() -> impl IntoView {
         error,
         notice,
         reload,
+        job,
+        watch_job,
     };
 
     // Число замечаний выносим на корешок вкладки: иначе диагностика видна
@@ -156,6 +250,10 @@ fn DatasetsContent() -> impl IntoView {
                         <span>{move || busy_label.get().unwrap_or_default()}</span>
                     </div>
                 </Show>
+
+                {move || job.get()
+                    .filter(|dto| dto.status == DatasetJobStatus::Running)
+                    .map(|dto| view! { <JobProgress job=dto /> })}
 
                 {move || error.get().map(|err| view! {
                     <div class="alert alert--error">{err}</div>

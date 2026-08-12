@@ -64,6 +64,7 @@ pub fn tab_label_for_key(key: &str) -> &'static str {
         "a036_wb_sales_funnel_daily" => "Воронка продаж WB",
         "a037_wb_product_snapshot" => "Данные по товарам WB",
         "a040_wb_search_analytics_daily" => "Поисковая аналитика WB",
+        "a043_wb_finance_report" => "Финансовые отчёты WB (новый API)",
         "a016_ym_returns" => "Возвраты Yandex",
 
         "u501_import_from_ut" => "Импорт из УТ 11",

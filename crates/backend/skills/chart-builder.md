@@ -4,7 +4,6 @@ title: Графики и диаграммы
 description: Построение графиков из данных: пользователь описывает, что показать — агент собирает SELECT, выбирает тип (линия/столбцы/доли) и публикует график-плагин (Chart.js).
 intents: [chart_build]
 tools: [find_data_sources, preview_data, build_chart]
-allowed_for: [business_analyst, plugin_admin, sales_analyst, marketer, financier]
 default_for: []
 ---
 

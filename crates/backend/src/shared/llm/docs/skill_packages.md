@@ -1,7 +1,10 @@
 # Skill packages
 
-The external skills directory supports both legacy `<id>.md` files and package
-directories containing `SKILL.md`.
+The configured external skills directory is the registry's only runtime source.
+On startup the backend creates it when necessary and writes missing embedded
+seed skills there without replacing an existing skill with the same id. It
+supports both legacy `<id>.md` files and package directories containing
+`SKILL.md`.
 
 ```text
 marketplace-funnel-analysis/
@@ -64,6 +67,6 @@ the added/changed/removed skill IDs. If catalog construction fails critically,
 the response status is `rejected` and the previous snapshot remains active.
 
 The repository contains `marketplace-funnel-analysis/` as the reference package
-for multi-file skills. Deploy/copy package directories into the configured
-`[llm].skills_path`; package content remains reloadable without recompiling the
-backend.
+for multi-file skills. Deploy/copy non-seed package directories into the
+configured `[llm].skills_path`; package content remains reloadable without
+recompiling the backend. No catalog next to the executable is scanned.

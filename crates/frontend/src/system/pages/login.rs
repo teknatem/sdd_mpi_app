@@ -3,6 +3,7 @@ use leptos::task::spawn_local;
 
 use crate::shared::theme::ThemeSelect;
 use crate::system::auth::{api, context::use_auth, storage};
+use crate::system::maintenance::{use_maintenance, MaintenanceLine};
 
 #[component]
 pub fn LoginPage() -> impl IntoView {
@@ -12,6 +13,9 @@ pub fn LoginPage() -> impl IntoView {
     let is_loading = RwSignal::new(false);
 
     let (_, set_auth_state) = use_auth();
+    // Статус обслуживания читается без авторизации: человек должен видеть, что
+    // идут работы, ДО того как попробует войти и получит отказ.
+    let maintenance = use_maintenance();
 
     let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
@@ -38,16 +42,31 @@ pub fn LoginPage() -> impl IntoView {
                     is_loading.set(false);
                 }
                 Err(e) => {
-                    error_message.set(Some(format!("Ошибка входа: {}", e)));
+                    error_message.set(Some(e));
                     is_loading.set(false);
+                    // Отказ мог случиться из-за режима обслуживания, включённого
+                    // после загрузки страницы: обновляем статус сразу, чтобы
+                    // полоса с объяснением появилась без ожидания опроса.
+                    maintenance.refresh();
                 }
             }
         });
     };
 
     view! {
-        <div class="login">
+        <div
+            class="login"
+            class:login--maintenance=move || maintenance.status.get().active
+        >
             <div class="login__background"></div>
+
+            // Строка о технических работах — вверху экрана и до всякого входа:
+            // отказ «503» без объяснения человек читает как поломку.
+            <Show when=move || maintenance.status.get().active>
+                <div class="login__maintenance">
+                    <MaintenanceLine status=maintenance.status.into() audience_admin=false />
+                </div>
+            </Show>
 
             <div class="login__theme-selector">
                 <ThemeSelect />

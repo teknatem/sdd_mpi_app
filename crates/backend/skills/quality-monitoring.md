@@ -4,7 +4,6 @@ title: Контроль качества данных
 description: Просмотр единого каталога проверок с последними результатами, запуск правил и разбор нарушений без дублирования диагностического SQL.
 intents: [quality_check, data_quality]
 tools: [list_quality_checks, get_latest_quality_check, run_quality_check]
-allowed_for: [business_analyst, sales_analyst, marketer, financier, system_admin, kb_admin, plugin_admin, coordinator_admin]
 default_for: [business_analyst, sales_analyst, marketer, financier, system_admin, kb_admin, plugin_admin, coordinator_admin]
 ---
 
@@ -25,4 +24,3 @@ default_for: [business_analyst, sales_analyst, marketer, financier, system_admin
 
 Если подходящей проверки нет, подготовь краткое ТЗ для `plugin_admin`: цель, популяция,
 однотипные инварианты, исключения, период, разрезы и минимум три приёмочных сценария.
-

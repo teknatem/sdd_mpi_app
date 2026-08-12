@@ -6,8 +6,8 @@
 //! каталог может оказаться единственной копией чьих-то данных.
 
 use contracts::system::datasets::{
-    AnomalySeverity, DatasetAnomalyDto, DatasetStatusEntry, DatasetsStatusDto, InstanceInfoDto,
-    PathOrigin,
+    AnomalySeverity, DatasetAnomalyDto, DatasetStatusEntry, DatasetsStatusDto, DbSetStats,
+    InstanceInfoDto, PathOrigin,
 };
 
 use super::registry::{self, DATASETS};
@@ -24,7 +24,7 @@ const LEGACY_ATTACHMENTS_PATH: &str = "uploads/chat_attachments";
 pub async fn local_status() -> anyhow::Result<DatasetsStatusDto> {
     let config = config::load_config()?;
     let instance = instance_info(&config).await;
-    let sets = scan_all(&config);
+    let sets = scan_all(&config).await;
     let anomalies = detect_anomalies(&config, &sets);
 
     Ok(DatasetsStatusDto {
@@ -36,7 +36,11 @@ pub async fn local_status() -> anyhow::Result<DatasetsStatusDto> {
 
 async fn instance_info(config: &Config) -> InstanceInfoDto {
     let source = super::source_info(config).await;
-    let s3_error = config.s3.validate_ready().err().map(|error| error.to_string());
+    let s3_error = config
+        .s3
+        .validate_ready()
+        .err()
+        .map(|error| error.to_string());
 
     InstanceInfoDto {
         instance_id: source.instance_id,
@@ -60,13 +64,29 @@ async fn instance_info(config: &Config) -> InstanceInfoDto {
 
 /// Сканирует все наборы реестра. `config` читается один раз и передаётся вниз:
 /// `load_config()` каждый вызов заново читает и парсит файл с диска.
-pub fn scan_all(config: &Config) -> Vec<DatasetStatusEntry> {
+pub async fn scan_all(config: &Config) -> Vec<DatasetStatusEntry> {
+    // Статистика БД читается один раз до обхода: `vacuum_status` — запрос к
+    // базе, а не файловая операция, и внутрь синхронного map он не помещается.
+    let db_stats = crate::shared::data::raw_storage::vacuum_status()
+        .await
+        .ok()
+        .map(|status| DbSetStats {
+            file_mb: status.file_mb,
+            reclaimable_mb: status.reclaimable_mb,
+            wal_mb: status.wal_mb,
+        });
+
     DATASETS
         .iter()
         .map(|descriptor| {
             let Some(root) = registry::resolve_root(config, descriptor) else {
-                // Набор без файлового корня — сейчас это только БД.
+                // Набор без файлового корня — сейчас это только БД: у неё вместо
+                // дерева файлов один файл, и «размер набора» = размер этого файла.
                 let database = config::resolve_database_path(config).ok();
+                let size = database
+                    .as_ref()
+                    .and_then(|resolved| std::fs::metadata(&resolved.path).ok())
+                    .map(|meta| meta.len());
                 return DatasetStatusEntry {
                     set_id: descriptor.id.to_string(),
                     label_ru: descriptor.label_ru.to_string(),
@@ -80,9 +100,9 @@ pub fn scan_all(config: &Config) -> Vec<DatasetStatusEntry> {
                         .as_ref()
                         .map(|resolved| resolved.origin)
                         .unwrap_or(contracts::system::datasets::PathOrigin::ExeRelative),
-                    exists: false,
-                    file_count: 0,
-                    total_bytes: 0,
+                    exists: size.is_some(),
+                    file_count: u64::from(size.is_some()),
+                    total_bytes: size.unwrap_or(0),
                     skipped_count: 0,
                     selected_by_default: descriptor.selected_by_default,
                     supported_modes: descriptor.supported_modes.to_vec(),
@@ -90,7 +110,7 @@ pub fn scan_all(config: &Config) -> Vec<DatasetStatusEntry> {
                     unavailable_reason: descriptor
                         .unavailable_reason
                         .map(|reason| reason.to_string()),
-                    db_stats: None,
+                    db_stats: db_stats.clone(),
                     error: None,
                 };
             };

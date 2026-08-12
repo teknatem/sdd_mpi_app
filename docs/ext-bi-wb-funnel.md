@@ -1,4 +1,4 @@
-# Внешний BI-API Wildberries для Power BI
+# Внешний BI-API маркетплейсов для Power BI
 
 Внешние эндпоинты для BI-потребителей (Power BI и пр.). Все — под одной простой
 авторизацией по заголовку `X-Api-Key` (см. раздел «Авторизация»). Доступные выгрузки:
@@ -9,6 +9,7 @@
 | `GET /api/ext/v1/wb-stocks` | Остатки WB (a037) на уровне товара, последние или на дату |
 | `GET /api/ext/v1/wb-finance-report` | Финансовый отчёт WB (p903) за период, native-строки WB |
 | `GET /api/ext/v1/wb-advert-daily` | Дневная реклама WB (a026) за период, строка на кампанию × товар × дата |
+| `GET /api/ext/v1/ym-payment-report` | Отчёт по платежам YM (p907) за период, native-строки YM |
 
 ---
 
@@ -255,4 +256,64 @@ curl.exe -H "X-Api-Key: <КЛЮЧ>" `
 curl.exe -H "X-Api-Key: <КЛЮЧ>" `
   "http://localhost:3000/api/ext/v1/wb-advert-daily?date_from=2026-07-08&date_to=2026-07-14"
 ```
+
+---
+
+## Отчёт по платежам YM: `GET /api/ext/v1/ym-payment-report`
+
+Строки отчёта по платежам Яндекс Маркета (`p907_ym_payment_report`, источник —
+`POST /v2/reports/united-netting`) за период — в «сыром» native-виде YM: те же колонки, что
+в CSV Маркета (`transaction_date`, `transaction_type`, `transaction_source`, `transaction_sum`,
+`payment_status`, `order_id`, `shop_order_id`, `order_creation_date`, `order_delivery_date`,
+`shop_sku`, `offer_or_service_name`, `count`, `act_id`, `act_date`, `bank_order_id`,
+`bank_order_date`, `bank_sum`, `claim_number`, `comments`, …). Полный аналог
+`wb-finance-report` — та же авторизация, те же параметры, та же форма ответа.
+
+| Параметр        | Обяз. | Описание                                                        |
+|-----------------|-------|-----------------------------------------------------------------|
+| `date_from`     | да    | Начало периода по `transaction_date`, `YYYY-MM-DD`              |
+| `date_to`       | да    | Конец периода по `transaction_date`, `YYYY-MM-DD` (включительно)|
+| `connection_id` | нет   | Фильтр по кабинету YM (= `connection_mp_ref`)                   |
+| `limit`         | нет   | Макс. строк (по умолчанию 5000, потолок 20000)                  |
+| `offset`        | нет   | Смещение для постраничной выгрузки                              |
+
+Без `date_from`/`date_to` → `400`. Порядок стабилен (`transaction_date`, затем `record_key`),
+поле `total` — общее число строк за период.
+
+### Кабинеты YM (`connection_id`)
+
+| Кабинет      | `connection_id`                        |
+|--------------|----------------------------------------|
+| YM СТС       | `1ce94c09-e2b1-46c7-aad5-a597e8911cef` |
+| YM Vannika   | `47e2ce51-e188-449f-978a-a1c012e22b83` |
+
+Без параметра в ответ попадают все кабинеты; поля `connection_mp_ref` и `organization_ref`
+есть в каждой строке, так что фильтровать можно и на стороне Power BI.
+
+### Дополнительные поля
+
+К native-колонкам YM добавлены:
+
+- `connection_mp_ref` / `organization_ref` — кабинет и организация (отчёт YM строится на
+  уровне бизнеса и сам магазин не различает);
+- `record_key` — устойчивый ключ строки, собранный при импорте из номера заказа, даты, типа
+  операции, товара и суммы (собственного идентификатора строки Маркет не даёт). Годится как
+  ключ таблицы в BI;
+- `loaded_at_utc` — момент последней загрузки строки. Полезен: Маркет дозаполняет
+  `bank_order_id` и `act_id` спустя недели, а фильтра «изменённые с» у отчёта нет, поэтому
+  «свежесть» строки видна только по этому полю.
+
+Внутренние поля связи (`id`, `marketplace_product_ref`, `marketplace_order_ref`,
+`nomenclature_ref`, `payload_version`) наружу не отдаются.
+
+```powershell
+curl.exe -H "X-Api-Key: <КЛЮЧ>" `
+  "http://localhost:3000/api/ext/v1/ym-payment-report?date_from=2026-06-01&date_to=2026-06-30&limit=5000&offset=0"
+```
+
+Ответ: `{ "items": [ <native-строки YM> ], "total": …, "limit": …, "offset": … }`.
+
+> **Периодичность строк неоднородна**: выплаты недельные, акт услуг — месячный. Сопоставлять
+> строки отчёта с продажами день в день нельзя. Подробности — статья базы знаний
+> `app__ym-api-united-netting`.
 

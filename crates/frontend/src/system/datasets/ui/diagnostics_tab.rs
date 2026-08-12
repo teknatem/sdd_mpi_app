@@ -10,6 +10,7 @@ use leptos::prelude::*;
 
 use crate::shared::date_utils::format_bytes_compact;
 use crate::shared::icons::icon;
+use crate::system::maintenance::MaintenanceToggle;
 
 pub fn env_badge_class(env: InstanceEnv) -> &'static str {
     match env {
@@ -23,6 +24,9 @@ pub fn env_badge_class(env: InstanceEnv) -> &'static str {
 #[component]
 pub fn DiagnosticsTab(status: RwSignal<Option<DatasetsStatusDto>>) -> impl IntoView {
     view! {
+        // Режим обслуживания живёт здесь: он про этот же экземпляр и нужен
+        // ровно тем же операциям переноса, что и остальная страница.
+        <MaintenanceToggle />
         <section class="datasets__section">
             {move || {
                 let Some(status) = status.get() else {

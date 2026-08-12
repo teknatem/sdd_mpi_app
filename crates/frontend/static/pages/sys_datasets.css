@@ -47,6 +47,89 @@
   color: var(--color-text-secondary);
 }
 
+/* ── Прогресс длительной операции ────────────────────────────────────────── */
+
+#sys_datasets--system .datasets__job {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+#sys_datasets--system .datasets__job-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#sys_datasets--system .datasets__job-stage {
+  font-weight: 600;
+}
+
+#sys_datasets--system .datasets__job-bytes {
+  /* Отжимает кнопку «Прервать» к правому краю. */
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+#sys_datasets--system .datasets__job-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-bg-tertiary, var(--color-border));
+  overflow: hidden;
+}
+
+#sys_datasets--system .datasets__job-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+/* Объём заранее неизвестен (VACUUM INTO, запись каталога) — полоса пульсирует
+   вместо того, чтобы показывать выдуманный процент. */
+#sys_datasets--system .datasets__job-bar--pulsing .datasets__job-bar-fill {
+  animation: datasets-job-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes datasets-job-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+#sys_datasets--system .datasets__job-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+#sys_datasets--system .datasets__job-step--done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+#sys_datasets--system .datasets__job-step--active {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 /* ── Таблицы ──────────────────────────────────────────────────────────────
    Разметка каноническая (`table__data` + `table__cell`), но без карточной
    обёртки `.table`: страница читается как сплошной поток данных, лишняя рамка
@@ -344,11 +427,30 @@
 
 /* ── Диалог различий ──────────────────────────────────────────────────── */
 
+/* Правила диалога намеренно продублированы под `.modal`: модалка рендерится
+   вне `#sys_datasets--system`, и стили, заскоупленные только на страницу,
+   внутрь неё не достают. */
 #sys_datasets--system .datasets__diff,
 .modal .datasets__diff {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* Тело диалога — единственная скроллируемая область: шапка и кнопки применения
+   остаются на месте при любом размере диффа. `min-height: 0` нужен явно, иначе
+   flex-элемент может отказаться сжиматься ниже своего контента. */
+.modal .datasets__diff {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Сводка по наборам видна всегда, даже когда список файлов прокручен вниз. */
+.modal .datasets__diff .table__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-bg-primary);
 }
 
 .modal .datasets__diff-source {
@@ -384,9 +486,22 @@
 }
 
 .modal .datasets__diff-set {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.modal .datasets__diff-set-summary {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.modal .datasets__diff-set[open] .datasets__diff-set-summary {
+  border-bottom: 1px solid var(--color-border);
 }
 
 .modal .datasets__diff-set-title {
@@ -395,8 +510,27 @@
   font-weight: 600;
 }
 
-/* Длинный список файлов не должен растягивать модалку до бесконечности. */
+.modal .datasets__diff-set-counters {
+  font-size: var(--font-size-xs);
+}
+
+/* Длинный список файлов не должен растягивать модалку до бесконечности:
+   доля экрана, а не фиксированные пиксели, — иначе на низком окне несколько
+   раскрытых наборов снова вытесняют всё остальное. */
 .modal .datasets__diff-files {
-  max-height: 320px;
+  max-height: 40vh;
   overflow: auto;
+}
+
+.modal .datasets__diff-db {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.modal .datasets__diff-db-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
 }

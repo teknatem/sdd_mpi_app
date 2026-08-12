@@ -10,6 +10,7 @@ use crate::layout::right::panel::RightPanel;
 use crate::layout::tabs::TabPage;
 use crate::layout::Shell;
 use crate::system::auth::context::use_auth;
+use crate::system::maintenance::{use_maintenance, MaintenancePage};
 use crate::system::pages::login::LoginPage;
 use leptos::logging::log;
 use leptos::prelude::*;
@@ -61,18 +62,38 @@ fn MainLayout() -> impl IntoView {
 /// Application shell - auth gate component.
 ///
 /// Показывает:
-/// - `LoginPage` если пользователь не авторизован
+/// - `LoginPage` если пользователь не авторизован (при обслуживании — с строкой
+///   о работах: она видна и без входа)
+/// - `MaintenancePage` если идут технические работы и вошедший не администратор
 /// - `MainLayout` если авторизован
 #[component]
 pub fn AppShell() -> impl IntoView {
     let (auth_state, _) = use_auth();
+    let maintenance = use_maintenance();
 
+    // Администратор проходит внутрь: он и снимает режим. Остальные — включая
+    // тех, кто уже сидел на открытой вкладке, — видят заглушку.
+    let blocked = move || {
+        maintenance.status.get().active
+            && !auth_state
+                .get()
+                .user_info
+                .map(|user| user.is_admin)
+                .unwrap_or(false)
+    };
+    let status = Signal::derive(move || maintenance.status.get());
+
+    // Проверка входа снаружи, режим обслуживания внутри: не вошедшему нужен
+    // экран входа в любом случае — администратору, чтобы снять режим, всем
+    // остальным, чтобы прочитать на нём же, что происходит.
     view! {
         <Show
             when=move || auth_state.get().access_token.is_some()
             fallback=|| view! { <LoginPage /> }
         >
-            <MainLayout />
+            <Show when=blocked fallback=|| view! { <MainLayout /> }>
+                <MaintenancePage status=status />
+            </Show>
         </Show>
     }
 }

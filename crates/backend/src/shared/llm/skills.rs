@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -24,31 +25,119 @@ use std::sync::{Arc, OnceLock, RwLock};
 const CORE_PROMPT: &str = include_str!("../../domain/a018_llm_chat/prompts/core.md");
 
 // ─── Встроенный (seed) каталог навыков ───────────────────────────────────────
-// Навыки — это ДАННЫЕ: markdown-файлы с frontmatter (crates/backend/skills/*.md).
-// Встроенный набор всегда доступен (как embedded-доки KB); внешний каталог
-// `[llm] skills_path` из конфига ДОПОЛНЯЕТ/ПЕРЕОПРЕДЕЛЯЕТ их по `id` — новый навык =
-// новый файл, без пересборки (подхват после рестарта backend).
-const EMBEDDED_SKILL_FILES: &[&str] = &[
-    include_str!("../../../skills/data-analytics.md"),
-    include_str!("../../../skills/bi-authoring.md"),
-    include_str!("../../../skills/plugin-authoring.md"),
-    include_str!("../../../skills/chart-builder.md"),
-    include_str!("../../../skills/table-builder.md"),
-    include_str!("../../../skills/system-admin.md"),
-    include_str!("../../../skills/mailbox.md"),
-    include_str!("../../../skills/kb-curation.md"),
-    include_str!("../../../skills/kb-authoring.md"),
-    include_str!("../../../skills/marketing-analytics.md"),
-    include_str!("../../../skills/sales-analytics.md"),
-    // Пакетный навык: встроенная копия даёт промпт и инструменты, но без ресурсов
-    // (шаблон анкеты приходит из внешнего каталога `[llm] skills_path`).
-    include_str!("../../../skills/finance-analytics/SKILL.md"),
-    include_str!("../../../skills/price-optimization.md"),
-    include_str!("../../../skills/support.md"),
-    include_str!("../../../skills/quality-monitoring.md"),
-    include_str!("../../../skills/quality-check-authoring.md"),
-    include_str!("../../../skills/llm-quality-review.md"),
-    include_str!("../../../skills/agent-delegation.md"),
+// Навыки — это ДАННЫЕ: runtime читает только внешний каталог `[llm] skills_path`.
+// Встроенные файлы служат установочным seed: при старте отсутствующие id создаются
+// во внешнем каталоге и дальше загружаются с диска на общих основаниях.
+struct EmbeddedAsset {
+    relative_path: &'static str,
+    content: &'static str,
+}
+
+struct EmbeddedSkillSeed {
+    relative_path: &'static str,
+    content: &'static str,
+    assets: &'static [EmbeddedAsset],
+}
+
+const NO_EMBEDDED_ASSETS: &[EmbeddedAsset] = &[];
+const FINANCE_ANALYTICS_ASSETS: &[EmbeddedAsset] = &[EmbeddedAsset {
+    relative_path: "finance-analytics/intake.md",
+    content: include_str!("../../../skills/finance-analytics/intake.md"),
+}];
+
+// Installation seeds only. Runtime always reads the configured external catalog.
+const EMBEDDED_SKILL_FILES: &[EmbeddedSkillSeed] = &[
+    EmbeddedSkillSeed {
+        relative_path: "data-analytics.md",
+        content: include_str!("../../../skills/data-analytics.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "bi-authoring.md",
+        content: include_str!("../../../skills/bi-authoring.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "plugin-authoring.md",
+        content: include_str!("../../../skills/plugin-authoring.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "chart-builder.md",
+        content: include_str!("../../../skills/chart-builder.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "table-builder.md",
+        content: include_str!("../../../skills/table-builder.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "system-admin.md",
+        content: include_str!("../../../skills/system-admin.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "mailbox.md",
+        content: include_str!("../../../skills/mailbox.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "kb-curation.md",
+        content: include_str!("../../../skills/kb-curation.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "kb-authoring.md",
+        content: include_str!("../../../skills/kb-authoring.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "marketing-analytics.md",
+        content: include_str!("../../../skills/marketing-analytics.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "sales-analytics.md",
+        content: include_str!("../../../skills/sales-analytics.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    // Пакетный seed включает и обязательный ресурс анкеты.
+    EmbeddedSkillSeed {
+        relative_path: "finance-analytics/SKILL.md",
+        content: include_str!("../../../skills/finance-analytics/SKILL.md"),
+        assets: FINANCE_ANALYTICS_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "price-optimization.md",
+        content: include_str!("../../../skills/price-optimization.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "support.md",
+        content: include_str!("../../../skills/support.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "quality-monitoring.md",
+        content: include_str!("../../../skills/quality-monitoring.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "quality-check-authoring.md",
+        content: include_str!("../../../skills/quality-check-authoring.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "llm-quality-review.md",
+        content: include_str!("../../../skills/llm-quality-review.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
+    EmbeddedSkillSeed {
+        relative_path: "agent-delegation.md",
+        content: include_str!("../../../skills/agent-delegation.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
 ];
 
 // ─── Core: всегда активные инструменты ───────────────────────────────────────
@@ -121,15 +210,14 @@ pub struct Skill {
     pub prompt: String,
     /// Имена инструментов навыка (резолвятся в определения из «вселенной» tool'ов).
     pub tool_names: Vec<String>,
-    /// Роли, которым навык доступен через use_skill (граница безопасности). General — все.
-    /// Роли, у кого навык активен по умолчанию (default-bias).
+    /// Ожидаемые назначения по умолчанию; runtime-доступ задаёт матрица специализаций.
+    pub default_for: Vec<String>,
     pub resources: Vec<SkillResource>,
     pub tasks: Vec<SkillTask>,
     /// Canonical package root. Legacy/embedded single-file skills have none.
     pub package_root: Option<PathBuf>,
     pub origin: String,
     pub digest: String,
-    pub compatibility_warnings: Vec<String>,
 }
 
 /// Immutable catalog version captured once for the whole chat-message cycle.
@@ -160,8 +248,6 @@ struct SkillManifest {
     intents: Vec<String>,
     #[serde(default)]
     tools: Vec<String>,
-    #[serde(default)]
-    allowed_for: Vec<String>,
     #[serde(default)]
     default_for: Vec<String>,
     #[serde(default)]
@@ -215,7 +301,7 @@ fn record_diagnostic(message: String) {
 /// процесс, поэтому раздаёт `&'static`-ссылки. Обновление файлов — после рестарта.
 pub fn snapshot() -> Arc<SkillRegistrySnapshot> {
     REGISTRY
-        .get_or_init(|| RwLock::new(Arc::new(build_snapshot(1))))
+        .get_or_init(|| RwLock::new(Arc::new(build_initial_snapshot(1))))
         .read()
         .map(|snapshot| snapshot.clone())
         .unwrap_or_else(|_| Arc::new(empty_snapshot()))
@@ -246,6 +332,33 @@ fn catalog_digest(skills: &[Skill]) -> String {
 
 fn build_snapshot(generation: u64) -> SkillRegistrySnapshot {
     let skills = load_registry();
+    let diagnostics = current_diagnostics();
+    SkillRegistrySnapshot {
+        generation,
+        catalog_digest: catalog_digest(&skills),
+        loaded_at: Utc::now().to_rfc3339(),
+        skills: Arc::new(skills),
+        diagnostics,
+    }
+}
+
+#[cfg(not(test))]
+fn build_initial_snapshot(generation: u64) -> SkillRegistrySnapshot {
+    build_snapshot(generation)
+}
+
+// Unit tests do not start through main and their executable lives in
+// target/debug/deps, where no application config is present. Exercise tool
+// composition against the same seed contents without introducing a second
+// production runtime source.
+#[cfg(test)]
+fn build_initial_snapshot(generation: u64) -> SkillRegistrySnapshot {
+    clear_diagnostics();
+    let known_tools = tool_universe_names();
+    let skills = EMBEDDED_SKILL_FILES
+        .iter()
+        .filter_map(|seed| parse_skill(seed.content, &known_tools, None, "test-seed"))
+        .collect::<Vec<_>>();
     let diagnostics = current_diagnostics();
     SkillRegistrySnapshot {
         generation,
@@ -449,41 +562,16 @@ fn load_registry() -> Vec<Skill> {
     let known_tools = tool_universe_names();
     let mut map: HashMap<String, Skill> = HashMap::new();
 
-    // 1. Встроенный seed — всегда доступен.
-    for (index, raw) in EMBEDDED_SKILL_FILES.iter().enumerate() {
-        if let Some(skill) = parse_skill(raw, &known_tools, None, "embedded") {
-            map.insert(skill.id.clone(), skill);
-        } else {
-            record_diagnostic(format!(
-                "Встроенный skill #{} не прошёл минимальную валидацию",
-                index + 1
-            ));
-        }
-    }
-    let embedded = map.len();
-
-    // 2. Bundled package directory next to the binary, then configured external
-    // catalog. The configured catalog has the final override precedence.
     let mut external = 0usize;
-    if let Some(dir) = bundled_skills_dir().filter(|dir| dir.exists()) {
-        external += load_skill_directory(&dir, "bundled", &known_tools, &mut map);
-    }
     if let Some(dir) = skills_dir() {
-        if dir.exists() {
-            let is_bundled = bundled_skills_dir().and_then(|path| path.canonicalize().ok())
-                == dir.canonicalize().ok();
-            if !is_bundled {
-                external += load_skill_directory(&dir, "external", &known_tools, &mut map);
-            }
-        } else {
+        if let Err(error) = bootstrap_external_skills(&dir) {
             record_diagnostic(format!(
-                "CRITICAL: external skills directory '{}' was not found",
-                dir.display()
+                "CRITICAL: external skills catalog '{}' cannot be initialized: {}",
+                dir.display(),
+                error
             ));
-            tracing::info!(
-                "[skills] внешний каталог '{}' не найден — только встроенные",
-                dir.display()
-            );
+        } else {
+            external = load_skill_directory(&dir, "external", &known_tools, &mut map);
         }
     }
 
@@ -493,13 +581,66 @@ fn load_registry() -> Vec<Skill> {
         tracing::warn!("[skills] реестр пуст — чат будет только с core-инструментами");
     } else {
         tracing::info!(
-            "[skills] loaded {} skills ({} embedded, {} external)",
+            "[skills] loaded {} skills from external catalog ({} files)",
             list.len(),
-            embedded,
             external
         );
     }
     list
+}
+
+fn skill_id_from_source(raw: &str) -> Option<String> {
+    let (frontmatter, _) = split_frontmatter(raw);
+    parse_scalar(&frontmatter?, "id")
+}
+
+fn write_seed_file(path: &Path, content: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(content.as_bytes())
+}
+
+fn bootstrap_external_skills(dir: &Path) -> std::io::Result<usize> {
+    std::fs::create_dir_all(dir)?;
+    let mut existing_ids = discover_skill_entries(dir)
+        .into_iter()
+        .filter_map(|path| std::fs::read_to_string(path).ok())
+        .filter_map(|raw| skill_id_from_source(&raw))
+        .collect::<HashSet<_>>();
+    let mut created = 0usize;
+
+    for seed in EMBEDDED_SKILL_FILES {
+        let Some(id) = skill_id_from_source(seed.content) else {
+            continue;
+        };
+        if existing_ids.contains(&id) {
+            continue;
+        }
+
+        for asset in seed.assets {
+            let path = dir.join(asset.relative_path);
+            if !path.exists() {
+                write_seed_file(&path, asset.content)?;
+            }
+        }
+        write_seed_file(&dir.join(seed.relative_path), seed.content)?;
+        existing_ids.insert(id);
+        created += 1;
+    }
+
+    if created > 0 {
+        tracing::info!(
+            "[skills] initialized {} missing embedded skill(s) in '{}'",
+            created,
+            dir.display()
+        );
+    }
+    Ok(created)
 }
 
 fn load_skill_directory(
@@ -574,7 +715,6 @@ fn parse_skill(
             description: parse_scalar(&frontmatter, "description").unwrap_or_default(),
             intents: parse_list(&frontmatter, "intents").unwrap_or_default(),
             tools: parse_list(&frontmatter, "tools").unwrap_or_default(),
-            allowed_for: parse_list(&frontmatter, "allowed_for").unwrap_or_default(),
             default_for: parse_list(&frontmatter, "default_for").unwrap_or_default(),
             resources: Vec::new(),
             tasks: Vec::new(),
@@ -589,15 +729,6 @@ fn parse_skill(
         tracing::warn!("[skills] некорректный id '{}': файл пропущен", id);
         record_diagnostic(format!("Некорректный skill id '{}': файл пропущен", id));
         return None;
-    }
-    let mut compatibility_warnings = Vec::new();
-    if !manifest.allowed_for.is_empty() || !manifest.default_for.is_empty() {
-        let warning = format!(
-            "Skill '{}': allowed_for/default_for are compatibility metadata only; runtime access comes from the specialization matrix",
-            id
-        );
-        record_diagnostic(warning.clone());
-        compatibility_warnings.push(warning);
     }
     let mut tool_names = manifest.tools;
     tool_names.retain(|t| {
@@ -647,12 +778,12 @@ fn parse_skill(
         intents: manifest.intents,
         prompt: body.trim_start().to_string(),
         tool_names,
+        default_for: manifest.default_for,
         resources,
         tasks,
         package_root: canonical_root,
         origin: origin.to_string(),
         digest,
-        compatibility_warnings,
         id,
     })
 }
@@ -973,16 +1104,6 @@ fn load_package_members(
 /// Имена всех инструментов «вселенной» — для валидации `tools:` в навыках.
 fn tool_universe_names() -> HashSet<String> {
     tool_universe().into_iter().map(|d| d.name).collect()
-}
-
-/// Путь к внешнему каталогу навыков из конфига (None при ошибке конфига).
-fn bundled_skills_dir() -> Option<PathBuf> {
-    let executable = std::env::current_exe().ok()?;
-    let mut root = executable.parent()?.to_path_buf();
-    if root.file_name().and_then(|name| name.to_str()) == Some("deps") {
-        root = root.parent()?.to_path_buf();
-    }
-    Some(root.join("skills"))
 }
 
 /// Путь к внешнему каталогу навыков из конфига (None при ошибке конфига).
@@ -1432,8 +1553,6 @@ pub fn catalog() -> Value {
                 "tool_count": s.tool_names.len(),
                 "origin": s.origin,
                 "digest": s.digest,
-                "diagnostic_status": if s.compatibility_warnings.is_empty() { "ok" } else { "warning" },
-                "compatibility_warnings": s.compatibility_warnings,
                 "resources": s.resources.iter().map(|resource| json!({
                     "path": resource.path,
                     "kind": resource.kind,
@@ -1840,9 +1959,30 @@ mod tests {
     }
 
     #[test]
+    fn external_catalog_is_seeded_by_id_without_overwriting_existing_skills() {
+        let root = std::env::temp_dir().join(format!("mpi-skill-seed-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("create temporary skill catalog");
+        let custom = "---\nid: data-analytics\ntitle: Custom data analytics\n---\ncustom body\n";
+        std::fs::write(root.join("custom-data.md"), custom).expect("write custom skill");
+
+        let created = bootstrap_external_skills(&root).expect("seed external catalog");
+        assert_eq!(created, EMBEDDED_SKILL_FILES.len() - 1);
+        assert_eq!(
+            std::fs::read_to_string(root.join("custom-data.md")).unwrap(),
+            custom
+        );
+        assert!(!root.join("data-analytics.md").exists());
+        assert!(root.join("finance-analytics/SKILL.md").is_file());
+        assert!(root.join("finance-analytics/intake.md").is_file());
+        assert_eq!(bootstrap_external_skills(&root).unwrap(), 0);
+
+        std::fs::remove_dir_all(&root).expect("remove temporary skill catalog");
+    }
+
+    #[test]
     fn snapshot_diff_reports_added_changed_and_removed() {
         let mut first = parse_skill(
-            EMBEDDED_SKILL_FILES[0],
+            EMBEDDED_SKILL_FILES[0].content,
             &tool_universe_names(),
             None,
             "embedded",
@@ -1851,7 +1991,7 @@ mod tests {
         let mut changed = first.clone();
         changed.digest = "changed".into();
         let added = parse_skill(
-            EMBEDDED_SKILL_FILES[1],
+            EMBEDDED_SKILL_FILES[1].content,
             &tool_universe_names(),
             None,
             "embedded",

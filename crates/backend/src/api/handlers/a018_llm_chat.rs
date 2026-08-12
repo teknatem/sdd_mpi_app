@@ -32,6 +32,11 @@ pub struct LlmChatListParams {
     pub offset: Option<u64>,
 }
 
+#[derive(Deserialize)]
+pub struct SetModelRequest {
+    pub model_name: String,
+}
+
 #[derive(Serialize)]
 pub struct LlmChatPaginatedResponse {
     pub items: Vec<LlmChat>,
@@ -115,6 +120,23 @@ pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode
         Err(e) => {
             tracing::error!("a018 delete({id}) failed: {e}");
             Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// POST /api/a018-llm-chat/:id/model
+pub async fn set_model(
+    Path(id): Path<String>,
+    Json(payload): Json<SetModelRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    match a018_llm_chat::service::set_model(&id, payload.model_name).await {
+        Ok(()) => Ok(Json(json!({"success": true}))),
+        Err(error) => {
+            tracing::warn!("a018 set_model({id}) rejected: {error}");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": error.to_string()})),
+            ))
         }
     }
 }
@@ -240,6 +262,8 @@ pub async fn send_message(
     CurrentUser(claims): CurrentUser,
     Json(payload): Json<a018_llm_chat::service::SendMessageRequest>,
 ) -> Result<(StatusCode, Json<SendJobResponse>), StatusCode> {
+    let database_activity = crate::system::maintenance::try_begin_database_activity()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     // Собеседник переезжает в фоновую задачу: инструменты, действующие от лица
     // пользователя (тикеты), должны знать автора, а сам HTTP-запрос к моменту их
     // выполнения уже завершится.
@@ -267,6 +291,7 @@ pub async fn send_message(
 
     let job_id_clone = job_id.clone();
     tokio::spawn(async move {
+        let _database_activity = database_activity;
         tracing::info!("[llm_job] started job_id={} chat_id={}", job_id_clone, id);
         match a018_llm_chat::service::send_message(&id, payload, Some(&job_id_clone), Some(actor))
             .await

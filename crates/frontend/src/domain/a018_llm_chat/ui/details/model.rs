@@ -398,6 +398,48 @@ pub async fn fetch_connection_model_capabilities(
     ))
 }
 
+/// Persist the selected chat model. The backend validates it against the
+/// employee connection's allowed_models before writing.
+pub async fn set_chat_model(chat_id: &str, model_name: &str) -> Result<(), String> {
+    use wasm_bindgen::JsCast;
+    use web_sys::{Request, RequestInit, RequestMode, Response};
+
+    let opts = RequestInit::new();
+    opts.set_method("POST");
+    opts.set_mode(RequestMode::Cors);
+    opts.set_body(&wasm_bindgen::JsValue::from_str(
+        &serde_json::json!({ "model_name": model_name }).to_string(),
+    ));
+
+    let url = format!("{}/api/a018-llm-chat/{}/model", api_base(), chat_id);
+    let request = Request::new_with_str_and_init(&url, &opts).map_err(|e| format!("{e:?}"))?;
+    request
+        .headers()
+        .set("Content-Type", "application/json")
+        .map_err(|e| format!("{e:?}"))?;
+
+    let window = web_sys::window().ok_or_else(|| "no window".to_string())?;
+    let resp_value = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let resp: Response = resp_value.dyn_into().map_err(|e| format!("{e:?}"))?;
+    if resp.ok() {
+        return Ok(());
+    }
+
+    let status = resp.status();
+    let text = wasm_bindgen_futures::JsFuture::from(resp.text().map_err(|e| format!("{e:?}"))?)
+        .await
+        .ok()
+        .and_then(|value| value.as_string())
+        .unwrap_or_default();
+    let message = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|value| value["error"].as_str().map(str::to_string))
+        .unwrap_or_else(|| format!("HTTP {}", status));
+    Err(message)
+}
+
 /// Установить/снять оценку чата (1..5, либо None чтобы снять). POST /:id/rating.
 pub async fn set_rating(chat_id: &str, rating: Option<i32>) -> Result<(), String> {
     use wasm_bindgen::JsCast;

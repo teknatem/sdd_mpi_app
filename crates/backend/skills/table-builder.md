@@ -4,7 +4,6 @@ title: Таблицы данных
 description: Построение таблиц из данных: агент собирает SELECT, задаёт колонки/форматы/условное форматирование и публикует таблицу-плагин (фильтры, сортировка, итоги, экспорт).
 intents: [table_build]
 tools: [find_data_sources, preview_data, build_table]
-allowed_for: [business_analyst, plugin_admin, sales_analyst, marketer, financier]
 default_for: []
 ---
 

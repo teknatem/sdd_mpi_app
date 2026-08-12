@@ -60,10 +60,16 @@ pub static DATASETS: &[DatasetDescriptor] = &[
         // Повторяет фильтры walk_markdown_files: эти каталоги — рабочее
         // окружение Obsidian и шаблоны, а не данные. Без исключения replace
         // снёс бы настройки редактора вместе со статьями.
+        //
+        // `app/` и `generated/` тоже не данные: техдокументация приезжает в
+        // бинарнике, карты пересобираются из своей БД. Перенос их копий давал бы
+        // вечно «грязный» diff и чужие цифры на целевом экземпляре.
         exclude: &[
             ".obsidian/**",
             ".trash/**",
             "_templates/**",
+            "app/**",
+            "generated/**",
             "**/.DS_Store",
             "**/Thumbs.db",
             "**/*.tmp",
@@ -151,22 +157,29 @@ pub static DATASETS: &[DatasetDescriptor] = &[
     DatasetDescriptor {
         id: "database",
         label_ru: "База данных",
-        description_ru: "Снапшот app.db. Требует VACUUM INTO и многочастной загрузки.",
+        description_ru: "Снимок app.db целиком: VACUUM INTO, сжатие и загрузка по частям. \
+                         Операция длительная, восстановление требует перезапуска бэкенда.",
         kind: DatasetKind::Database,
         default_subdir: config::SUBDIR_DB,
         exclude: &[],
         max_file_bytes: u64::MAX,
+        // Не выбран по умолчанию: гигабайты трафика не должны уезжать в бакет
+        // за компанию с базой знаний.
         selected_by_default: false,
         // Подмена БД частичным наложением бессмысленна: файл целостен или нет.
         supported_modes: REPLACE_ONLY,
         hot_reload: HotReload::None,
-        available: false,
-        unavailable_reason: Some(
-            "Перенос БД появится во второй фазе: нужен снапшот через VACUUM INTO \
-             и загрузка объекта по частям (сейчас S3-клиент грузит объект целиком в память).",
-        ),
+        available: true,
+        unavailable_reason: None,
     },
 ];
+
+/// Набор `database` — единственный, у которого нет каталога-набора: вместо
+/// дерева файлов у него один файл базы, а вместо сканирования — `VACUUM INTO`.
+/// Ветвления по этому признаку, а не по строковому id.
+pub fn is_database(descriptor: &DatasetDescriptor) -> bool {
+    matches!(descriptor.kind, DatasetKind::Database)
+}
 
 pub fn lookup(set_id: &str) -> Option<&'static DatasetDescriptor> {
     DATASETS.iter().find(|set| set.id == set_id)
@@ -256,9 +269,9 @@ fn match_segment(pattern: &str, candidate: &str) -> bool {
         }
     }
     // Шаблон без завершающей `*` обязан дотянуться до конца строки.
-    parts.last().map_or(true, |last| {
-        last.is_empty() || candidate.ends_with(last)
-    })
+    parts
+        .last()
+        .map_or(true, |last| last.is_empty() || candidate.ends_with(last))
 }
 
 #[cfg(test)]
@@ -307,6 +320,9 @@ mod tests {
         assert!(is_excluded(kb, ".obsidian/plugins/dataview/main.js"));
         assert!(is_excluded(kb, ".trash/old.md"));
         assert!(is_excluded(kb, "_templates/article.md"));
+        // Производное: техдокументация приезжает в бинарнике, карты — из своей БД.
+        assert!(is_excluded(kb, "app/wb-api-overview.md"));
+        assert!(is_excluded(kb, "generated/data-profile.md"));
         assert!(!is_excluded(kb, "wb-funnel.md"));
         assert!(!is_excluded(kb, "marketplaces/wb/funnel.md"));
     }

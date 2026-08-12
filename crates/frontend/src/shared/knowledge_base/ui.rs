@@ -1,6 +1,7 @@
 use super::api::{
-    fetch_kb_article, fetch_kb_stats, fetch_kb_tree, fetch_kb_vocabulary, post_kb_reload,
-    KbArticleDetail, KbArticleSummary, KbStatsResponse, KbTreeNode, KbVocabularyResponse,
+    fetch_kb_article, fetch_kb_stats, fetch_kb_tree, fetch_kb_vocabulary, post_kb_generate,
+    post_kb_reload, KbArticleDetail, KbArticleSummary, KbStatsResponse, KbTreeNode,
+    KbVocabularyResponse,
 };
 use super::links::KbLinkedText;
 use crate::layout::global_context::AppGlobalContext;
@@ -25,9 +26,10 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
     let (error, set_error) = signal::<Option<String>>(None);
     let (vocabulary, set_vocabulary) = signal::<Option<KbVocabularyResponse>>(None);
     let (reloading, set_reloading) = signal(false);
+    let (generating, set_generating) = signal(false);
     let (notice, set_notice) = signal::<Option<String>>(None);
     let collapsed_paths = RwSignal::new(BTreeSet::<String>::new());
-    let tab = RwSignal::new("obsidian".to_string());
+    let tab = RwSignal::new("business".to_string());
 
     let open_article_tab = move |article: KbArticleSummary| {
         tabs_store.open_tab(
@@ -90,6 +92,36 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
         });
     };
 
+    // Карты корпуса `generated` собираются из БД и рантайма: после импорта или
+    // установки плагина их нужно пересобрать, иначе в базе висят прошлые цифры.
+    let regenerate_maps = move || {
+        spawn_local(async move {
+            set_generating.set(true);
+            set_error.set(None);
+            set_notice.set(None);
+            match post_kb_generate().await {
+                Ok(payload) => {
+                    set_notice.set(Some(format!(
+                        "Карты пересобраны: {} файлов, таблиц в профиле — {}, плагинов — {}, навыков — {}, проверок — {}.{}",
+                        payload.files.len(),
+                        payload.tables_profiled,
+                        payload.plugins,
+                        payload.skills,
+                        payload.quality_checks,
+                        if payload.errors.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" Ошибки: {}", payload.errors.join("; "))
+                        },
+                    )));
+                    load();
+                }
+                Err(err) => set_error.set(Some(err)),
+            }
+            set_generating.set(false);
+        });
+    };
+
     Effect::new(move |_| load());
 
     view! {
@@ -103,7 +135,10 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
                         </UiBadge>
                         {move || stats.get().map(|s| view! {
                             <span style="font-size: 12px; color: var(--colorNeutralForeground3);">
-                                {format!("{} бизнес · {} приложение", s.file_articles, s.embedded_articles)}
+                                {format!(
+                                    "{} бизнес · {} документация · {} карты · якорей у {} объектов",
+                                    s.business_articles, s.app_articles, s.generated_articles, s.anchored_entities,
+                                )}
                             </span>
                         })}
                         {move || stats.get().filter(|s| s.drafts > 0).map(|s| view! {
@@ -121,6 +156,16 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
                                 {format!("замечаний: {}", s.open_issues)}
                             </Badge>
                         })}
+                        {move || stats.get().filter(|s| s.dangling_links > 0).map(|s| view! {
+                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Warning>
+                                {format!("связей в никуда: {}", s.dangling_links)}
+                            </Badge>
+                        })}
+                        {move || stats.get().filter(|s| s.unknown_anchor_count > 0).map(|s| view! {
+                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Warning>
+                                {format!("якорей вне реестра: {}", s.unknown_anchor_count)}
+                            </Badge>
+                        })}
                     </div>
                 </div>
                 <div class="page__header-right">
@@ -131,6 +176,13 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
                             disabled=Signal::derive(move || reloading.get())
                         >
                             {move || if reloading.get() { "Читаю..." } else { "Перечитать базу" }}
+                        </Button>
+                        <Button
+                            appearance=ButtonAppearance::Secondary
+                            on_click=move |_| regenerate_maps()
+                            disabled=Signal::derive(move || generating.get())
+                        >
+                            {move || if generating.get() { "Собираю..." } else { "Собрать карты" }}
                         </Button>
                         <Button
                             appearance=ButtonAppearance::Primary
@@ -152,13 +204,17 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
                     <div class="detail-grid__col">
                         <Card>
                             <TabList selected_value=tab>
-                                <Tab value="obsidian">
+                                <Tab value="business">
                                     "Obsidian: бизнес"
-                                    {move || stats.get().map(|s| format!(" ({})", s.file_articles)).unwrap_or_default()}
+                                    {move || stats.get().map(|s| format!(" ({})", s.business_articles)).unwrap_or_default()}
                                 </Tab>
-                                <Tab value="embedded">
+                                <Tab value="app">
                                     "Документация приложения"
-                                    {move || stats.get().map(|s| format!(" ({})", s.embedded_articles)).unwrap_or_default()}
+                                    {move || stats.get().map(|s| format!(" ({})", s.app_articles)).unwrap_or_default()}
+                                </Tab>
+                                <Tab value="generated">
+                                    "Карты из данных"
+                                    {move || stats.get().map(|s| format!(" ({})", s.generated_articles)).unwrap_or_default()}
                                 </Tab>
                                 <Tab value="vocabulary">
                                     "Словарь"
@@ -183,10 +239,9 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
                                 <Button
                                     appearance=ButtonAppearance::Subtle
                                     on_click=move |_| {
-                                        let is_embedded = tab.get_untracked() == "embedded";
-                                        let current_tree = filter_tree_by_source(
+                                        let current_tree = filter_tree_by_corpus(
                                             &tree.get(),
-                                            is_embedded,
+                                            &tab.get_untracked(),
                                         );
                                         collapsed_paths.set(collect_folder_paths(&current_tree));
                                     }
@@ -207,18 +262,15 @@ pub fn KnowledgeBaseWorkspace() -> impl IntoView {
                                 view! {
                                     <div class="kb-tree">
                                         {move || {
-                                            let is_embedded = tab.get() == "embedded";
-                                            let current_tree = filter_tree_by_source(
-                                                &tree.get(),
-                                                is_embedded,
-                                            );
+                                            let corpus = tab.get();
+                                            let current_tree = filter_tree_by_corpus(&tree.get(), &corpus);
                                             if current_tree.is_empty() {
                                                 view! {
                                                     <p style="color: var(--colorNeutralForeground3);">
-                                                        {if is_embedded {
-                                                            "Встроенная документация приложения не найдена."
-                                                        } else {
-                                                            "В Obsidian-базе пока нет бизнес-статей организации."
+                                                        {match corpus.as_str() {
+                                                            "app" => "Документация приложения не найдена.",
+                                                            "generated" => "Карт нет — соберите их кнопкой «Собрать карты».",
+                                                            _ => "В Obsidian-базе пока нет бизнес-статей организации.",
                                                         }}
                                                     </p>
                                                 }.into_any()
@@ -522,6 +574,9 @@ fn KnowledgeArticlePanel(
     let updated = article.updated.clone();
     let staleness = article.staleness_pct;
     let metrics = article.metrics.clone();
+    let corpus = corpus_label(corpus_of(&article.kind, article.is_embedded));
+    // Якорь на несуществующий объект — работа куратору: связь молча не работает.
+    let unknown_anchors = article.unknown_anchors.join(", ");
     // Граф: связи и обратные ссылки показываем одним списком — направление
     // ребра для навигации значения не имеет.
     let mut graph_links = article.related_articles.clone();
@@ -574,6 +629,11 @@ fn KnowledgeArticlePanel(
                             {format!("{} замечаний", metrics.open_issues)}
                         </span>
                     })}
+                    {(!unknown_anchors.is_empty()).then(|| view! {
+                        <span class="kb-meta__issues" title="Поле entities ссылается на объект, которого нет в реестре">
+                            {format!("якоря вне реестра: {}", unknown_anchors)}
+                        </span>
+                    })}
                     {(metrics.search_hits + metrics.read_hits + metrics.cited_hits > 0).then(|| view! {
                         <span
                             class="kb-meta__usage"
@@ -603,7 +663,7 @@ fn KnowledgeArticlePanel(
                         {article.display_path.clone()}
                     </code>
                     <span style="padding: 0 2px; color: var(--colorNeutralStroke1);">"·"</span>
-                    <span>{if article.is_embedded { "встроенная" } else { "файл" }}</span>
+                    <span>{corpus}</span>
                     {if !tags.is_empty() {
                         view! {
                             <span style="padding: 0 2px; color: var(--colorNeutralStroke1);">"·"</span>
@@ -786,23 +846,38 @@ fn flatten_visible_tree(
     result
 }
 
-fn filter_tree_by_source(nodes: &[KbTreeNode], is_embedded: bool) -> Vec<KbTreeNode> {
+/// Корпус статьи. Пустой `kind` — ответ старого бэкенда, там был только признак
+/// «встроенная», и техдок от карты не отличался.
+fn corpus_of(kind: &str, is_embedded: bool) -> &str {
+    match kind {
+        "" if is_embedded => "app",
+        "" => "business",
+        kind => kind,
+    }
+}
+
+fn corpus_label(corpus: &str) -> &'static str {
+    match corpus {
+        "app" => "документация приложения",
+        "generated" => "карта из данных",
+        _ => "статья организации",
+    }
+}
+
+/// Дерево одного корпуса: `business` | `app` | `generated`.
+fn filter_tree_by_corpus(nodes: &[KbTreeNode], corpus: &str) -> Vec<KbTreeNode> {
     nodes
         .iter()
-        .filter_map(|node| filter_tree_node_by_source(node, is_embedded))
+        .filter_map(|node| filter_tree_node_by_corpus(node, corpus))
         .collect()
 }
 
-fn filter_tree_node_by_source(node: &KbTreeNode, is_embedded: bool) -> Option<KbTreeNode> {
+fn filter_tree_node_by_corpus(node: &KbTreeNode, corpus: &str) -> Option<KbTreeNode> {
     if let Some(article) = &node.article {
-        return if article.is_embedded == is_embedded {
-            Some(node.clone())
-        } else {
-            None
-        };
+        return (corpus_of(&article.kind, article.is_embedded) == corpus).then(|| node.clone());
     }
 
-    let children = filter_tree_by_source(&node.children, is_embedded);
+    let children = filter_tree_by_corpus(&node.children, corpus);
     if children.is_empty() {
         None
     } else {
@@ -864,6 +939,7 @@ fn article_summary(article: &KbArticleDetail) -> KbArticleSummary {
         source_path: article.source_path.clone(),
         display_path: article.display_path.clone(),
         is_embedded: article.is_embedded,
+        kind: article.kind.clone(),
         summary: article.summary.clone(),
         status: article.status.clone(),
         stars: article.stars,
@@ -873,6 +949,7 @@ fn article_summary(article: &KbArticleDetail) -> KbArticleSummary {
         token_cost: article.token_cost,
         staleness_pct: article.staleness_pct,
         unknown_tags: article.unknown_tags.clone(),
+        unknown_anchors: article.unknown_anchors.clone(),
         metrics: article.metrics.clone(),
     }
 }

@@ -3,15 +3,56 @@ use contracts::domain::a006_connection_mp::aggregate::{AuthorizationType, Connec
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, OnceLock};
 
 const YANDEX_LOG_PATH: &str = "yandex_api_requests.log";
 const YANDEX_LOG_BACKUP_PATH: &str = "yandex_api_requests.log.1";
 const YANDEX_LOG_MAX_BYTES: u64 = 10 * 1024 * 1024;
 const YANDEX_LOG_MAX_ENTRY_CHARS: usize = 4_096;
 static YANDEX_LOG_LOCK: Mutex<()> = Mutex::new(());
+
+type YmReportGate = Arc<tokio::sync::Mutex<std::time::Instant>>;
+static YM_REPORT_GATES: OnceLock<Mutex<HashMap<String, YmReportGate>>> = OnceLock::new();
+
+fn ym_report_gate(key: &str) -> YmReportGate {
+    let gates = YM_REPORT_GATES.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut gates = gates.lock().expect("YM report rate gate poisoned");
+    gates
+        .entry(key.to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(std::time::Instant::now())))
+        .clone()
+}
+
+fn ym_header_wait(headers: &HeaderMap) -> Option<std::time::Duration> {
+    if let Some(seconds) = headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| {
+            v.parse::<u64>().ok().or_else(|| {
+                chrono::DateTime::parse_from_rfc2822(v).ok().map(|until| {
+                    (until.with_timezone(&chrono::Utc) - chrono::Utc::now())
+                        .num_seconds()
+                        .max(1) as u64
+                })
+            })
+        })
+    {
+        return Some(std::time::Duration::from_secs(seconds.max(1)));
+    }
+    headers
+        .get("X-RateLimit-Resource-Until")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| chrono::DateTime::parse_from_rfc2822(v).ok())
+        .map(|until| {
+            let seconds = (until.with_timezone(&chrono::Utc) - chrono::Utc::now())
+                .num_seconds()
+                .max(1) as u64;
+            std::time::Duration::from_secs(seconds)
+        })
+}
 
 fn write_yandex_log(message: &str) {
     let Ok(_guard) = YANDEX_LOG_LOCK.lock() else {
@@ -110,6 +151,79 @@ impl YandexApiClient {
         }
     }
 
+    async fn generate_report_request(
+        &self,
+        connection: &ConnectionMP,
+        resource: &str,
+        url: &str,
+        body: serde_json::Value,
+        safe_interval_secs: u64,
+    ) -> Result<String> {
+        let business = connection
+            .business_account_id
+            .as_deref()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| connection.base.code.as_str());
+        let gate = ym_report_gate(&format!("{business}:{resource}"));
+        for attempt in 1..=5 {
+            let mut next_allowed = gate.lock().await;
+            let now = std::time::Instant::now();
+            if *next_allowed > now {
+                tokio::time::sleep(*next_allowed - now).await;
+            }
+            let request = self
+                .client
+                .post(url)
+                .header("Content-Type", "application/json")
+                .json(&body);
+            let response = self
+                .apply_auth(request, connection)?
+                .send()
+                .await
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to request {resource} report generation: {e}")
+                })?;
+            let status = response.status();
+            let headers = response.headers().clone();
+            let remaining = headers
+                .get("X-RateLimit-Resource-Remaining")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok());
+            let adaptive_wait = ym_header_wait(&headers);
+            let body = response.text().await.unwrap_or_default();
+
+            if status.is_success() {
+                *next_allowed = if remaining.is_some_and(|v| v > 0) {
+                    std::time::Instant::now()
+                } else {
+                    std::time::Instant::now()
+                        + adaptive_wait
+                            .unwrap_or_else(|| std::time::Duration::from_secs(safe_interval_secs))
+                };
+                return Ok(body);
+            }
+
+            let rate_limited = status.as_u16() == 420
+                || status == reqwest::StatusCode::TOO_MANY_REQUESTS
+                || body.to_ascii_lowercase().contains("rate limit");
+            if rate_limited {
+                let wait = adaptive_wait
+                    .unwrap_or_else(|| std::time::Duration::from_secs(safe_interval_secs));
+                *next_allowed = std::time::Instant::now() + wait;
+                self.log_to_file(&format!(
+                    "{resource} rate-limited; retry in {}s ({attempt}/5)",
+                    wait.as_secs()
+                ));
+                if attempt < 5 {
+                    drop(next_allowed);
+                    continue;
+                }
+            }
+            anyhow::bail!("{resource} generation failed with status {status}: {body}");
+        }
+        unreachable!("bounded retry loop returns")
+    }
+
     /// Получить список товаров через Yandex Market API
     /// Endpoint: POST /v2/businesses/{businessId}/offer-mappings
     pub async fn fetch_product_list(
@@ -136,7 +250,7 @@ impl YandexApiClient {
         #[derive(Serialize)]
         struct YandexListQueryParams {
             pub limit: i32,
-            #[serde(skip_serializing_if = "Option::is_none", rename = "page_token")]
+            #[serde(skip_serializing_if = "Option::is_none", rename = "pageToken")]
             pub page_token: Option<String>,
         }
 
@@ -152,7 +266,7 @@ impl YandexApiClient {
             .map(|s| s.to_string());
 
         self.log_to_file(&format!(
-            "=== REQUEST ===\nPOST {}\n{}\nQuery: limit={}, page_token={:?}",
+            "=== REQUEST ===\nPOST {}\n{}\nQuery: limit={}, pageToken={:?}",
             url,
             self.auth_log_label(connection),
             request_query.limit,
@@ -1408,33 +1522,15 @@ impl YandexApiClient {
             url, business_id, date_from, date_to
         ));
 
-        let request = self
-            .client
-            .post(url)
-            .header("Content-Type", "application/json")
-            .json(&body);
-
-        let response = self
-            .apply_auth(request, connection)?
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to request payment report generation: {}", e))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let err_body = response.text().await.unwrap_or_default();
-            self.log_to_file(&format!(
-                "Generate payment report failed ({}): {}",
-                status, err_body
-            ));
-            anyhow::bail!(
-                "generate_payment_report failed with status {}: {}",
-                status,
-                err_body
-            );
-        }
-
-        let resp_body = response.text().await?;
+        let resp_body = self
+            .generate_report_request(
+                connection,
+                "united-netting",
+                url,
+                serde_json::to_value(&body)?,
+                120,
+            )
+            .await?;
 
         let parsed: serde_json::Value = serde_json::from_str(&resp_body)
             .map_err(|e| anyhow::anyhow!("Failed to parse generate response: {}", e))?;
@@ -1495,65 +1591,17 @@ impl YandexApiClient {
             url, campaign_id, year, month
         ));
 
-        // YM ограничивает генерацию отчёта о реализации: 1 запрос в минуту НА
-        // БИЗНЕС (businessId), а не на кампанию. При fan-out по кампаниям×месяцам
-        // лимит бьётся почти на каждом вызове, поэтому ждём ~65с и повторяем
-        // несколько раз (а не один), чтобы импорт не падал на этом лимите.
-        const MAX_ATTEMPTS: u32 = 5;
-        const RATE_LIMIT_WAIT_SECS: u64 = 65;
-        let mut resp_body = String::new();
-        for attempt in 1..=MAX_ATTEMPTS {
-            let request = self
-                .client
-                .post(url)
-                .header("Content-Type", "application/json")
-                .json(&body);
-
-            let response = self
-                .apply_auth(request, connection)?
-                .send()
-                .await
-                .map_err(|e| {
-                    anyhow::anyhow!("Failed to request realization report generation: {}", e)
-                })?;
-
-            let status = response.status();
-            if status.is_success() {
-                resp_body = response.text().await?;
-                break;
-            }
-
-            let err_body = response.text().await.unwrap_or_default();
-            self.log_to_file(&format!(
-                "Generate realization report failed ({}): {}",
-                status, err_body
-            ));
-
-            let is_rate_limited = status.as_u16() == 420
-                || status == reqwest::StatusCode::TOO_MANY_REQUESTS
-                || err_body.contains("rate limit");
-
-            if is_rate_limited && attempt < MAX_ATTEMPTS {
-                self.log_to_file(&format!(
-                    "Realization report rate-limited; waiting {}s before retry ({}/{})",
-                    RATE_LIMIT_WAIT_SECS, attempt, MAX_ATTEMPTS
-                ));
-                tokio::time::sleep(tokio::time::Duration::from_secs(RATE_LIMIT_WAIT_SECS)).await;
-                continue;
-            }
-            if is_rate_limited {
-                anyhow::bail!(
-                    "YM ограничивает генерацию отчёта о реализации (1 запрос в минуту). \
-                     Подождите минуту и повторите импорт. Ответ YM: {}",
-                    err_body
-                );
-            }
-            anyhow::bail!(
-                "generate_realization_report failed with status {}: {}",
-                status,
-                err_body
-            );
-        }
+        // Официальный базовый лимит — один запрос в две минуты. Он разделяется
+        // кампаниями бизнеса, поэтому применяется общий process-wide gate.
+        let resp_body = self
+            .generate_report_request(
+                connection,
+                "goods-realization",
+                url,
+                serde_json::to_value(&body)?,
+                120,
+            )
+            .await?;
 
         let parsed: serde_json::Value = serde_json::from_str(&resp_body)
             .map_err(|e| anyhow::anyhow!("Failed to parse generate response: {}", e))?;
@@ -1588,6 +1636,13 @@ impl YandexApiClient {
         date_from: chrono::NaiveDate,
         date_to: chrono::NaiveDate,
     ) -> Result<String> {
+        let business_id: i64 = connection
+            .business_account_id
+            .as_ref()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("businessId is required for YM shows-sales report"))?
+            .parse()
+            .map_err(|e| anyhow::anyhow!("businessId must be an integer: {}", e))?;
         let campaign_id: i64 = connection
             .supplier_id
             .as_ref()
@@ -1606,6 +1661,7 @@ impl YandexApiClient {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct GenerateShowsSalesRequest {
+            business_id: i64,
             campaign_id: i64,
             date_from: String,
             date_to: String,
@@ -1613,6 +1669,7 @@ impl YandexApiClient {
         }
 
         let body = GenerateShowsSalesRequest {
+            business_id,
             campaign_id,
             date_from: date_from.format("%Y-%m-%d").to_string(),
             date_to: date_to.format("%Y-%m-%d").to_string(),
@@ -1624,56 +1681,16 @@ impl YandexApiClient {
             url, campaign_id, date_from, date_to
         ));
 
-        // Число одновременно генерируемых отчётов ограничено тарифом (без подписки — 1),
-        // поэтому лимит выбирается штатно и ждать приходится так же, как для реализации.
-        const MAX_ATTEMPTS: u32 = 5;
-        const RATE_LIMIT_WAIT_SECS: u64 = 65;
-        let mut resp_body = String::new();
-        for attempt in 1..=MAX_ATTEMPTS {
-            let request = self
-                .client
-                .post(url)
-                .header("Content-Type", "application/json")
-                .json(&body);
-
-            let response = self
-                .apply_auth(request, connection)?
-                .send()
-                .await
-                .map_err(|e| {
-                    anyhow::anyhow!("Failed to request shows-sales report generation: {}", e)
-                })?;
-
-            let status = response.status();
-            if status.is_success() {
-                resp_body = response.text().await?;
-                break;
-            }
-
-            let err_body = response.text().await.unwrap_or_default();
-            self.log_to_file(&format!(
-                "Generate shows-sales report failed ({}): {}",
-                status, err_body
-            ));
-
-            let is_rate_limited = status.as_u16() == 420
-                || status == reqwest::StatusCode::TOO_MANY_REQUESTS
-                || err_body.contains("rate limit");
-
-            if is_rate_limited && attempt < MAX_ATTEMPTS {
-                self.log_to_file(&format!(
-                    "Shows-sales report rate-limited; waiting {}s before retry ({}/{})",
-                    RATE_LIMIT_WAIT_SECS, attempt, MAX_ATTEMPTS
-                ));
-                tokio::time::sleep(tokio::time::Duration::from_secs(RATE_LIMIT_WAIT_SECS)).await;
-                continue;
-            }
-            anyhow::bail!(
-                "generate_shows_sales_report failed with status {}: {}",
-                status,
-                err_body
-            );
-        }
+        // Без подписки: один запрос в 10 минут и один одновременно формируемый отчёт.
+        let resp_body = self
+            .generate_report_request(
+                connection,
+                "shows-sales",
+                url,
+                serde_json::to_value(&body)?,
+                600,
+            )
+            .await?;
 
         let parsed: serde_json::Value = serde_json::from_str(&resp_body)
             .map_err(|e| anyhow::anyhow!("Failed to parse generate response: {}", e))?;
@@ -2142,4 +2159,31 @@ pub fn parse_shows_sales_report(body: &str) -> Result<Vec<YmShowsSalesRow>> {
         rows.push(row);
     }
     Ok(rows)
+}
+
+#[cfg(test)]
+mod request_contract_tests {
+    use super::*;
+
+    #[test]
+    fn offer_mapping_token_serializes_as_official_page_token() {
+        let request = YandexProductListRequest {
+            limit: Some(100),
+            page_token: Some("next-token".into()),
+        };
+        let json = serde_json::to_value(request).unwrap();
+        assert_eq!(json["pageToken"], "next-token");
+        assert!(json.get("page_token").is_none());
+    }
+
+    #[test]
+    fn retry_after_has_priority_for_report_limiter() {
+        let mut headers = HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, HeaderValue::from_static("17"));
+        headers.insert(
+            "X-RateLimit-Resource-Until",
+            HeaderValue::from_static("Thu, 10 Jul 2036 00:42:42 GMT"),
+        );
+        assert_eq!(ym_header_wait(&headers).unwrap().as_secs(), 17);
+    }
 }

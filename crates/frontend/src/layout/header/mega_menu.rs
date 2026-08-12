@@ -159,6 +159,11 @@ pub fn MegaMenuBar() -> impl IntoView {
             icon_name: "search",
         },
         MegaMenuItem {
+            key: "a043_wb_finance_report",
+            title: tab_label_for_key("a043_wb_finance_report"),
+            icon_name: "receipt",
+        },
+        MegaMenuItem {
             key: "a027_wb_documents",
             title: tab_label_for_key("a027_wb_documents"),
             icon_name: "file-text",

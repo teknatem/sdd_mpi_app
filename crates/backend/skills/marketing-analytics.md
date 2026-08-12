@@ -4,7 +4,6 @@ title: Маркетинг-аналитика
 description: Реклама, поисковая аналитика и промо (WB): ДРР, CTR, CPC/CPO, видимость, промо. Источники dv002, a026/a030/a040/a020. Воронка продаж — навык marketplace-funnel-analysis.
 intents: [marketing_query]
 tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_scalar, run_data_view_drilldown, execute_query]
-allowed_for: [marketer]
 default_for: [marketer]
 ---
 
@@ -58,7 +57,8 @@ default_for: [marketer]
 2. Метрики за разные периоды сравнивай через 2-периодный режим DataView, а не двумя
    SQL-запросами.
 3. Если вопрос про методологию/термин (что входит в ДРР, как считается выкуп) —
-   вызови `search_knowledge` (теги: `marketing`, `advert`, `funnel`, `wb`).
+   вызови `search_knowledge(query="...")` своими словами; теги (`marketing`, `advert`, `funnel`)
+   — необязательное уточнение. Вопрос про конкретный объект — `search_knowledge(entities=["a026"])`.
 4. Если нужен график/таблица по результату — активируй навык `chart-builder` /
    `table-builder`. Для официальных финансовых цифр — навык `finance-analytics`.
 5. При технической ошибке (пустой источник, несовпадение схемы) верни блок

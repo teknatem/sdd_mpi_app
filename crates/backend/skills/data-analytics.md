@@ -4,7 +4,6 @@ title: Аналитика данных
 description: SQL-аналитика по маркетплейсам: продажи, заказы, остатки, выручка, обороты GL, поиск UUID в справочниках.
 intents: [data_query]
 tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_scalar, run_data_view_drilldown, execute_query, get_chart_of_accounts, list_gl_turnovers]
-allowed_for: [business_analyst, plugin_admin, sales_analyst, marketer, financier]
 default_for: [business_analyst, general]
 ---
 
@@ -67,10 +66,15 @@ paid/free и защитой от типичных ошибок (`funnel_order_co
    `query_data_schema` (там реальные JOIN-ы и колонки) и адаптируй его.
 4. Пиши SQL в блоках ```sql … ```. Давай краткое объяснение результата (2–3 предложения).
 5. Если вопрос касается бизнес-метрик/терминов/методологии — вызови `search_knowledge`.
+   Про конкретный объект — `search_knowledge(entities=["p904"])`; те же документы приходят
+   полем `docs` в `get_entity_schema`.
 6. Логические поля агрегата не всегда являются колонками таблицы (часть лежит в JSON-блобах).
    Смотри ответ `get_entity_schema`: `columns_for_sql` — реальные колонки, `json_fields` — готовые
    `json_extract(...)`-выражения. Не угадывай имя колонки: угаданное `connection_id`/`order_dt`
    даёт `no such column`.
+7. Прежде чем объяснять пустой результат, сверься с блоком `data_profile` в `get_entity_schema`:
+   там строки, период данных и незаполненные ссылки. `date_note` означает, что дата документа
+   лежит в JSON — период по таблице не измерялся, отбирай через `json_extract`.
 
 ### Проверка перед выводом (обязательно)
 

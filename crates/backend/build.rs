@@ -4,7 +4,6 @@ use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=../../config.toml");
-    println!("cargo:rerun-if-changed=skills");
 
     // Get the output directory where the binary will be placed
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -43,15 +42,6 @@ fn main() {
 
     fs::copy(&source_config, &dest_config)
         .unwrap_or_else(|e| panic!("Failed to copy config.toml: {}", e));
-
-    // Ship the repository skill catalog next to the binary. Operators can point
-    // skills_path elsewhere for a fully external hot-reloadable catalog.
-    let source_skills = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
-    let dest_skills = target_dir.join("skills");
-    if source_skills.is_dir() {
-        copy_dir_all(&source_skills, &dest_skills)
-            .unwrap_or_else(|e| panic!("Failed to copy skill catalog: {}", e));
-    }
 }
 
 /// Short git commit of the working tree, or `"unknown"` when git is unavailable
@@ -78,19 +68,4 @@ fn detect_git_commit() -> String {
         .map(|commit| commit.trim().to_string())
         .filter(|commit| !commit.is_empty())
         .unwrap_or_else(|| "unknown".to_string())
-}
-
-fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        if source_path.is_dir() {
-            copy_dir_all(&source_path, &destination_path)?;
-        } else {
-            fs::copy(source_path, destination_path)?;
-        }
-    }
-    Ok(())
 }

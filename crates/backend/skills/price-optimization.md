@@ -4,7 +4,6 @@ title: Оптимизация цен
 description: Ценообразование по WB/Ozon/YM — юнит-экономика, контрибуционная маржа, эластичность (если оценима), сценарии цен и контролируемые ценовые тесты с guardrails.
 intents: []
 tools: [find_data_sources, preview_data, list_data_sources, query_data_schema, run_data_view_scalar, run_data_view_drilldown, execute_query, get_entity_schema, build_chart, build_table]
-allowed_for: [sales_analyst, financier]
 default_for: []
 ---
 

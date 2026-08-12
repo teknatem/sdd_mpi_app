@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path as FsPath, PathBuf};
 
-use crate::shared::llm::knowledge_base::{knowledge_base_dir, KnowledgeDoc};
+use crate::shared::llm::knowledge_base::{knowledge_base_dir, DocKind as KbDocKind, KnowledgeDoc};
 
 // Compile-time metadata for known DataView modules — used to enrich tree segment names.
 static DV_LABELS: Lazy<HashMap<String, String>> = Lazy::new(|| {
@@ -39,7 +39,10 @@ pub struct KbArticleSummary {
     pub related: Vec<String>,
     pub source_path: Option<String>,
     pub display_path: String,
+    /// Не написан руками: техдок приложения или сгенерированная карта.
     pub is_embedded: bool,
+    /// Корпус: `business` | `app` | `generated`.
+    pub kind: String,
     // ─── ценность и актуальность ───
     pub summary: String,
     pub status: String,
@@ -51,6 +54,8 @@ pub struct KbArticleSummary {
     /// Насколько израсходован срок годности знания, %.
     pub staleness_pct: Option<u32>,
     pub unknown_tags: Vec<String>,
+    /// Записи `entities`, не найденные в реестре объектов — куратору видно, какие.
+    pub unknown_anchors: Vec<String>,
     pub metrics: KbArticleMetrics,
 }
 
@@ -76,6 +81,16 @@ pub struct KbStatsResponse {
     pub total_articles: usize,
     pub file_articles: usize,
     pub embedded_articles: usize,
+    /// Разбивка по корпусам: курируемое знание, техдоки, сгенерированные карты.
+    pub business_articles: usize,
+    pub app_articles: usize,
+    pub generated_articles: usize,
+    /// Ссылки `related`/`[[wiki]]`, не ведущие ни в статью, ни в тег, ни в объект.
+    pub dangling_links: usize,
+    /// Записи `entities`, которых нет в реестре метаданных.
+    pub unknown_anchor_count: usize,
+    /// Сколько объектов системы имеют хотя бы один привязанный документ.
+    pub anchored_entities: usize,
     pub total_tags: usize,
     pub total_related: usize,
     pub total_folders: usize,
@@ -168,6 +183,10 @@ pub async fn stats() -> Json<KbStatsResponse> {
     let mut live_keys = BTreeSet::<String>::new();
     let mut file_articles = 0usize;
     let mut embedded_articles = 0usize;
+    let mut business_articles = 0usize;
+    let mut app_articles = 0usize;
+    let mut generated_articles = 0usize;
+    let mut unknown_anchor_count = 0usize;
     let mut drafts = 0usize;
     let mut deprecated = 0usize;
     let mut stale_articles = 0usize;
@@ -180,6 +199,12 @@ pub async fn stats() -> Json<KbStatsResponse> {
         } else {
             file_articles += 1;
         }
+        match doc.kind {
+            KbDocKind::Business => business_articles += 1,
+            KbDocKind::App => app_articles += 1,
+            KbDocKind::Generated => generated_articles += 1,
+        }
+        unknown_anchor_count += doc.unknown_anchors.len();
         match summary.status.as_str() {
             "draft" => drafts += 1,
             "deprecated" => deprecated += 1,
@@ -225,6 +250,12 @@ pub async fn stats() -> Json<KbStatsResponse> {
         total_articles: docs.len(),
         file_articles,
         embedded_articles,
+        business_articles,
+        app_articles,
+        generated_articles,
+        dangling_links: kb.dangling_links(),
+        unknown_anchor_count,
+        anchored_entities: kb.anchored_entity_count(),
         total_tags,
         total_related: related.len(),
         total_folders: folders.len(),
@@ -298,7 +329,7 @@ pub async fn reload() -> Result<Json<KbReloadResponse>, (StatusCode, String)> {
 
     let kb = crate::shared::llm::knowledge_base::kb_read();
     let docs = kb.all_docs();
-    let embedded_articles = docs.iter().filter(|d| d.is_embedded).count();
+    let embedded_articles = docs.iter().filter(|d| d.is_embedded()).count();
     let drafts = docs
         .iter()
         .filter(|d| d.status == crate::shared::llm::knowledge_base::KbStatus::Draft)
@@ -316,6 +347,14 @@ pub async fn reload() -> Result<Json<KbReloadResponse>, (StatusCode, String)> {
         loaded_at: kb.loaded_at().to_rfc3339(),
         diagnostics: kb.diagnostics().to_vec(),
     }))
+}
+
+/// Пересчитать профиль данных и переписать сгенерированные карты.
+///
+/// Отдельно от `reload`: тот перечитывает файлы, а этот их производит — и стоит
+/// на порядок дороже (обход всех таблиц каталога).
+pub async fn generate() -> Json<crate::shared::llm::kb_generated::GenerateReport> {
+    Json(crate::shared::llm::kb_generated::regenerate_all().await)
 }
 
 pub async fn tree() -> Json<KbTreeResponse> {
@@ -469,7 +508,8 @@ fn article_summary(
         source_path,
         display_path,
         // Признак теперь вычисляется при загрузке — повторно резать путь не нужно.
-        is_embedded: doc.is_embedded,
+        is_embedded: doc.is_embedded(),
+        kind: doc.kind.as_str().to_string(),
         summary: doc.summary.clone(),
         status: doc.status.as_str().to_string(),
         stars: doc.stars,
@@ -479,6 +519,7 @@ fn article_summary(
         token_cost: doc.token_cost,
         staleness_pct: doc.staleness_pct(),
         unknown_tags: doc.unknown_tags.clone(),
+        unknown_anchors: doc.unknown_anchors.clone(),
         metrics: KbArticleMetrics {
             search_hits: row.map(|r| r.search_hits).unwrap_or(0),
             read_hits: row.map(|r| r.read_hits).unwrap_or(0),

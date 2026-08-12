@@ -269,6 +269,46 @@ fn revision_for(
     format!("{:x}", Sha256::digest(lines.join("\n").as_bytes()))
 }
 
+fn normalize_default_specialization(role: &str) -> Option<&'static str> {
+    if role == "general" {
+        return Some(AgentType::CoordinatorAdmin.as_str());
+    }
+    specializations()
+        .into_iter()
+        .find(|specialization| specialization.as_str() == role)
+        .map(|specialization| specialization.as_str())
+}
+
+fn default_for_diagnostics(
+    skills: &[super::skills::Skill],
+    cells: &[EffectiveSkillAccess],
+) -> Vec<String> {
+    let mut diagnostics = Vec::new();
+    for skill in skills {
+        for role in &skill.default_for {
+            let Some(specialization) = normalize_default_specialization(role) else {
+                diagnostics.push(format!(
+                    "Skill '{}': default_for содержит неизвестную роль '{}'",
+                    skill.id, role
+                ));
+                continue;
+            };
+            let assigned = cells.iter().any(|cell| {
+                cell.skill_id == skill.id
+                    && cell.specialization == specialization
+                    && cell.level != SkillAccessLevel::Denied
+            });
+            if !assigned {
+                diagnostics.push(format!(
+                    "Skill '{}': default_for содержит роль '{}', но она не назначена в матрице доступа",
+                    skill.id, role
+                ));
+            }
+        }
+    }
+    diagnostics
+}
+
 pub async fn matrix_json() -> anyhow::Result<serde_json::Value> {
     let db = crate::shared::data::db::get_connection();
     let skill_snapshot = super::skills::snapshot();
@@ -340,6 +380,8 @@ pub async fn matrix_json() -> anyhow::Result<serde_json::Value> {
         }
     }
     let revision = revision_for(&cells, &capabilities);
+    let mut diagnostics = super::skills::diagnostics();
+    diagnostics.extend(default_for_diagnostics(&skill_snapshot.skills, &cells));
     let specializations: Vec<_> = specializations()
         .into_iter()
         .map(|s| {
@@ -361,7 +403,6 @@ pub async fn matrix_json() -> anyhow::Result<serde_json::Value> {
                 "intents": s.intents,
                 "tools": s.tool_names,
                 "digest": s.digest,
-                "diagnostic_status": if s.compatibility_warnings.is_empty() { "ok" } else { "warning" },
             })
         })
         .collect();
@@ -390,7 +431,7 @@ pub async fn matrix_json() -> anyhow::Result<serde_json::Value> {
                 "description": "Запуск JavaScript-задач, помеченных как development."
             }
         ],
-        "diagnostics": super::skills::diagnostics(),
+        "diagnostics": diagnostics,
     }))
 }
 
@@ -548,6 +589,37 @@ mod tests {
             &AgentType::BusinessAnalyst,
             SKILL_SCRIPT_EXECUTE
         ));
+    }
+
+    #[test]
+    fn default_for_warns_only_when_role_is_not_assigned() {
+        let skill = super::super::skills::snapshot()
+            .skills
+            .iter()
+            .find(|skill| skill.id == "data-analytics")
+            .expect("data-analytics seed")
+            .clone();
+        let mut cells = vec![
+            EffectiveSkillAccess {
+                specialization: "business_analyst".into(),
+                skill_id: skill.id.clone(),
+                level: SkillAccessLevel::Denied,
+                source: "configured",
+            },
+            EffectiveSkillAccess {
+                specialization: "coordinator_admin".into(),
+                skill_id: skill.id.clone(),
+                level: SkillAccessLevel::Immediate,
+                source: "default",
+            },
+        ];
+
+        let diagnostics = default_for_diagnostics(std::slice::from_ref(&skill), &cells);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].contains("business_analyst"));
+
+        cells[0].level = SkillAccessLevel::Extended;
+        assert!(default_for_diagnostics(std::slice::from_ref(&skill), &cells).is_empty());
     }
 
     fn one_cell_snapshot() -> SaveMatrixRequest {

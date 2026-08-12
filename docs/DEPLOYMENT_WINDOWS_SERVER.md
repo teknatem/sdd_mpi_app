@@ -151,8 +151,15 @@ New-NetFirewallRule -DisplayName "Marketplace Backend" -Direction Inbound -Local
 ```cmd
 nssm install MarketplaceBackend "C:\Users\udv\Desktop\MPI\backend.exe"
 nssm set MarketplaceBackend AppDirectory "C:\Users\udv\Desktop\MPI"
+nssm set MarketplaceBackend AppExit Default Restart
+nssm set MarketplaceBackend AppRestartDelay 2000
 nssm start MarketplaceBackend
 ```
+
+`AppExit Default Restart` обязателен для автоматического применения восстановленной
+БД: после подготовки `pending_restore` backend штатно завершается, NSSM запускает
+его снова, и подмена выполняется до открытия пула подключений. Вариант с обычным
+заданием «При запуске системы» этого не умеет.
 
 ---
 

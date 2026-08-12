@@ -7,6 +7,7 @@ pub mod right;
 pub mod tabs;
 pub mod top_header;
 
+use crate::system::maintenance::MaintenanceNotice;
 use leptos::prelude::*;
 use top_header::TopHeader;
 
@@ -35,6 +36,11 @@ where
 
     view! {
         <div class="app-layout">
+            // Внутрь приложения при обслуживании пущен только администратор —
+            // он должен видеть, что для остальных оно закрыто. Плашка стоит
+            // первым flex-элементом колонки, поэтому просто ужимает остальное.
+            <MaintenanceNotice />
+
             // Top header with toggle controls
             <TopHeader />
 

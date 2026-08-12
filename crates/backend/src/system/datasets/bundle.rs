@@ -132,8 +132,7 @@ pub fn read_bundle(bytes: &[u8]) -> anyhow::Result<ParsedBundle> {
             .insert(relative, buffer);
     }
 
-    let manifest =
-        manifest.ok_or_else(|| anyhow::anyhow!("в архиве нет {MANIFEST_ENTRY_NAME}"))?;
+    let manifest = manifest.ok_or_else(|| anyhow::anyhow!("в архиве нет {MANIFEST_ENTRY_NAME}"))?;
     Ok(ParsedBundle { manifest, sets })
 }
 
@@ -150,9 +149,8 @@ fn split_set_entry(name: &str) -> anyhow::Result<Option<(String, String)>> {
         return Ok(None);
     };
     validate_set_id(set_id)?;
-    validate_relative_path(relative).map_err(|error| {
-        anyhow::anyhow!("небезопасный путь в архиве '{name}': {error}")
-    })?;
+    validate_relative_path(relative)
+        .map_err(|error| anyhow::anyhow!("небезопасный путь в архиве '{name}': {error}"))?;
     Ok(Some((set_id.to_string(), relative.to_string())))
 }
 

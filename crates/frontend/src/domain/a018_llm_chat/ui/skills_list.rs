@@ -23,8 +23,6 @@ struct SkillInfo {
     #[serde(default)]
     diagnostic_status: String,
     #[serde(default)]
-    compatibility_warnings: Vec<String>,
-    #[serde(default)]
     resources: Vec<SkillResourceInfo>,
     #[serde(default)]
     tasks: Vec<SkillTaskInfo>,
@@ -431,11 +429,6 @@ fn render_catalog(catalog: Catalog) -> impl IntoView {
                         <code class="llm-skills__id">{skill.id}</code>
                     </div>
                     <div class="llm-skills__desc">{skill.description}</div>
-                    {(!skill.compatibility_warnings.is_empty()).then(|| view! {
-                        <div class="warning-box" style="margin:6px 0;">
-                            {skill.compatibility_warnings.join("; ")}
-                        </div>
-                    })}
                     <div class="llm-skills__meta">
                         <span class="llm-skills__label">"Package:"</span>
                         <span class="llm-skills__tools">{package_meta}</span>

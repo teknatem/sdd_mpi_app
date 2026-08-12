@@ -23,6 +23,10 @@ impl MatchExecutor {
 
     /// Запустить сопоставление (создает async task и возвращает session_id)
     pub async fn start_matching(&self, request: MatchRequest) -> Result<MatchResponse> {
+        let database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Сопоставление недоступно во время обслуживания базы данных")
+            })?;
         tracing::info!("Starting nomenclature matching with request: {:?}", request);
 
         // Создать сессию сопоставления
@@ -45,6 +49,7 @@ impl MatchExecutor {
         let request_clone = request.clone();
 
         tokio::spawn(async move {
+            let _database_activity = database_activity;
             if let Err(e) = self_clone
                 .execute_matching(&session_id_clone, &request_clone)
                 .await

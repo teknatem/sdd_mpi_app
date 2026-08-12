@@ -4,7 +4,6 @@ title: Системная диагностика
 description: Состояние системы, производительность, регламентные задания (расписание и свежесть данных), целостность данных.
 intents: [sys_admin]
 tools: [check_system_health, get_performance_stats, list_background_jobs, get_data_integrity_report, list_scheduled_tasks, describe_task_types]
-allowed_for: [system_admin]
 default_for: [system_admin]
 ---
 

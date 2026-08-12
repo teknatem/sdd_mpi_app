@@ -7,7 +7,7 @@ use super::artifact_card::ArtifactCard;
 use super::model::{
     cancel_job, delete_chat, delete_pending_attachment, fetch_attachment_object_url, fetch_chat,
     fetch_chat_context, fetch_connection_model_capabilities, fetch_messages, fetch_workspace,
-    poll_until_done, send_message, set_rating, JobProgress, PollOutcome,
+    poll_until_done, send_message, set_chat_model, set_rating, JobProgress, PollOutcome,
 };
 use super::view_model::LlmChatDetailsVm;
 
@@ -382,6 +382,8 @@ pub fn LlmChatDetails(id: String, on_close: Callback<()>) -> impl IntoView {
     let allowed_models = RwSignal::new(Vec::<String>::new());
     let image_input_models = RwSignal::new(Vec::<String>::new());
     let selected_model = RwSignal::new(String::new());
+    let model_capabilities_loaded = RwSignal::new(false);
+    let model_is_saving = RwSignal::new(false);
     let pending_screenshot = RwSignal::new_local(None::<PendingScreenshot>);
     let nav_ctx = use_context::<AppGlobalContext>();
 
@@ -455,6 +457,27 @@ pub fn LlmChatDetails(id: String, on_close: Callback<()>) -> impl IntoView {
             let content = vm.new_message.get();
             let draft_files = vm.uploaded_files.get();
             if content.trim().is_empty() && draft_files.is_empty() {
+                return;
+            }
+            let current_model = selected_model.get_untracked();
+            let current_allowed_models = allowed_models.get_untracked();
+            if model_capabilities_loaded.get_untracked()
+                && !current_allowed_models.is_empty()
+                && !current_allowed_models
+                    .iter()
+                    .any(|model| model == &current_model)
+            {
+                vm.error.set(Some(format!(
+                    "Модель '{}' недоступна сотруднику. Выберите в заголовке одну из доступных моделей: {}.",
+                    current_model,
+                    current_allowed_models.join(", ")
+                )));
+                return;
+            }
+            if model_is_saving.get_untracked() {
+                vm.error.set(Some(
+                    "Подождите, пока выбранная модель сохранится в чате.".to_string(),
+                ));
                 return;
             }
             if draft_files.iter().any(|file| file.is_image())
@@ -629,6 +652,7 @@ pub fn LlmChatDetails(id: String, on_close: Callback<()>) -> impl IntoView {
                         {
                             allowed_models.set(allowed);
                             image_input_models.set(image_models);
+                            model_capabilities_loaded.set(true);
                         }
                     }
                     Err(e) => vm.error.set(Some(e)),
@@ -765,9 +789,46 @@ pub fn LlmChatDetails(id: String, on_close: Callback<()>) -> impl IntoView {
                     <span class="page__header-meta">
                         "Модель: "
                         <select
-                            style="height: 24px; padding: 0 4px; border: 1px solid var(--colorNeutralStroke2); border-radius: 4px; background: var(--color-surface); color: var(--color-text);"
+                            style=move || {
+                                let current = selected_model.get();
+                                let allowed = allowed_models.get();
+                                let invalid = model_capabilities_loaded.get()
+                                    && !allowed.is_empty()
+                                    && !allowed.contains(&current);
+                                let border = if invalid { "#d13438" } else { "var(--colorNeutralStroke2)" };
+                                format!("height: 24px; padding: 0 4px; border: 2px solid {}; border-radius: 4px; background: var(--color-surface); color: var(--color-text);", border)
+                            }
                             prop:value=move || selected_model.get()
-                            on:change=move |ev| selected_model.set(event_target_value(&ev))
+                            on:change=move |ev| {
+                                let next = event_target_value(&ev);
+                                let previous = selected_model.get_untracked();
+                                if next == previous {
+                                    return;
+                                }
+                                selected_model.set(next.clone());
+                                model_is_saving.set(true);
+                                let chat_id = chat_id_stored.get_value();
+                                wasm_bindgen_futures::spawn_local(async move {
+                                    match set_chat_model(&chat_id, &next).await {
+                                        Ok(()) => {
+                                            vm.chat.update(|detail| {
+                                                if let Some(detail) = detail {
+                                                    detail.chat.model_name = next;
+                                                }
+                                            });
+                                            vm.error.set(None);
+                                        }
+                                        Err(error) => {
+                                            selected_model.set(previous);
+                                            vm.error.set(Some(format!(
+                                                "Не удалось изменить модель чата: {}",
+                                                error
+                                            )));
+                                        }
+                                    }
+                                    model_is_saving.set(false);
+                                });
+                            }
                             title="Модель ограничена списком allowed_models подключения"
                         >
                             {move || {
@@ -784,13 +845,35 @@ pub fn LlmChatDetails(id: String, on_close: Callback<()>) -> impl IntoView {
                                 }
                                 list.into_iter()
                                     .map(|m| {
-                                        let label = m.clone();
+                                        let label = if model_capabilities_loaded.get()
+                                            && !allowed_models.get().is_empty()
+                                            && !allowed_models.get().contains(&m)
+                                        {
+                                            format!("{} (недоступна)", m)
+                                        } else {
+                                            m.clone()
+                                        };
                                         view! { <option value=m>{label}</option> }
                                     })
                                     .collect_view()
                             }}
                         </select>
                     </span>
+                    {move || {
+                        let current = selected_model.get();
+                        let allowed = allowed_models.get();
+                        let invalid = model_capabilities_loaded.get()
+                            && !allowed.is_empty()
+                            && !allowed.contains(&current);
+                        invalid.then(|| view! {
+                            <span style="color: #d13438; font-size: 12px;">
+                                {format!(
+                                    "Модель недоступна сотруднику. Выберите: {}",
+                                    allowed.join(", ")
+                                )}
+                            </span>
+                        })
+                    }}
                     <span class="page__header-meta">
                         {move || format!("Сообщений: {}", vm.messages.get().len())}
                     </span>

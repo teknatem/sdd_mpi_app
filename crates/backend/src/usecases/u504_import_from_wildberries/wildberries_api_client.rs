@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use contracts::domain::a006_connection_mp::aggregate::ConnectionMP;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use uuid::Uuid;
 
 use super::progress_tracker::ProgressTracker;
@@ -14,6 +15,20 @@ use crate::shared::marketplaces::wildberries::datetime::{
 };
 
 const WB_ORDERS_MAX_RATE_LIMIT_SLEEP_SECS: u64 = 300;
+const WB_FINANCE_V1_MIN_INTERVAL_SECS: u64 = 61;
+const WB_FINANCE_V1_FALLBACK_RETRY_SECS: u64 = 65;
+
+type FinanceGate = Arc<tokio::sync::Mutex<Option<std::time::Instant>>>;
+static WB_FINANCE_V1_GATES: OnceLock<Mutex<HashMap<String, FinanceGate>>> = OnceLock::new();
+
+fn wb_finance_v1_gate(connection_id: &str) -> FinanceGate {
+    let gates = WB_FINANCE_V1_GATES.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut gates = gates.lock().expect("WB finance rate gate poisoned");
+    gates
+        .entry(connection_id.to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(None)))
+        .clone()
+}
 
 #[derive(Debug, Clone, Default)]
 struct WbRateLimitHeaders {
@@ -33,7 +48,8 @@ impl WbRateLimitHeaders {
         }
 
         Self {
-            retry_seconds: parse_header(headers, "X-Ratelimit-Retry"),
+            retry_seconds: parse_header(headers, "Retry-After")
+                .or_else(|| parse_header(headers, "X-Ratelimit-Retry")),
             limit: parse_header(headers, "X-Ratelimit-Limit"),
             reset_seconds: parse_header(headers, "X-Ratelimit-Reset"),
             remaining: parse_header(headers, "X-Ratelimit-Remaining"),
@@ -3402,31 +3418,41 @@ impl WildberriesApiClient {
             ids_str
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .header("Authorization", &connection.api_key)
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Connection error for advert campaigns: {}", e))?;
+        const MAX_ATTEMPTS: u32 = 3;
+        let mut successful_body = None;
+        for attempt in 1..=MAX_ATTEMPTS {
+            let response = self
+                .client
+                .get(&url)
+                .header("Authorization", &connection.api_key)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!("Connection error for advert campaigns: {}", e))?;
 
-        let status = response.status();
-        let rate_limit = WbRateLimitHeaders::from_headers(response.headers());
-        self.log_to_file(&format!(
-            "WB Advert campaigns info X-Ratelimit headers: {}",
-            rate_limit.to_log_fields()
-        ));
-        if !status.is_success() {
-            let body = self.read_body_tracked(response).await.unwrap_or_default();
+            let status = response.status();
+            let rate_limit = WbRateLimitHeaders::from_headers(response.headers());
+            self.log_to_file(&format!(
+                "WB Advert campaigns info X-Ratelimit headers: {}",
+                rate_limit.to_log_fields()
+            ));
+            let response_body = self.read_body_tracked(response).await.unwrap_or_default();
+            if status.is_success() {
+                successful_body = Some(response_body);
+                break;
+            }
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS && attempt < MAX_ATTEMPTS {
+                let wait = rate_limit.retry_seconds.unwrap_or(1).max(1);
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+                continue;
+            }
             anyhow::bail!(
                 "WB Advert campaigns failed with status {}: {}{}",
                 status,
-                body,
+                response_body,
                 rate_limit.to_error_suffix()
             );
         }
-
-        let body = self.read_body_tracked(response).await?;
+        let body = successful_body.expect("successful advert response body");
         let parsed: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
             let snippet: String = body.chars().take(400).collect();
             anyhow::anyhow!(
@@ -6477,6 +6503,246 @@ fn parse_search_query_row(nm_id: i64, item: &serde_json::Value) -> WbSearchQuery
         clicks: json_i64(item, &["clicks", "openCard", "openCardCount"]).unwrap_or(0),
         orders: json_i64(item, &["orders", "ordersCount"]).unwrap_or(0),
         avg_position: json_f64(item, &["avgPosition", "position"]).unwrap_or(0.0),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WbFinanceV1FetchedReport {
+    pub header: serde_json::Value,
+    pub report_id: String,
+    pub lines: Vec<serde_json::Value>,
+    pub pages_count: i32,
+    pub last_rrd_id: Option<String>,
+}
+
+fn json_scalar_text(value: Option<&serde_json::Value>) -> Option<String> {
+    match value? {
+        serde_json::Value::String(v) => Some(v.clone()),
+        serde_json::Value::Number(v) => Some(v.to_string()),
+        _ => None,
+    }
+}
+
+fn advancing_rrd_id(current: &str, next: &str) -> Result<u64> {
+    let current_number = current
+        .parse::<u64>()
+        .with_context(|| format!("Invalid WB Finance rrdId cursor: {current}"))?;
+    let next_number = next
+        .parse::<u64>()
+        .with_context(|| format!("Invalid WB Finance rrdId cursor: {next}"))?;
+    if next_number <= current_number {
+        anyhow::bail!("WB Finance rrdId did not advance: {current} -> {next}");
+    }
+    Ok(next_number)
+}
+
+fn finance_retry_seconds(headers: &HeaderMap) -> u64 {
+    headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| {
+            v.parse::<u64>().ok().or_else(|| {
+                chrono::DateTime::parse_from_rfc2822(v).ok().map(|until| {
+                    (until.with_timezone(&chrono::Utc) - chrono::Utc::now())
+                        .num_seconds()
+                        .max(1) as u64
+                })
+            })
+        })
+        .or_else(|| WbRateLimitHeaders::from_headers(headers).retry_seconds)
+        .unwrap_or(WB_FINANCE_V1_FALLBACK_RETRY_SECS)
+        .max(1)
+}
+
+impl WildberriesApiClient {
+    async fn wait_finance_v1_gate(&self, connection: &ConnectionMP) {
+        let gate = wb_finance_v1_gate(&connection.to_string_id());
+        let mut next_allowed = gate.lock().await;
+        if let Some(next) = *next_allowed {
+            let now = std::time::Instant::now();
+            if next > now {
+                tokio::time::sleep(next - now).await;
+            }
+        }
+        *next_allowed = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_secs(WB_FINANCE_V1_MIN_INTERVAL_SECS),
+        );
+    }
+
+    async fn post_finance_v1(
+        &self,
+        connection: &ConnectionMP,
+        url: &str,
+        payload: &serde_json::Value,
+    ) -> Result<(reqwest::StatusCode, String)> {
+        if connection.api_key.trim().is_empty() {
+            anyhow::bail!("API Key is required for Wildberries Finance API");
+        }
+        let request_body_len = serde_json::to_vec(payload)?.len() as u64;
+        for attempt in 1..=4 {
+            self.wait_finance_v1_gate(connection).await;
+            self.record_http_request_attempt(request_body_len);
+            let response = self
+                .client
+                .post(url)
+                .header("Authorization", &connection.api_key)
+                .json(payload)
+                .send()
+                .await
+                .with_context(|| format!("WB Finance API request failed: {url}"))?;
+            let status = response.status();
+            let headers = response.headers().clone();
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let wait = finance_retry_seconds(&headers);
+                let body = self.read_body_tracked(response).await.unwrap_or_default();
+                if attempt == 4 {
+                    anyhow::bail!(
+                        "WB Finance API rate limit after {attempt} attempts: {url}; response={body}"
+                    );
+                }
+                tracing::warn!(url, attempt, wait, "WB Finance API rate limit");
+                let gate = wb_finance_v1_gate(&connection.to_string_id());
+                let mut next_allowed = gate.lock().await;
+                *next_allowed = Some(
+                    std::time::Instant::now()
+                        + std::time::Duration::from_secs(wait.max(WB_FINANCE_V1_MIN_INTERVAL_SECS)),
+                );
+                continue;
+            }
+            if status == reqwest::StatusCode::NO_CONTENT {
+                self.record_http_response_body(0);
+                return Ok((status, String::new()));
+            }
+            let body = self.read_body_tracked(response).await?;
+            if !status.is_success() {
+                anyhow::bail!("WB Finance API returned {status} for {url}: {body}");
+            }
+            return Ok((status, body));
+        }
+        unreachable!("bounded retry loop returns")
+    }
+
+    /// Новый Finance API: список ежедневных отчётов и полная детализация каждого reportId.
+    pub async fn fetch_finance_reports_v1(
+        &self,
+        connection: &ConnectionMP,
+        date_from: chrono::NaiveDate,
+        date_to: chrono::NaiveDate,
+    ) -> Result<Vec<WbFinanceV1FetchedReport>> {
+        let minimum = chrono::NaiveDate::from_ymd_opt(2025, 1, 1).expect("valid date");
+        if date_from < minimum {
+            anyhow::bail!("WB Finance API v1 supports dates starting from 2025-01-01");
+        }
+        if date_to < date_from {
+            anyhow::bail!("date_to must not be earlier than date_from");
+        }
+
+        const LIST_URL: &str =
+            "https://finance-api.wildberries.ru/api/finance/v1/sales-reports/list";
+        const DETAIL_BASE: &str =
+            "https://finance-api.wildberries.ru/api/finance/v1/sales-reports/detailed";
+        let mut headers = Vec::<serde_json::Value>::new();
+        let mut offset = 0usize;
+        loop {
+            let payload = serde_json::json!({
+                "dateFrom": date_from.format("%Y-%m-%d").to_string(),
+                "dateTo": date_to.format("%Y-%m-%d").to_string(),
+                "limit": 1000,
+                "offset": offset,
+                "period": "daily"
+            });
+            let (status, body) = self.post_finance_v1(connection, LIST_URL, &payload).await?;
+            if status == reqwest::StatusCode::NO_CONTENT {
+                break;
+            }
+            let page: Vec<serde_json::Value> =
+                serde_json::from_str(&body).context("Invalid WB Finance report list response")?;
+            let count = page.len();
+            headers.extend(page);
+            if count < 1000 {
+                break;
+            }
+            offset += count;
+        }
+
+        let mut reports = Vec::with_capacity(headers.len());
+        for header in headers {
+            let report_id = json_scalar_text(header.get("reportId")).ok_or_else(|| {
+                anyhow::anyhow!("WB Finance report header has no reportId: {header}")
+            })?;
+            let url = format!("{DETAIL_BASE}/{report_id}");
+            let mut rrd_id = "0".to_string();
+            let mut last_rrd_id = None;
+            let mut pages_count = 0i32;
+            let mut lines = Vec::new();
+            loop {
+                let cursor_number = rrd_id
+                    .parse::<u64>()
+                    .with_context(|| format!("Invalid WB Finance rrdId cursor: {rrd_id}"))?;
+                let payload = serde_json::json!({ "limit": 100000, "rrdId": cursor_number });
+                let (status, body) = self.post_finance_v1(connection, &url, &payload).await?;
+                if status == reqwest::StatusCode::NO_CONTENT {
+                    break;
+                }
+                let page: Vec<serde_json::Value> =
+                    serde_json::from_str(&body).with_context(|| {
+                        format!("Invalid WB Finance detail response for report {report_id}")
+                    })?;
+                if page.is_empty() {
+                    anyhow::bail!(
+                        "WB Finance detail returned 200 with an empty page for report {report_id}"
+                    );
+                }
+                let next = json_scalar_text(page.last().and_then(|v| v.get("rrdId"))).ok_or_else(
+                    || {
+                        anyhow::anyhow!(
+                            "Last WB Finance detail row has no rrdId for report {report_id}"
+                        )
+                    },
+                )?;
+                advancing_rrd_id(&rrd_id, &next).with_context(|| {
+                    format!("Invalid detail cursor sequence for report {report_id}")
+                })?;
+                pages_count += 1;
+                rrd_id = next.clone();
+                last_rrd_id = Some(next);
+                lines.extend(page);
+            }
+            reports.push(WbFinanceV1FetchedReport {
+                header,
+                report_id,
+                lines,
+                pages_count,
+                last_rrd_id,
+            });
+        }
+        Ok(reports)
+    }
+}
+
+#[cfg(test)]
+mod finance_v1_contract_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_ids_are_never_converted_through_f64() {
+        let numeric: serde_json::Value = serde_json::from_str("90071992547409930").unwrap();
+        assert_eq!(
+            json_scalar_text(Some(&numeric)).as_deref(),
+            Some("90071992547409930")
+        );
+        assert_eq!(
+            json_scalar_text(Some(&serde_json::json!("90071992547409931"))).as_deref(),
+            Some("90071992547409931")
+        );
+    }
+
+    #[test]
+    fn repeated_or_decreasing_cursor_is_rejected() {
+        assert!(advancing_rrd_id("10", "10").is_err());
+        assert!(advancing_rrd_id("10", "9").is_err());
+        assert_eq!(advancing_rrd_id("10", "11").unwrap(), 11);
     }
 }
 
