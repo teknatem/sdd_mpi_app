@@ -204,6 +204,11 @@ fn get_menu_groups() -> Vec<MenuGroup> {
                     "search",
                 ),
                 SidebarItem::with_scope(
+                    "a041_ym_shows_sales_daily",
+                    tab_label_for_key("a041_ym_shows_sales_daily"),
+                    "filter",
+                ),
+                SidebarItem::with_scope(
                     "a033_wb_day_close",
                     tab_label_for_key("a033_wb_day_close"),
                     "calendar-check",
@@ -632,11 +637,7 @@ fn get_menu_groups() -> Vec<MenuGroup> {
                     tab_label_for_key("sys_s3_files"),
                     "download-cloud",
                 ),
-                SidebarItem::new(
-                    "sys_datasets",
-                    tab_label_for_key("sys_datasets"),
-                    "package",
-                ),
+                SidebarItem::new("sys_datasets", tab_label_for_key("sys_datasets"), "package"),
                 SidebarItem::new(
                     "sys_raw_storage",
                     tab_label_for_key("sys_raw_storage"),

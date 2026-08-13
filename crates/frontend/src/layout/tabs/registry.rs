@@ -79,6 +79,9 @@ use crate::domain::a038_llm_connection::ui::list::LlmConnectionList;
 use crate::domain::a039_mail_message::ui::list::MailMessageList;
 use crate::domain::a040_wb_search_analytics_daily::ui::details::WbSearchAnalyticsDetail;
 use crate::domain::a040_wb_search_analytics_daily::ui::list::WbSearchAnalyticsList;
+use crate::domain::a041_ym_shows_sales_daily::ui::{
+    YmShowsSalesDailyDetail, YmShowsSalesDailyList,
+};
 use crate::domain::a042_agent_task::ui::details::AgentTaskDetails;
 use crate::domain::a042_agent_task::ui::list::AgentTaskList;
 use crate::domain::a043_wb_finance_report::ui::details::WbFinanceReportDetail as WbFinanceReportV1Detail;
@@ -550,15 +553,31 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
             }
             .into_any()
         }
+        "a041_ym_shows_sales_daily" => view! { <YmShowsSalesDailyList /> }.into_any(),
+        k if k.starts_with("a041_ym_shows_sales_daily_details_") => {
+            let id = k
+                .strip_prefix("a041_ym_shows_sales_daily_details_")
+                .unwrap()
+                .to_string();
+            view! { <YmShowsSalesDailyDetail id=id on_close=Callback::new({
+                let key_for_close = key_for_close.clone();
+                move |_| tabs_store.close_tab(&key_for_close)
+            }) /> }
+            .into_any()
+        }
         "a043_wb_finance_report" => view! { <WbFinanceReportsList /> }.into_any(),
         k if k.starts_with("a043_wb_finance_report_details_") => {
-            let id = k.strip_prefix("a043_wb_finance_report_details_").unwrap().to_string();
+            let id = k
+                .strip_prefix("a043_wb_finance_report_details_")
+                .unwrap()
+                .to_string();
             view! {
                 <WbFinanceReportV1Detail id=id on_close=Callback::new({
                     let key_for_close = key_for_close.clone();
                     move |_| tabs_store.close_tab(&key_for_close)
                 }) />
-            }.into_any()
+            }
+            .into_any()
         }
         "a027_wb_documents" => view! { <WbDocumentsList /> }.into_any(),
         k if k.starts_with("a027_wb_documents_details_") => {

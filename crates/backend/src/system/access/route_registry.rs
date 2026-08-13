@@ -1011,6 +1011,18 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
+        path: "/api/a041/ym-shows-sales/list",
+        scope_id: Some("a041_ym_shows_sales_daily"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/a041/ym-shows-sales/:id",
+        scope_id: Some("a041_ym_shows_sales_daily"),
+        mode: PolicyMode::Auto,
+    },
+    RoutePolicy {
+        method: "*",
         path: "/api/a043/wb-finance-reports/list",
         scope_id: Some("a043_wb_finance_report"),
         mode: PolicyMode::Auto,

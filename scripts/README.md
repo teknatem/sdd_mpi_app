@@ -105,6 +105,9 @@ Copy-Item "crates\backend\target\db\app.db" "data\app.db"
 | File                  | Purpose                                                    |
 | --------------------- | ---------------------------------------------------------- |
 | `build-release.ps1`   | Build backend + frontend, pack into deploy/ for deployment |
+| `build-release-max.ps1` | Build with fat LTO and maximum safe optimizations         |
+| `update-release.ps1`  | Verify, deploy and roll back through Servy                  |
+| `install-servy.ps1`   | Register the application in Servy on first installation     |
 | `collect_crates.py`   | Collects all code files from crates/ into single text file |
 | `backup_db.ps1`       | Creates timestamped database backup                        |
 | `restore_db.ps1`      | Restores database from backup                              |
@@ -116,31 +119,36 @@ Copy-Item "crates\backend\target\db\app.db" "data\app.db"
 
 ### Purpose
 
-`build-release.ps1` собирает полный релиз и упаковывает его в папку `deploy/`, готовую к копированию на сервер.
+`build-release.ps1` собирает релиз. В `deploy/` остаются ровно два файла для переноса на сервер: ZIP и стабильный `update-release.ps1`.
 
 ### Usage
 
 ```powershell
 # Запуск из корня проекта
 .\scripts\build-release.ps1
+
+# Максимальная оптимизация (fat LTO, один codegen unit, strip, panic=abort)
+.\scripts\build-release-max.ps1
+
+# Только если сборочная и целевая машины имеют совместимый CPU
+.\scripts\build-release-max.ps1 -NativeCpu
 ```
 
 ### Output
 
 ```
 deploy/
-├── backend.exe            # скомпилированный сервер
-├── dist/                  # фронтенд (WASM + CSS + JS)
-├── knowledge/             # база знаний (MD-файлы), если папка существует
-├── config.toml.template   # шаблон конфигурации для сервера
-└── DEPLOY.md              # инструкция по установке
+├── marketplace-deploy.zip # приложение, frontend и миграции
+└── update-release.ps1              # постоянный серверный скрипт обновления
 ```
 
 ### Workflow
 
-1. Запустить `.\scripts\build-release.ps1`
-2. Открыть `deploy\config.toml.template`, отредактировать пути, сохранить как `deploy\config.toml` (первый раз)
-3. Скопировать папку `deploy\` на сервер (или нужные файлы при обновлении)
+1. Запустить `.\scripts\build-release.ps1` или `.\scripts\build-release-max.ps1`.
+2. Скопировать оба файла из `deploy\` на сервер в один каталог.
+3. Запустить PowerShell от администратора и выполнить `.\update-release.ps1`.
+
+По умолчанию обновляется `C:\Users\udv\Desktop\MPI`, имя службы Servy — `backend`.
 
 ### Backup Location
 

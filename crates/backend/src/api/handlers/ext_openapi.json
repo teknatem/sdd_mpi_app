@@ -129,6 +129,41 @@
         }
       }
     },
+    "/api/ext/v1/ym-sales-funnel": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Воронка продаж Yandex Market",
+        "description": "Плоские строки «товар × день» из сохранённого отчёта «Аналитика продаж»: показы, клики, корзина, заказы, доставки, отмены, возвраты и конверсии. Отсутствующая метрика возвращается как null (N/A), а не как ноль.",
+        "operationId": "listYmSalesFunnel",
+        "parameters": [
+          { "$ref": "#/components/parameters/DateFromRequired" },
+          { "$ref": "#/components/parameters/DateToRequired" },
+          { "$ref": "#/components/parameters/ConnectionId" },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 50000.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50000, "default": 5000 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Строки воронки Yandex Market",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/YmFunnelResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/PeriodRequired" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
     "/api/ext/v1/wb-advert-daily": {
       "get": {
         "tags": ["BI"],
@@ -463,6 +498,43 @@
           "buyout_percent": { "type": "number", "format": "double", "description": "Процент выкупа." },
           "add_to_cart_conversion": { "type": "number", "format": "double", "description": "Конверсия в корзину, %." },
           "cart_to_order_conversion": { "type": "number", "format": "double", "description": "Конверсия в заказ, %." }
+        }
+      },
+      "YmFunnelResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/YmFunnelRow" } },
+          "total": { "type": "integer", "description": "Число строк за период до пагинации." }
+        }
+      },
+      "YmFunnelRow": {
+        "type": "object",
+        "description": "Товар (`offer_id`) за конкретный день. Nullable-метрики означают отсутствие данных в исходном отчёте.",
+        "required": ["date", "connection_id", "offer_id", "offer_name"],
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "connection_id": { "type": "string", "format": "uuid" },
+          "connection_name": { "type": ["string", "null"] },
+          "organization_name": { "type": ["string", "null"] },
+          "campaign_id": { "type": ["string", "null"], "description": "Технический ID магазина Yandex Market." },
+          "offer_id": { "type": "string", "description": "Ваш SKU в Yandex Market." },
+          "offer_name": { "type": "string" },
+          "marketplace_product_ref": { "type": ["string", "null"], "format": "uuid" },
+          "nomenclature_ref": { "type": ["string", "null"], "format": "uuid" },
+          "brand_name": { "type": ["string", "null"] },
+          "category_id": { "type": ["string", "null"] },
+          "category_name": { "type": ["string", "null"] },
+          "shows": { "type": ["integer", "null"], "format": "int64", "description": "Показы собственных товаров." },
+          "clicks": { "type": ["integer", "null"], "format": "int64", "description": "Переходы в карточку товара." },
+          "cart_count": { "type": ["integer", "null"], "format": "int64", "description": "Добавления в корзину." },
+          "order_count": { "type": ["integer", "null"], "format": "int64", "description": "Заказанные товары по счётчику отчёта воронки." },
+          "delivered_count": { "type": ["integer", "null"], "format": "int64", "description": "Доставленные за период товары." },
+          "cancel_count": { "type": ["integer", "null"], "format": "int64", "description": "Отмены и невыкупы за период." },
+          "return_count": { "type": ["integer", "null"], "format": "int64", "description": "Возвращённые за период товары." },
+          "click_through_conversion": { "type": ["number", "null"], "format": "double", "description": "Клики / показы × 100. null при N/A или нулевом знаменателе." },
+          "add_to_cart_conversion": { "type": ["number", "null"], "format": "double", "description": "Корзина / клики × 100. null при N/A или нулевом знаменателе." },
+          "cart_to_order_conversion": { "type": ["number", "null"], "format": "double", "description": "Заказы / корзина × 100. null при N/A или нулевом знаменателе." }
         }
       },
       "AdvertResponse": {

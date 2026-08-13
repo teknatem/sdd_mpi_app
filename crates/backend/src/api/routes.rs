@@ -46,6 +46,7 @@ pub fn configure_business_routes() -> Router {
         .merge(a036_routes())
         .merge(a037_routes())
         .merge(a040_routes())
+        .merge(a041_routes())
         .merge(a038_routes())
         .merge(a039_routes())
         .merge(a034_routes())
@@ -1174,14 +1175,40 @@ fn a040_routes() -> Router {
         ))
 }
 
+fn a041_routes() -> Router {
+    Router::new()
+        .route(
+            "/api/a041/ym-shows-sales/list",
+            get(handlers::a041_ym_shows_sales_daily::list_paginated),
+        )
+        .route(
+            "/api/a041/ym-shows-sales/:id",
+            get(handlers::a041_ym_shows_sales_daily::get_by_id),
+        )
+        .layer(middleware::from_fn(|req, next| async move {
+            check_scope("a041_ym_shows_sales_daily", req, next).await
+        }))
+}
+
 fn a043_routes() -> Router {
     Router::new()
-        .route("/api/a043/wb-finance-reports/list", get(handlers::a043_wb_finance_report::list))
-        .route("/api/a043/wb-finance-reports/:id", get(handlers::a043_wb_finance_report::get))
-        .route("/api/a043/wb-finance-reports/:id/lines", get(handlers::a043_wb_finance_report::lines))
-        .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
-            check_scope("a043_wb_finance_report", req, next).await
-        }))
+        .route(
+            "/api/a043/wb-finance-reports/list",
+            get(handlers::a043_wb_finance_report::list),
+        )
+        .route(
+            "/api/a043/wb-finance-reports/:id",
+            get(handlers::a043_wb_finance_report::get),
+        )
+        .route(
+            "/api/a043/wb-finance-reports/:id/lines",
+            get(handlers::a043_wb_finance_report::lines),
+        )
+        .layer(middleware::from_fn(
+            |req: Request<Body>, next: Next| async move {
+                check_scope("a043_wb_finance_report", req, next).await
+            },
+        ))
 }
 
 fn a034_routes() -> Router {
@@ -2494,6 +2521,10 @@ fn ext_routes() -> Router {
             get(handlers::ext_bi_wb_funnel::list_funnel),
         )
         .route(
+            "/api/ext/v1/ym-sales-funnel",
+            get(handlers::ext_bi_ym_funnel::list_funnel),
+        )
+        .route(
             "/api/ext/v1/wb-advert-daily",
             get(handlers::ext_bi_wb_advert::list_advert),
         )
@@ -2674,8 +2705,9 @@ mod tests {
         routed.sort();
         routed.dedup();
 
-        let spec: serde_json::Value = serde_json::from_str(include_str!("handlers/ext_openapi.json"))
-            .expect("ext_openapi.json — невалидный JSON");
+        let spec: serde_json::Value =
+            serde_json::from_str(include_str!("handlers/ext_openapi.json"))
+                .expect("ext_openapi.json — невалидный JSON");
         let mut documented: Vec<String> = spec["paths"]
             .as_object()
             .expect("в спеке нет объекта `paths`")

@@ -100,6 +100,20 @@ pub struct YandexApiClient {
     client: reqwest::Client,
 }
 
+/// Параметры отчёта «Аналитика продаж» кабинета.
+///
+/// Живой Partner API отклоняет запрос, если одновременно передать `businessId`
+/// и `campaignId` (`Both businessId and campaignId are specified`). Здесь передаётся
+/// один campaignId бизнеса как рабочий контекст; сам отчёт содержит данные кабинета.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GenerateShowsSalesRequest {
+    campaign_id: i64,
+    date_from: String,
+    date_to: String,
+    grouping: &'static str,
+}
+
 impl YandexApiClient {
     pub fn new() -> Self {
         let mut headers = HeaderMap::new();
@@ -1626,8 +1640,8 @@ impl YandexApiClient {
     /// клики, корзину, заказы, доставки, отмены/невыкупы и возвраты. Это единственный
     /// источник показов YM — в orders-API их нет.
     ///
-    /// Запрашивается по `campaignId` (магазин = кабинет), а не по бизнесу: измерение
-    /// воронки — `connection_mp_ref`, и агрегирование по бизнесу его бы схлопнуло.
+    /// В запрос передаётся один `campaignId` бизнеса. Повторять запрос для остальных
+    /// магазинов не нужно: завершённые дни отчёта совпадают на уровне кабинета.
     ///
     /// Глубина истории ограничена тарифом YM: без подписки/Лайт — 90 дней, Медиум — 400.
     pub async fn generate_shows_sales_report(
@@ -1636,13 +1650,6 @@ impl YandexApiClient {
         date_from: chrono::NaiveDate,
         date_to: chrono::NaiveDate,
     ) -> Result<String> {
-        let business_id: i64 = connection
-            .business_account_id
-            .as_ref()
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| anyhow::anyhow!("businessId is required for YM shows-sales report"))?
-            .parse()
-            .map_err(|e| anyhow::anyhow!("businessId must be an integer: {}", e))?;
         let campaign_id: i64 = connection
             .supplier_id
             .as_ref()
@@ -1658,18 +1665,7 @@ impl YandexApiClient {
         let url =
             "https://api.partner.market.yandex.ru/v2/reports/shows-sales/generate?format=JSON";
 
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct GenerateShowsSalesRequest {
-            business_id: i64,
-            campaign_id: i64,
-            date_from: String,
-            date_to: String,
-            grouping: &'static str,
-        }
-
         let body = GenerateShowsSalesRequest {
-            business_id,
             campaign_id,
             date_from: date_from.format("%Y-%m-%d").to_string(),
             date_to: date_to.format("%Y-%m-%d").to_string(),
@@ -2091,6 +2087,17 @@ impl YmShowsSalesRow {
     /// Дата строки `YYYY-MM-DD` из day/month/year. YM отдаёт их то числами, то строками
     /// (а месяц — иногда названием), поэтому разбираем оба варианта.
     pub fn date(&self) -> Option<String> {
+        // Фактический JSON reports/shows-sales сейчас отдаёт `day` целой датой
+        // (`10-08-2026`), а `month` — строкой `08-2026`. Сначала принимаем
+        // полную дату, затем оставляем совместимость со старой компонентной формой.
+        if let Some(serde_json::Value::String(day)) = self.day.as_ref() {
+            for format in ["%d-%m-%Y", "%Y-%m-%d", "%d.%m.%Y"] {
+                if let Ok(date) = chrono::NaiveDate::parse_from_str(day.trim(), format) {
+                    return Some(date.format("%Y-%m-%d").to_string());
+                }
+            }
+        }
+
         let day = numeric_part(self.day.as_ref())?;
         let month = numeric_part(self.month.as_ref())?;
         let year = numeric_part(self.year.as_ref())?;
@@ -2121,7 +2128,15 @@ impl YmShowsSalesRow {
 fn numeric_part(value: Option<&serde_json::Value>) -> Option<i64> {
     match value? {
         serde_json::Value::Number(n) => n.as_i64(),
-        serde_json::Value::String(s) => s.trim().parse::<i64>().ok(),
+        serde_json::Value::String(s) => {
+            let value = s.trim();
+            value.parse::<i64>().ok().or_else(|| {
+                let prefix: String = value.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+                (!prefix.is_empty())
+                    .then(|| prefix.parse::<i64>().ok())
+                    .flatten()
+            })
+        }
         _ => None,
     }
 }
@@ -2185,5 +2200,47 @@ mod request_contract_tests {
             HeaderValue::from_static("Thu, 10 Jul 2036 00:42:42 GMT"),
         );
         assert_eq!(ym_header_wait(&headers).unwrap().as_secs(), 17);
+    }
+
+    #[test]
+    fn shows_sales_store_request_uses_campaign_id_only() {
+        let request = GenerateShowsSalesRequest {
+            campaign_id: 136_982_050,
+            date_from: "2026-08-01".into(),
+            date_to: "2026-08-05".into(),
+            grouping: "OFFERS",
+        };
+        let json = serde_json::to_value(request).unwrap();
+
+        assert_eq!(json["campaignId"], 136_982_050);
+        assert_eq!(json["grouping"], "OFFERS");
+        assert!(json.get("businessId").is_none());
+    }
+
+    #[test]
+    fn shows_sales_row_parses_live_report_date_format() {
+        let row: YmShowsSalesRow = serde_json::from_value(serde_json::json!({
+            "day": "10-08-2026",
+            "month": "08-2026",
+            "year": 2026,
+            "offerId": "SKU-1",
+            "shows": 17
+        }))
+        .unwrap();
+
+        assert_eq!(row.date().as_deref(), Some("2026-08-10"));
+    }
+
+    #[test]
+    fn shows_sales_report_parses_root_rows_from_live_shape() {
+        let rows = parse_shows_sales_report(
+            r#"{"rows":[{"day":"10-08-2026","month":"08-2026","year":2026,"offerId":"SKU-1","shows":17}]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].date().as_deref(), Some("2026-08-10"));
+        assert_eq!(rows[0].offer_id.as_deref(), Some("SKU-1"));
+        assert_eq!(rows[0].shows, Some(17));
     }
 }

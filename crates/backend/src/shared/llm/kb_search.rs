@@ -725,7 +725,10 @@ mod tests {
                     back_links.entry(r.clone()).or_default().push(d.id.clone());
                 }
                 for a in &d.anchors {
-                    anchor_index.entry(a.clone()).or_default().push(d.id.clone());
+                    anchor_index
+                        .entry(a.clone())
+                        .or_default()
+                        .push(d.id.clone());
                 }
                 if let Some(base) = d.id.rsplit("__").next() {
                     if base != d.id {

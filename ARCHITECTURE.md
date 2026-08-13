@@ -233,7 +233,7 @@
 | `item_cost_storno` | Себестоимость (сторно возврат) | 9002 | 41 | ✓ |
 | `commission_percent` | Процент комиссии |  |  |  |
 
-## UI scopes (66)
+## UI scopes (67)
 
 | Scope | Type | Category | Label | Description |
 |-------|------|----------|-------|-------------|
@@ -258,6 +258,7 @@
 | `a036_wb_sales_funnel_daily` | Aggregate | marketplace_data | Воронка продаж WB | Ежедневная воронка продаж Wildberries в разрезе номенклатуры |
 | `a037_wb_product_snapshot` | Aggregate | marketplace_data | Данные по товарам WB | Ежедневные данные по остаткам и рейтингам товаров Wildberries |
 | `a040_wb_search_analytics_daily` | Aggregate | marketplace_data | Поисковая аналитика WB | Показы, позиции в выдаче и поисковые запросы товаров Wildberries |
+| `a041_ym_shows_sales_daily` | Aggregate | marketplace_data | Воронка продаж Yandex Market | Показы, клики, корзины и заказы по товарам Yandex Market |
 | `a043_wb_finance_report` | Aggregate | marketplace_data | Финансовые отчёты WB (новый API) | Ежедневные отчёты реализации WB Finance API v1 без проекций |
 | `a034_ym_realization` | Aggregate | marketplace_data | Реализация YM (Отчёт о реализации) | Официальный отчёт о реализации Yandex Market, слой ybuh |
 | `a027_wb_documents` | Aggregate | marketplace_data | Документы Wildberries | Документы поставок и логистики Wildberries |
@@ -354,6 +355,7 @@
 | `a036_wb_sales_funnel_daily` | Воронка продаж WB | `a036_wb_sales_funnel_daily` | WbSalesFunnelDailyList |
 | `a037_wb_product_snapshot` | Данные по товарам WB | `a037_wb_product_snapshot` | WbProductSnapshotList |
 | `a040_wb_search_analytics_daily` | Поисковая аналитика WB | `a040_wb_search_analytics_daily` | WbSearchAnalyticsList |
+| `a041_ym_shows_sales_daily` | Воронка продаж Yandex Market | `a041_ym_shows_sales_daily` | YmShowsSalesDailyList |
 | `a033_wb_day_close` | Закрытие дня WB | `a033_wb_day_close` | WbDayCloseList |
 | `a027_wb_documents` | Документы WB | `a027_wb_documents` | WbDocumentsList |
 | `a043_wb_finance_report` | Финансовые отчёты WB (новый API) | `a043_wb_finance_report` | WbFinanceReportsList |
@@ -479,7 +481,7 @@
 | `sys_thaw_test` | Тест Thaw UI |  | ThawTestPage |
 | `sys_style_guide` | Гид по стилям |  | StyleGuidePage |
 
-## API routes (447)
+## API routes (450)
 
 ### `/a004`
 - `GET` /api/a004/nomenclature
@@ -759,6 +761,10 @@
 - `GET` /api/a040/wb-search-analytics/:id
 - `GET` /api/a040/wb-search-analytics/list
 
+### `/a041`
+- `GET` /api/a041/ym-shows-sales/:id
+- `GET` /api/a041/ym-shows-sales/list
+
 ### `/a042-agent-task`
 - `GET` /api/a042-agent-task
 - `GET DELETE` /api/a042-agent-task/:id
@@ -862,6 +868,7 @@
 - `GET` /api/ext/v1/wb-supplies
 - `GET` /api/ext/v1/wb-supplies/:id
 - `GET` /api/ext/v1/ym-payment-report
+- `GET` /api/ext/v1/ym-sales-funnel
 
 ### `/general-ledger`
 - `GET` /api/general-ledger

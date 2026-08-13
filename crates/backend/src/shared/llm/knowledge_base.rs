@@ -549,13 +549,6 @@ const EMBEDDED_LLM_DOCS: &[EmbeddedKnowledgeSource] = &[
 
 // ─── Реализация ──────────────────────────────────────────────────────────────
 
-/// Откуда пришёл документ. Нужно, чтобы embedded-док не затирал бизнес-статью.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Origin {
-    File,
-    Embedded,
-}
-
 impl KnowledgeBase {
     /// Загрузить словарь и все `*.md` файлы из директории `dir`, затем embedded-доки.
     pub fn load(dir: &Path) -> Self {
@@ -594,7 +587,7 @@ impl KnowledgeBase {
                             None => path.display().to_string(),
                         });
                         doc.age_days = compute_age_days(&doc, Some(&path));
-                        insert_doc(&mut docs, doc, Origin::File, &mut diagnostics);
+                        insert_doc(&mut docs, doc, &mut diagnostics);
                         loaded += 1;
                     }
                     Err(e) => {
@@ -1380,18 +1373,17 @@ pub fn canonical_anchor(reference: &str) -> Option<String> {
 /// Вставить документ, разрешив коллизию id.
 ///
 /// Техдокументация раскладывается файлами в `app/` и грузится общим обходом,
-/// поэтому в норме коллизий уже нет. Ветка `Origin::Embedded` остаётся защитой:
+/// поэтому в норме коллизий уже нет. Проверка `DocKind::App` остаётся защитой:
 /// док, пришедший поверх бизнес-статьи, переезжает на `app__<id>`, а не затирает
 /// её молча.
 fn insert_doc(
     docs: &mut HashMap<String, KnowledgeDoc>,
     mut doc: KnowledgeDoc,
-    origin: Origin,
     diagnostics: &mut Vec<String>,
 ) {
     if let Some(existing) = docs.get(&doc.id) {
-        match origin {
-            Origin::Embedded if !existing.is_embedded() => {
+        match doc.kind {
+            DocKind::App if !existing.is_embedded() => {
                 let renamed = format!("app__{}", doc.id);
                 diagnostics.push(format!(
                     "коллизия id '{}': встроенный документ перенесён в '{}', бизнес-статья сохранена",
@@ -1407,7 +1399,7 @@ fn insert_doc(
             _ => {
                 diagnostics.push(format!(
                     "коллизия id '{}': документ перезаписан ({:?})",
-                    doc.id, origin
+                    doc.id, doc.kind
                 ));
             }
         }
@@ -1696,7 +1688,7 @@ author: llm
 
         let mut business = parse_doc("general-ledger".into(), SAMPLE, &Vocabulary::default());
         business.kind = DocKind::Business;
-        insert_doc(&mut docs, business, Origin::File, &mut diagnostics);
+        insert_doc(&mut docs, business, &mut diagnostics);
 
         let mut embedded = parse_doc(
             "general-ledger".into(),
@@ -1704,7 +1696,7 @@ author: llm
             &Vocabulary::default(),
         );
         embedded.kind = DocKind::App;
-        insert_doc(&mut docs, embedded, Origin::Embedded, &mut diagnostics);
+        insert_doc(&mut docs, embedded, &mut diagnostics);
 
         assert_eq!(docs["general-ledger"].title, "Акции Wildberries");
         assert!(docs.contains_key("app__general-ledger"));

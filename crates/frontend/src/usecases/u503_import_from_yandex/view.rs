@@ -56,6 +56,14 @@ fn clear_row_storage(row_id: &str) {
     }
 }
 
+/// Завершённая сессия больше не опрашивается, но её итоговый snapshot должен
+/// остаться после перезагрузки страницы, особенно если импорт завершился ошибкой.
+fn clear_row_session(row_id: &str) {
+    if let Some(s) = storage() {
+        let _ = s.remove_item(&row_session_key(row_id));
+    }
+}
+
 fn is_finished(progress: &ImportProgress) -> bool {
     matches!(
         progress.status,
@@ -122,7 +130,7 @@ fn ServiceRow(
                             let finished = is_finished(&prog);
                             set_progress.set(Some(prog));
                             if finished {
-                                clear_row_storage(row_id);
+                                clear_row_session(row_id);
                                 set_session_id.set(None);
                                 break;
                             }
@@ -154,6 +162,7 @@ fn ServiceRow(
         set_is_starting.set(true);
         set_error_msg.set(String::new());
         set_progress.set(None);
+        clear_row_storage(row_id);
 
         let date_from_text = date_from.get();
         let date_to_text = date_to.get();
@@ -319,10 +328,20 @@ fn ServiceRow(
             </div>
 
             {move || {
-                let err = error_msg.get();
+                let mut messages = Vec::new();
+                let request_error = error_msg.get();
+                if !request_error.is_empty() {
+                    messages.push(request_error);
+                }
+                if let Some(snapshot) = progress.get() {
+                    messages.extend(snapshot.errors.into_iter().map(|error| error.message));
+                }
+                messages.sort();
+                messages.dedup();
+                let err = messages.join("\n");
                 if !err.is_empty() {
                     view! {
-                        <div style="margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-md); border-left: 3px solid var(--color-error); background: var(--color-error-50); font-size: var(--font-size-sm);">
+                        <div style="white-space: pre-wrap; margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-md); border-left: 3px solid var(--color-error); background: var(--color-error-50); font-size: var(--font-size-sm);">
                             {err}
                         </div>
                     }.into_any()
@@ -456,6 +475,14 @@ pub fn ImportWidget() -> impl IntoView {
                         title="Отчёт о реализации (слой ybuh)"
                         description="a034_ym_realization"
                         aggregate="a034_ym_realization"
+                        needs_period=true
+                        selected_connection=selected_connection
+                    />
+                    <ServiceRow
+                        row_id="a041"
+                        title="Воронка продаж (Аналитика продаж)"
+                        description="Показы, клики, корзины и заказы по товарам"
+                        aggregate="a041_ym_shows_sales_daily"
                         needs_period=true
                         selected_connection=selected_connection
                     />

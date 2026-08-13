@@ -56,8 +56,7 @@ rquickjs-serde = "0.6"
 sqlparser = { version = "0.62", features = ["visitor"] }
 # Mail integration (LLM send/receive via reg.ru): SMTP send + IMAP fetch/parse.
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-native-tls", "builder", "hostname"] }
-imap = "2.4"
-native-tls = "0.2"
+imap = "3.0.0-alpha.15"
 mail-parser = "0.9"
 
 [dev-dependencies]

@@ -39,6 +39,7 @@ pub mod a037_wb_product_snapshot;
 pub mod a038_llm_connection;
 pub mod a039_mail_message;
 pub mod a040_wb_search_analytics_daily;
+pub mod a041_ym_shows_sales_daily;
 pub mod a042_agent_task;
 pub mod a043_wb_finance_report;
 
@@ -86,6 +87,8 @@ pub mod ext_1c_wb_supply;
 // External BI API (Power BI) — WB sales funnel a036
 pub mod ext_bi_wb_advert;
 pub mod ext_bi_wb_funnel;
+// External BI API (Power BI) — Yandex Market sales funnel a041
+pub mod ext_bi_ym_funnel;
 // External BI API (Power BI) — WB stock balances a037
 pub mod ext_bi_wb_stocks;
 // External BI API (Power BI) — WB finance report p903 (raw native rows)

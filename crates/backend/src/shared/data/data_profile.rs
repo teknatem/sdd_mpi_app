@@ -70,17 +70,18 @@ pub async fn refresh_all() -> anyhow::Result<usize> {
     for target in targets {
         let started = std::time::Instant::now();
 
-        let row_count = match scalar_count(db, &format!("SELECT COUNT(*) AS n FROM {}", target.table)).await {
-            Ok(count) => count,
-            Err(error) => {
-                tracing::debug!(
-                    "[data_profile] таблица '{}' пропущена: {}",
-                    target.table,
-                    error
-                );
-                continue;
-            }
-        };
+        let row_count =
+            match scalar_count(db, &format!("SELECT COUNT(*) AS n FROM {}", target.table)).await {
+                Ok(count) => count,
+                Err(error) => {
+                    tracing::debug!(
+                        "[data_profile] таблица '{}' пропущена: {}",
+                        target.table,
+                        error
+                    );
+                    continue;
+                }
+            };
 
         let (date_min, date_max) = match target.date_column {
             Some(column) if row_count > 0 => date_range(db, target.table, column).await,

@@ -9,7 +9,7 @@ use mail_parser::MessageParser;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-type ImapSession = imap::Session<native_tls::TlsStream<std::net::TcpStream>>;
+type ImapSession = imap::Session<imap::Connection>;
 
 /// Как долго держим простаивающую сессию в пуле, прежде чем переоткрыть.
 /// Короче типичного серверного idle-timeout, чтобы reuse почти всегда попадал в живое соединение.
@@ -29,22 +29,15 @@ fn open_session() -> anyhow::Result<ImapSession> {
     let cfg = get_mail_config();
     cfg.validate_ready()?;
 
-    let tls = native_tls::TlsConnector::builder()
-        .build()
-        .map_err(|e| anyhow::anyhow!("TLS setup failed: {e}"))?;
-
-    let client = imap::connect(
-        (cfg.imap_host.as_str(), cfg.imap_port),
-        &cfg.imap_host,
-        &tls,
-    )
-    .map_err(|e| {
-        anyhow::anyhow!(
-            "IMAP connect to {}:{} failed: {e}",
-            cfg.imap_host,
-            cfg.imap_port
-        )
-    })?;
+    let client = imap::ClientBuilder::new(&cfg.imap_host, cfg.imap_port)
+        .connect()
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "IMAP connect to {}:{} failed: {e}",
+                cfg.imap_host,
+                cfg.imap_port
+            )
+        })?;
 
     let session = client
         .login(&cfg.username, &cfg.password)

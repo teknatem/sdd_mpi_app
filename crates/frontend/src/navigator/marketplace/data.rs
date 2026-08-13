@@ -292,6 +292,15 @@ const ADVERT_LINKS: &[NavLink] = &[
         entity_type: EntityType::Aggregate,
     },
     NavLink {
+        tab_key: "a041_ym_shows_sales_daily",
+        label: "Воронка продаж по дням",
+        annotation: "Показы, клики, корзины и заказы по товарам Yandex Market",
+        icon: "filter",
+        scope_id: Some("a041_ym_shows_sales_daily"),
+        marketplaces: LinkScope::Only(YM_ONLY),
+        entity_type: EntityType::Aggregate,
+    },
+    NavLink {
         tab_key: "p911_wb_advert_by_items",
         label: "Реклама в разрезе товаров",
         annotation: "Эффективность рекламы Wildberries по позициям",

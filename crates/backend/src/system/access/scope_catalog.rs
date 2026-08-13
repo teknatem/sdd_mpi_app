@@ -223,6 +223,16 @@ pub const SCOPE_CATALOG: &[ScopeDescriptor] = &[
         all_label: "Управление поисковой аналитикой WB",
     },
     ScopeDescriptor {
+        scope_id: "a041_ym_shows_sales_daily",
+        scope_type: ScopeType::Aggregate,
+        label: "Воронка продаж Yandex Market",
+        description: "Показы, клики, корзины и заказы по товарам Yandex Market",
+        icon: "filter",
+        category: "marketplace_data",
+        read_label: "Просмотр воронки продаж YM",
+        all_label: "Управление воронкой продаж YM",
+    },
+    ScopeDescriptor {
         scope_id: "a043_wb_finance_report",
         scope_type: ScopeType::Aggregate,
         label: "Финансовые отчёты WB (новый API)",

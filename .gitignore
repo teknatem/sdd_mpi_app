@@ -9,6 +9,8 @@ dist/
 
 # Release build artifacts
 deploy/
+/marketplace-deploy-*.zip
+/marketplace-deploy-*.zip.sha256
 
 # IDE
 .vscode/

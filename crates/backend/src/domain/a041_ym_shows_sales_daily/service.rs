@@ -18,6 +18,12 @@ pub async fn get_by_id(id: Uuid) -> Result<Option<YmShowsSalesDaily>> {
     repository::get_by_id(id).await
 }
 
+pub async fn list_paginated(
+    query: repository::YmShowsSalesListQuery,
+) -> Result<repository::YmShowsSalesListResult> {
+    repository::list_paginated(query).await
+}
+
 /// Проведение документа: пересобрать его движения воронки p916 (стадия marketing).
 pub async fn post_document(id: Uuid) -> Result<()> {
     repository::post_document(id).await

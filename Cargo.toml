@@ -61,5 +61,9 @@ opt-level = 3
 # Максимальная оптимизация ценой существенно более долгой сборки.
 [profile.release-max]
 inherits = "release"
+opt-level = 3
 codegen-units = 1
 lto = "fat"
+incremental = false
+panic = "abort"
+strip = "symbols"

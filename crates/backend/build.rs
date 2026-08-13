@@ -7,22 +7,24 @@ fn main() {
 
     // Get the output directory where the binary will be placed
     let out_dir = env::var("OUT_DIR").unwrap();
-    let profile = env::var("PROFILE").unwrap(); // "debug" or "release"
+    let cargo_profile = env::var("PROFILE").unwrap(); // Cargo reports only "debug" or "release"
 
     // Build identity for dataset snapshot manifests: the receiving instance must
     // be able to tell which build produced a snapshot. Absence of git must never
     // fail the build — release tarballs are built outside a repository.
-    println!("cargo:rustc-env=BUILD_PROFILE={}", profile);
-    println!("cargo:rustc-env=GIT_COMMIT={}", detect_git_commit());
-
-    // Construct path to target/debug or target/release
-    // OUT_DIR is typically: target/debug/build/backend-xxx/out
-    // We need to go to: target/debug or target/release
     let out_path = Path::new(&out_dir);
     let target_dir = out_path
-        .ancestors()
-        .find(|p| p.ends_with(&profile))
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
         .expect("Could not find target profile directory");
+    let profile = target_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&cargo_profile);
+
+    println!("cargo:rustc-env=BUILD_PROFILE={}", profile);
+    println!("cargo:rustc-env=GIT_COMMIT={}", detect_git_commit());
 
     // Source config.toml from workspace root
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
