@@ -95,12 +95,6 @@
 | `ds02` | mp sales register |
 | `ds03` | p904 sales |
 
-## Dashboards (d4XX)
-
-| Code | Name |
-|------|------|
-| `d400` | monthly summary |
-
 ## Scheduled tasks (task0XX)
 
 | Code | Name |
@@ -135,6 +129,19 @@
 | `task028` | llm golden set |
 | `task029` | agent task runner |
 | `task030` | wb finance reports |
+
+## Dashboards (d4XX)
+
+| Code | Name | Backend | Frontend |
+|------|------|---------|----------|
+| `d400` | monthly summary | + | + |
+| `d401` | wb finance |  | + |
+| `d402` | wb order flow |  | + |
+| `d403` | ym order flow |  | + |
+| `d404` | wb advert report |  | + |
+| `d405` | metadata dashboard |  | + |
+| `d406` | wb sales funnel |  | + |
+| `d407` | llm quality |  | + |
 
 ## DataView (dvXXX)
 

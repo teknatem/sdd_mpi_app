@@ -81,7 +81,7 @@
   position: relative;
   height: 8px;
   border-radius: 999px;
-  background: var(--color-bg-tertiary, var(--color-border));
+  background: var(--color-surface-alt, var(--color-border));
   overflow: hidden;
 }
 
@@ -403,7 +403,7 @@
 #sys_datasets--system .datasets__chip {
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  background: var(--color-bg-tertiary, var(--color-bg-secondary));
+  background: var(--color-surface-alt, var(--color-bg-secondary));
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }

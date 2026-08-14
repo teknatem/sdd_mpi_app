@@ -5,6 +5,8 @@ use super::{
     DomNode,
 };
 use crate::shared::icons::icon;
+use crate::shared::page_frame::PageFrame;
+use crate::shared::page_standard::PAGE_CAT_SYSTEM;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -19,15 +21,15 @@ enum InspectorTab {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 #[component]
-pub fn DomValidatorPage() -> impl IntoView {
+pub fn DomInspectorPage() -> impl IntoView {
+    // Снимок делается ДО открытия вкладки (layout/top_header) — иначе в дереве
+    // оказывается сам инспектор. Здесь только читаем то, что уже сохранено.
     let (tree, set_tree) = signal::<Option<DomNode>>(get_dom_snapshot());
     let (report, set_report) = signal::<Option<ValidationReport>>(None);
     let (active_tab, set_active_tab) = signal(InspectorTab::Tree);
 
-    Effect::new(move |_| {
-        set_tree.set(get_dom_snapshot());
-    });
-
+    // Пересъёмка на месте: build_dom_tree сам исключает вкладку инспектора,
+    // поэтому результат совпадает со снимком из хедера.
     let refresh = move |_| {
         if let Some(new_tree) = super::tree_builder::build_dom_tree() {
             super::set_dom_snapshot(&new_tree);
@@ -70,7 +72,7 @@ pub fn DomValidatorPage() -> impl IntoView {
     };
 
     view! {
-        <div class="page" id="dom_inspector--system" data-page-category="system">
+        <PageFrame page_id="dom_inspector--system" category=PAGE_CAT_SYSTEM>
             <div class="page__header">
                 <div class="page__header-left">
                     <h1 class="page__title">"DOM Inspector"</h1>
@@ -117,11 +119,11 @@ pub fn DomValidatorPage() -> impl IntoView {
                         let errs = r.error_count();
                         let warns = r.warning_count();
                         if errs > 0 {
-                            view! { <span class="dom-validator-badge dom-validator-badge--error">{errs}</span> }.into_any()
+                            view! { <span class="dom-inspector-badge dom-inspector-badge--error">{errs}</span> }.into_any()
                         } else if warns > 0 {
-                            view! { <span class="dom-validator-badge dom-validator-badge--warning">{warns}</span> }.into_any()
+                            view! { <span class="dom-inspector-badge dom-inspector-badge--warning">{warns}</span> }.into_any()
                         } else {
-                            view! { <span class="dom-validator-badge dom-validator-badge--ok">"✓"</span> }.into_any()
+                            view! { <span class="dom-inspector-badge dom-inspector-badge--ok">"✓"</span> }.into_any()
                         }
                     })}
                 </button>
@@ -130,11 +132,11 @@ pub fn DomValidatorPage() -> impl IntoView {
             <div class="page__content">
                 {move || match active_tab.get() {
                     InspectorTab::Tree => view! {
-                        <div class="dom-validator-content">
+                        <div class="dom-inspector-content">
                             {move || match tree.get() {
                                 Some(node) => view! { <TreeView node=node /> }.into_any(),
                                 None => view! {
-                                    <div class="dom-validator-placeholder">
+                                    <div class="dom-inspector-placeholder">
                                         <p>"Снимок DOM не найден. Нажмите «Обновить снимок»."</p>
                                     </div>
                                 }.into_any()
@@ -142,10 +144,10 @@ pub fn DomValidatorPage() -> impl IntoView {
                         </div>
                     }.into_any(),
                     InspectorTab::Validation => view! {
-                        <div class="dom-validator-content">
+                        <div class="dom-inspector-content">
                             {move || match report.get() {
                                 None => view! {
-                                    <div class="dom-validator-placeholder">
+                                    <div class="dom-inspector-placeholder">
                                         <p>"Нажмите «Проверить стандарт» для запуска проверки."</p>
                                     </div>
                                 }.into_any(),
@@ -155,7 +157,7 @@ pub fn DomValidatorPage() -> impl IntoView {
                     }.into_any(),
                 }}
             </div>
-        </div>
+        </PageFrame>
     }
 }
 
@@ -166,33 +168,33 @@ fn ValidationReportView(report: ValidationReport) -> impl IntoView {
     let errors = report.error_count();
     let warnings = report.warning_count();
     let summary_class = if errors > 0 {
-        "dom-validator-summary dom-validator-summary--error"
+        "dom-inspector-summary dom-inspector-summary--error"
     } else if warnings > 0 {
-        "dom-validator-summary dom-validator-summary--warning"
+        "dom-inspector-summary dom-inspector-summary--warning"
     } else {
-        "dom-validator-summary dom-validator-summary--ok"
+        "dom-inspector-summary dom-inspector-summary--ok"
     };
 
     view! {
-        <div class="dom-validator-report">
+        <div class="dom-inspector-report">
             // Summary row
             <div class=summary_class>
-                <span class="dom-validator-summary__stat">
+                <span class="dom-inspector-summary__stat">
                     {format!("Табов: {}", report.total_tabs)}
                 </span>
-                <span class="dom-validator-summary__stat dom-validator-summary__stat--ok">
+                <span class="dom-inspector-summary__stat dom-inspector-summary__stat--ok">
                     {format!("✓ OK: {}", report.ok_count)}
                 </span>
-                <span class="dom-validator-summary__stat dom-validator-summary__stat--legacy">
+                <span class="dom-inspector-summary__stat dom-inspector-summary__stat--legacy">
                     {format!("⏳ Legacy: {}", report.legacy_count)}
                 </span>
                 {(errors > 0).then(|| view! {
-                    <span class="dom-validator-summary__stat dom-validator-summary__stat--error">
+                    <span class="dom-inspector-summary__stat dom-inspector-summary__stat--error">
                         {format!("✗ Ошибки: {}", errors)}
                     </span>
                 })}
                 {(warnings > 0).then(|| view! {
-                    <span class="dom-validator-summary__stat dom-validator-summary__stat--warning">
+                    <span class="dom-inspector-summary__stat dom-inspector-summary__stat--warning">
                         {format!("⚠ Предупреждения: {}", warnings)}
                     </span>
                 })}
@@ -201,13 +203,13 @@ fn ValidationReportView(report: ValidationReport) -> impl IntoView {
             // Issue list
             {if report.issues.is_empty() {
                 view! {
-                    <div class="dom-validator-placeholder">
+                    <div class="dom-inspector-placeholder">
                         <p>"Все страницы соответствуют стандарту."</p>
                     </div>
                 }.into_any()
             } else {
                 view! {
-                    <table class="dom-validator-table">
+                    <table class="table__data dom-inspector-table">
                         <thead>
                             <tr>
                                 <th>"Уровень"</th>
@@ -218,18 +220,18 @@ fn ValidationReportView(report: ValidationReport) -> impl IntoView {
                         <tbody>
                             {report.issues.iter().map(|issue| {
                                 let (row_class, badge_class, label) = match issue.severity {
-                                    Severity::Error => ("dom-validator-row--error", "dom-validator-badge--error", "Ошибка"),
-                                    Severity::Warning => ("dom-validator-row--warning", "dom-validator-badge--warning", "Предупреждение"),
-                                    Severity::Info => ("dom-validator-row--info", "dom-validator-badge--info", "Инфо"),
+                                    Severity::Error => ("dom-inspector-row--error", "dom-inspector-badge--error", "Ошибка"),
+                                    Severity::Warning => ("dom-inspector-row--warning", "dom-inspector-badge--warning", "Предупреждение"),
+                                    Severity::Info => ("dom-inspector-row--info", "dom-inspector-badge--info", "Инфо"),
                                 };
                                 view! {
                                     <tr class=row_class>
                                         <td>
-                                            <span class=format!("dom-validator-badge {}", badge_class)>
+                                            <span class=format!("dom-inspector-badge {}", badge_class)>
                                                 {label}
                                             </span>
                                         </td>
-                                        <td class="dom-validator-tab-key">{issue.tab_key.clone()}</td>
+                                        <td class="dom-inspector-tab-key">{issue.tab_key.clone()}</td>
                                         <td>{issue.message.clone()}</td>
                                     </tr>
                                 }

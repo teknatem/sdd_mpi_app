@@ -189,36 +189,6 @@
   font-size: var(--font-size-sm);
 }
 
-.results-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 10px 0;
-}
-
-.results-table th,
-.results-table td {
-  border: 1px solid var(--color-border);
-  padding: 8px;
-  text-align: left;
-}
-
-.results-table thead tr {
-  background: var(--table-header-bg);
-}
-
-.results-table thead th {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--table-header-fg);
-}
-
-.results-table__id code {
-  font-size: 0.85em;
-}
-
 /* ============================================
    Details (compact screens inside modals/tabs)
    ============================================ */
@@ -856,6 +826,40 @@
   color: var(--color-text-primary);
 }
 
+/* Plain semantic markup inside .table__data gets the same skin without having to
+   tag every cell. Lets a page carry just `class="table__data <page>-table"` and
+   keep only what is genuinely different, instead of restating the whole skin.
+   Explicit .table__header-cell / .table__cell still win where they are used. */
+.table__data thead th {
+  padding: var(--spacing-sm) 12px;
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+  background: var(--table-header-bg);
+  color: var(--table-header-fg);
+  position: relative;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table__data tbody td {
+  padding: var(--spacing-sm) 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  vertical-align: middle;
+}
+
+.table__data tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table__data tbody tr:hover {
+  background: var(--table-row-hover);
+}
+
 .table__row {
   transition: background-color 0.1s ease;
 }
@@ -1176,7 +1180,7 @@ th.resizable {
   width: 1.1em;
   margin-right: 2px;
   color: var(--color-text-tertiary);
-  font-family: var(--font-family-monospace, monospace);
+  font-family: var(--font-family-mono, monospace);
   text-align: center;
   user-select: none;
 }
@@ -1458,7 +1462,7 @@ th.resizable {
   display: inline-block;
   padding: 2px 8px;
   border-radius: var(--radius-sm, 4px);
-  background: var(--color-bg-tertiary, rgba(128, 128, 128, 0.15));
+  background: var(--color-surface-alt, rgba(128, 128, 128, 0.15));
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs, 11px);
   font-family: var(--font-family-mono);
@@ -1564,7 +1568,7 @@ th.resizable {
 .indicator-detail__details-line {
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--color-bg-elevated, var(--color-bg-primary, #fff));
+  background: var(--color-surface, var(--color-bg-primary, #fff));
   border: 1px solid var(--color-border-light, rgba(128, 128, 128, 0.1));
   color: var(--color-text-primary);
   font-size: 13px;
@@ -1676,7 +1680,7 @@ th.resizable {
 }
 
 .indicator-detail__status--neutral {
-  background: var(--color-bg-tertiary, rgba(128, 128, 128, 0.12));
+  background: var(--color-surface-alt, rgba(128, 128, 128, 0.12));
   color: var(--color-text-secondary);
 }
 
@@ -1933,7 +1937,7 @@ th.resizable {
 
 .drilldown-drawer__footer {
   padding: 12px 0 4px;
-  border-top: 1px solid var(--color-border-subtle, rgba(128, 128, 128, 0.15));
+  border-top: 1px solid var(--color-border-light, rgba(128, 128, 128, 0.15));
   display: flex;
   justify-content: flex-end;
   position: sticky;
@@ -2465,7 +2469,7 @@ th.resizable {
   transform: translateX(-50%);
   min-width: 400px;
   max-width: 600px;
-  background: var(--windows-dropdown-bg, var(--color-surface));
+  background: var(--color-menu-surface, var(--color-surface));
   backdrop-filter: blur(12px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -2688,7 +2692,7 @@ th.resizable {
 
 /* JSON Syntax Highlighting */
 .json-key {
-  color: var(--color-brand-primary);
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -2697,7 +2701,7 @@ th.resizable {
 }
 
 .json-number {
-  color: var(--color-info);
+  color: var(--color-info-600);
 }
 
 .json-boolean {
@@ -3025,7 +3029,7 @@ th.resizable {
 .picker__item-code {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-family-mono, monospace);
 }
 
 .picker__actions {
@@ -3128,43 +3132,6 @@ body[data-theme-base="dark"] .picker__loading::before {
    Schema Browser & Schema Details Styles
    ============================================ */
 
-/* Schema Browser Table */
-.schema-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-base);
-}
-
-.schema-table thead {
-  background: var(--table-header-bg);
-  border-bottom: 2px solid var(--color-border);
-}
-
-.schema-table th {
-  padding: var(--spacing-md);
-  text-align: left;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--table-header-fg);
-}
-
-.schema-table tbody tr {
-  border-bottom: 1px solid var(--color-neutral-100);
-  transition: background-color var(--transition-fast);
-}
-
-.schema-table tbody tr:hover {
-  background-color: var(--color-neutral-50);
-}
-
-.schema-table td {
-  padding: var(--spacing-md);
-  color: var(--color-text-primary);
-}
-
 /* Schema name link */
 .schema-name-link {
   color: var(--color-primary);
@@ -3174,7 +3141,7 @@ body[data-theme-base="dark"] .picker__loading::before {
 }
 
 .schema-name-link:hover {
-  color: var(--color-primary-dark);
+  color: var(--color-primary-700);
   text-decoration: underline;
 }
 
@@ -3214,42 +3181,6 @@ body[data-theme-base="dark"] .picker__loading::before {
 /* Schema Details - Fields Tab */
 .schema-fields-tab h3 {
   margin-bottom: var(--spacing-md);
-  color: var(--color-text-primary);
-}
-
-.schema-fields-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-sm);
-  margin-top: var(--spacing-lg);
-}
-
-.schema-fields-table thead {
-  background: var(--table-header-bg);
-  border-bottom: 2px solid var(--color-border);
-}
-
-.schema-fields-table th {
-  padding: var(--spacing-sm) var(--spacing-md);
-  text-align: left;
-  font-family: var(--font-family-mono);
-  font-weight: var(--font-weight-semibold);
-  color: var(--table-header-fg);
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.schema-fields-table tbody tr {
-  border-bottom: 1px solid var(--color-neutral-100);
-}
-
-.schema-fields-table tbody tr:hover {
-  background-color: var(--color-neutral-50);
-}
-
-.schema-fields-table td {
-  padding: var(--spacing-sm) var(--spacing-md);
   color: var(--color-text-primary);
 }
 
@@ -3295,43 +3226,6 @@ body[data-theme-base="dark"] .picker__loading::before {
 /* Schema Details - Settings Tab */
 .schema-settings-tab h3 {
   margin-bottom: var(--spacing-md);
-  color: var(--color-text-primary);
-}
-
-.configs-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-base);
-  margin-top: var(--spacing-lg);
-}
-
-.configs-table thead {
-  background: var(--table-header-bg);
-  border-bottom: 2px solid var(--color-border);
-}
-
-.configs-table th {
-  padding: var(--spacing-md);
-  text-align: left;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--table-header-fg);
-}
-
-.configs-table tbody tr {
-  border-bottom: 1px solid var(--color-neutral-100);
-  transition: background-color var(--transition-fast);
-}
-
-.configs-table tbody tr:hover {
-  background-color: var(--color-neutral-50);
-}
-
-.configs-table td {
-  padding: var(--spacing-md);
   color: var(--color-text-primary);
 }
 
@@ -3431,25 +3325,9 @@ body[data-theme-base="dark"] .picker__loading::before {
 /* Dark theme adjustments
    (table headers are now driven by the themed --table-header-* tokens,
    so the per-table `thead` dark overrides were removed.) */
-body[data-theme-base="dark"] .schema-table tbody tr {
-  border-bottom-color: var(--color-neutral-700);
-}
-
-body[data-theme-base="dark"] .schema-table tbody tr:hover {
-  background-color: var(--color-neutral-800);
-}
-
-body[data-theme-base="dark"] .schema-fields-table tbody tr {
-  border-bottom-color: var(--color-neutral-700);
-}
-
-body[data-theme-base="dark"] .schema-fields-table tbody tr:hover {
-  background-color: var(--color-neutral-800);
-}
-
 body[data-theme-base="dark"] .field-flag--yes {
   background: var(--color-success-900);
-  color: var(--color-success-light);
+  color: var(--color-success-50);
 }
 
 body[data-theme-base="dark"] .field-flag--no {
@@ -3469,14 +3347,6 @@ body[data-theme-base="dark"] .sql-params li {
 body[data-theme-base="dark"] .empty-state {
   background: var(--color-neutral-800);
   border-color: var(--color-neutral-700);
-}
-
-body[data-theme-base="dark"] .configs-table tbody tr {
-  border-bottom-color: var(--color-neutral-700);
-}
-
-body[data-theme-base="dark"] .configs-table tbody tr:hover {
-  background-color: var(--color-neutral-800);
 }
 
 /* ============================================================================
@@ -3694,7 +3564,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   padding: 24px;
   background: var(--colorNeutralBackground1);
   border-radius: 8px;
-  box-shadow: var(--shadow-8);
+  box-shadow: var(--shadow-lg);
 }
 
 .loading-overlay--dashboard {
@@ -4260,31 +4130,6 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 
-/* Table info banner */
-.table-info {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  background: var(--color-background-alt);
-  border-radius: var(--radius-md);
-}
-
-.table-info__text {
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.table-info__warning {
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-warning-100);
-  color: var(--color-warning-800);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
-
 /* Table row variants */
 .table__row--cancelled {
   background-color: var(--color-error-50) !important;
@@ -4317,7 +4162,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   padding: var(--spacing-md);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
 }
 
 .bi-indicator-action__section--compact {
@@ -4336,7 +4181,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .bi-indicator-action__actions {
@@ -4421,7 +4266,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .bi-indicator-dataspec__formula-value {
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   line-height: 1.35;
 }
 
@@ -4439,7 +4284,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   color: var(--color-text-secondary);
   font-family: var(--font-family-mono);
   font-size: 12px;
@@ -4508,7 +4353,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .bi-indicator-filter-list__label {
-  color: var(--color-text);
+  color: var(--color-text-primary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -4549,7 +4394,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   font-size: 20px;
   font-weight: 700;
   font-family: var(--font-family-mono);
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .bi-indicator-test-result__value--good {
@@ -4694,7 +4539,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .bi-viewspec__hint code {
   font-family: var(--font-family-mono);
   font-size: 11px;
-  background: var(--color-bg-tertiary, rgba(0,0,0,.05));
+  background: var(--color-surface-alt, rgba(0,0,0,.05));
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -4746,19 +4591,19 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .bi-style-option:hover {
   border-color: var(--color-primary, #3b82f6);
-  background: var(--color-bg, #fff);
+  background: var(--color-bg-primary, #fff);
 }
 
 .bi-style-option--selected {
   border-color: var(--color-primary, #3b82f6);
-  background: color-mix(in srgb, var(--color-primary, #3b82f6) 8%, var(--color-bg, #fff));
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 8%, var(--color-bg-primary, #fff));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #3b82f6) 15%, transparent);
 }
 
 .bi-style-option__label {
   font-size: 13px;
   font-weight: 700;
-  color: var(--color-text, #1e293b);
+  color: var(--color-text-primary, #1e293b);
   margin-bottom: 4px;
 }
 
@@ -4785,7 +4630,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 8px;
   background: var(--color-bg-secondary, #f8fafc);
-  color: var(--color-text, #1e293b);
+  color: var(--color-text-primary, #1e293b);
   resize: vertical;
   overflow: auto;
   white-space: pre;
@@ -4843,7 +4688,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .bi-llm-panel__toggle:hover {
-  color: var(--color-brand);
+  color: var(--color-primary);
 }
 
 .bi-llm-panel__toggle-label {
@@ -4867,7 +4712,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .bi-llm-panel__title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   margin-bottom: var(--spacing-xs);
 }
 
@@ -4925,7 +4770,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .bi-llm-panel__history-prompt {
   font-size: 12px;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   line-height: 1.4;
 }
 
@@ -5442,7 +5287,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   gap: 6px;
   cursor: pointer;
   font-size: var(--font-size-sm);
-  color: var(--color-text);
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
@@ -5484,7 +5329,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   padding: 2px 10px;
   border-radius: 12px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   color: var(--color-text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -5495,7 +5340,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .schema-chip:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
-  background: var(--color-primary-10, rgba(99,102,241,.08));
+  background: var(--color-primary-50, rgba(99,102,241,.08));
 }
 
 .schema-chip--active {
@@ -5512,7 +5357,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   padding: 4px 12px;
   border-radius: 16px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   color: var(--color-text-secondary);
   font-size: 13px;
   cursor: pointer;
@@ -5524,7 +5369,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .dsc-dim-toggle:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
-  background: var(--color-primary-10, rgba(99,102,241,.08));
+  background: var(--color-primary-50, rgba(99,102,241,.08));
 }
 
 .dsc-dim-toggle--active {
@@ -5534,7 +5379,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .dsc-dim-toggle--active:hover {
-  background: var(--color-primary-hover, color-mix(in srgb, var(--color-primary) 85%, #000));
+  background: var(--color-primary-700, color-mix(in srgb, var(--color-primary) 85%, #000));
 }
 
 /* ── Preview param mapping table ─────────────────────────────────────────── */
@@ -5544,25 +5389,16 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   justify-content: center;
 }
 
+/* Скин наследуется от .table__data. Своё — только ограничение ширины и более
+   плотные ячейки: таблица параметров показывает много коротких значений. */
 .param-table {
-  width: 100%;
   max-width: 800px;
-  border-collapse: collapse;
-  font-size: 13px;
+  margin: 0;
 }
 
-.param-table thead th {
+.param-table thead th,
+.param-table tbody td {
   padding: 6px 10px;
-  text-align: left;
-  font-family: var(--font-family-mono);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--table-header-fg);
-  background: var(--table-header-bg);
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
 }
 
 .param-table__col-vis    { width: 32px; text-align: center; }
@@ -5575,7 +5411,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .param-table__cell {
   padding: 5px 10px;
-  border-bottom: 1px solid var(--color-border-subtle, rgba(128,128,128,.12));
+  border-bottom: 1px solid var(--color-border-light, rgba(128,128,128,.12));
   vertical-align: middle;
 }
 
@@ -5647,7 +5483,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   height: 28px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   color: var(--color-primary);
   font-size: 14px;
   cursor: pointer;
@@ -5715,7 +5551,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .dv-card__name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .dv-card__description {
@@ -5746,7 +5582,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .dv-status-banner--empty {
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
 }
@@ -5790,7 +5626,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -5800,18 +5636,18 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .dv-picker-card:hover {
   border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface-2));
+  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface-alt));
 }
 
 .dv-picker-card--active {
   border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-2));
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-alt));
 }
 
 .dv-picker-card__name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   line-height: 1.3;
 }
 
@@ -5885,7 +5721,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .dv-drawer__footer {
   padding: 12px 0 4px;
-  border-top: 1px solid var(--color-border-subtle, rgba(128,128,128,.15));
+  border-top: 1px solid var(--color-border-light, rgba(128,128,128,.15));
   display: flex;
   gap: 8px;
   position: sticky;
@@ -5916,7 +5752,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .filter-reg__row--header {
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -5925,7 +5761,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .filter-reg__row:not(.filter-reg__row--header):hover {
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
 }
 
 .filter-reg__col {
@@ -5948,7 +5784,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   font-family: var(--font-family-mono);
   font-size: 12px;
   color: var(--color-accent);
-  background: var(--color-surface-3, rgba(0,0,0,.04));
+  background: var(--color-surface-alt, rgba(0,0,0,.04));
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -6079,7 +5915,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .mp-ms__state--error {
-  color: var(--color-danger, #e53e3e);
+  color: var(--color-error, #e53e3e);
 }
 
 .mp-ms__badges {
@@ -6170,7 +6006,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .mp-picker__clear-btn:hover {
   background: var(--color-hover-bg);
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .mp-picker__loading,
@@ -6181,7 +6017,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .mp-picker__error {
-  color: var(--color-danger, #e53e3e);
+  color: var(--color-error, #e53e3e);
 }
 
 .mp-picker__list {
@@ -6373,7 +6209,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   justify-content: center;
   width: 22px;
   height: 22px;
-  background: color-mix(in srgb, var(--color-surface-2) 82%, transparent);
+  background: color-mix(in srgb, var(--color-surface-alt) 82%, transparent);
   color: var(--color-text-secondary);
   cursor: pointer;
   opacity: 0.72;
@@ -6398,7 +6234,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .card-animated__nav-trigger:hover {
   opacity: 1;
   color: var(--color-text-primary);
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
 }
 
 .card-animated__nav-backdrop {
@@ -6455,7 +6291,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .card-animated__nav-close:hover {
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   color: var(--color-text-primary);
 }
 
@@ -6507,7 +6343,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .card-animated__nav-copy:hover {
-  background: var(--color-surface-2);
+  background: var(--color-surface-alt);
   color: var(--color-text-primary);
 }
 
@@ -6680,7 +6516,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   border-left: 3px solid var(--color-border, var(--colorNeutralStroke2));
   border-radius: 6px;
   padding: 10px 12px;
-  background: var(--color-surface-1, var(--colorNeutralBackground2));
+  background: var(--color-surface, var(--colorNeutralBackground2));
 }
 
 .tool-call--ok {
@@ -6748,7 +6584,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-brand, var(--colorBrandForeground1));
+  color: var(--color-primary, var(--colorBrandForeground1));
   user-select: none;
 }
 
@@ -6758,7 +6594,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   padding: 8px;
   overflow: auto;
   border-radius: 4px;
-  background: var(--color-surface-2, var(--colorNeutralBackground3));
+  background: var(--color-surface-alt, var(--colorNeutralBackground3));
   color: var(--color-text-primary);
   font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
   white-space: pre-wrap;
@@ -6794,7 +6630,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .tool-call__io-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-brand, var(--colorBrandForeground1));
+  color: var(--color-primary, var(--colorBrandForeground1));
 }
 
 .tool-call__copy {
@@ -6811,7 +6647,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .tool-call__copy:hover {
-  background: var(--color-surface-2, var(--colorNeutralBackground3));
+  background: var(--color-surface-alt, var(--colorNeutralBackground3));
 }
 
 .tool-call__copy svg {
@@ -7049,7 +6885,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
   cursor: pointer;
   flex: 0 0 24px;
   margin-right: -4px;
@@ -7066,8 +6902,8 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .favorite-star-button:hover {
-  background: var(--top-header-btn-hover, var(--color-bg-tertiary, #f1f5f9));
-  color: var(--color-text-primary, var(--text-primary, #1f2937));
+  background: var(--top-header-btn-hover, var(--color-surface-alt, #f1f5f9));
+  color: var(--color-text-primary, var(--color-text-primary, #1f2937));
 }
 
 .favorite-star-button:disabled {
@@ -7076,7 +6912,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .favorite-modal {
-  color: var(--color-text-primary, var(--text-primary, #1f2937));
+  color: var(--color-text-primary, var(--color-text-primary, #1f2937));
   background: var(--modal-bg, var(--color-surface, #ffffff));
 }
 
@@ -7101,13 +6937,13 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
   cursor: pointer;
 }
 
 .favorite-modal__close:hover {
-  background: var(--top-header-btn-hover, var(--color-bg-tertiary, #f1f5f9));
-  color: var(--color-text-primary, var(--text-primary, #1f2937));
+  background: var(--top-header-btn-hover, var(--color-surface-alt, #f1f5f9));
+  color: var(--color-text-primary, var(--color-text-primary, #1f2937));
 }
 
 .favorite-modal__body {
@@ -7193,7 +7029,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 .favorite-modal__label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
 }
 
 .favorite-color-row {
@@ -7211,7 +7047,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .favorite-color--active {
-  border-color: var(--color-text-primary, var(--text-primary, #1f2937));
+  border-color: var(--color-text-primary, var(--color-text-primary, #1f2937));
   box-shadow: 0 0 0 2px var(--modal-bg, var(--color-surface, #ffffff));
 }
 
@@ -7220,21 +7056,21 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   resize: vertical;
   border: 1px solid var(--form-input-border, var(--modal-border, var(--color-border, #d4d4d8)));
   border-radius: var(--radius-sm);
-  background: var(--form-input-bg, var(--input-bg, #ffffff));
-  color: var(--color-text-primary, var(--text-primary, #1f2937));
+  background: var(--form-input-bg, var(--color-bg-secondary, #ffffff));
+  color: var(--color-text-primary, var(--color-text-primary, #1f2937));
   padding: 8px 10px;
   font: inherit;
 }
 
 .favorite-comment::placeholder {
-  color: var(--color-text-tertiary, var(--text-muted, #94a3b8));
+  color: var(--color-text-tertiary, var(--color-text-muted, #94a3b8));
 }
 
 .favorite-checkbox {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-text-primary, var(--text-primary, #1f2937));
+  color: var(--color-text-primary, var(--color-text-primary, #1f2937));
   font-size: 13px;
 }
 
@@ -7249,7 +7085,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .favorite-modal__empty,
 .favorite-modal__loading {
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -7329,7 +7165,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 }
 
 .favorite-list__main:hover {
-  background: var(--top-header-btn-hover, var(--color-bg-tertiary, #f1f5f9));
+  background: var(--top-header-btn-hover, var(--color-surface-alt, #f1f5f9));
 }
 
 .favorite-list__star {
@@ -7374,7 +7210,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
   font-size: 11px;
   line-height: 1.2;
   overflow: hidden;
@@ -7392,7 +7228,7 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
 
 .favorite-list__comment {
   display: block;
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
   font-size: 11px;
   line-height: 1.2;
   overflow: hidden;
@@ -7418,14 +7254,14 @@ body[data-theme-base="dark"] .configs-table tbody tr:hover {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-text-secondary, var(--text-muted, #64748b));
+  color: var(--color-text-secondary, var(--color-text-muted, #64748b));
   cursor: pointer;
   padding: 0;
 }
 
 .favorite-icon-button:hover {
-  background: var(--top-header-btn-hover, var(--color-bg-tertiary, #f1f5f9));
-  color: var(--color-text-primary, var(--text-primary, #1f2937));
+  background: var(--top-header-btn-hover, var(--color-surface-alt, #f1f5f9));
+  color: var(--color-text-primary, var(--color-text-primary, #1f2937));
 }
 
 .favorite-action-svg,

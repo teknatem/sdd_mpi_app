@@ -12,6 +12,5 @@ pub mod pagination_controls;
 pub mod popover;
 pub mod sql_viewer;
 pub mod table;
-pub mod table_checkbox;
 pub mod table_totals_row;
 pub mod ui;

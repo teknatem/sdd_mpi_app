@@ -297,7 +297,7 @@ pub fn PluginList() -> impl IntoView {
                     } else {
                         view! {
                             <div class="plugins-table-wrap">
-                                <table class="plugins-table">
+                                <table class="table__data plugins-table">
                                     <thead>
                                         <tr>
                                             <th>"Код"</th>
@@ -472,7 +472,7 @@ pub fn PluginList() -> impl IntoView {
                     } else {
                         view! {
                             <div class="plugins-table-wrap">
-                                <table class="plugins-table">
+                                <table class="table__data plugins-table">
                                     <thead>
                                         <tr>
                                             <th>"Код"</th>

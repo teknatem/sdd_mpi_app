@@ -362,34 +362,28 @@
   scrollbar-color: var(--list-scrollbar-thumb) var(--list-scrollbar-track);
 }
 
-.list-container .table-container {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  overflow: auto;
-}
+/* UI-051: вложенность .list-container > .table-container удалена (2026-08-14).
+   Составной селектор не мог сработать ни разу: `.list-container` есть ровно в
+   одном файле (a007_marketplace_product), и `.table-container` в нём нет.
+   Единственная обёртка прокрутки — `.table-wrapper` ниже. */
 
 /* Theme-aware scrollbar (Chromium/WebKit) */
-.list-container::-webkit-scrollbar,
-.list-container .table-container::-webkit-scrollbar {
+.list-container::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.list-container::-webkit-scrollbar-track,
-.list-container .table-container::-webkit-scrollbar-track {
+.list-container::-webkit-scrollbar-track {
   background: var(--list-scrollbar-track);
 }
 
-.list-container::-webkit-scrollbar-thumb,
-.list-container .table-container::-webkit-scrollbar-thumb {
+.list-container::-webkit-scrollbar-thumb {
   background: var(--list-scrollbar-thumb);
   border-radius: 10px;
   border: 2px solid var(--list-scrollbar-track);
 }
 
-.list-container::-webkit-scrollbar-thumb:hover,
-.list-container .table-container::-webkit-scrollbar-thumb:hover {
+.list-container::-webkit-scrollbar-thumb:hover {
   background: var(--list-scrollbar-thumb-hover);
 }
 
@@ -881,7 +875,7 @@
 }
 
 .p903-filter-note strong {
-  color: var(--color-text);
+  color: var(--color-text-primary);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -990,7 +984,7 @@
 }
 
 .gl-link-btn:hover {
-  color: var(--color-primary-hover, #0958d9);
+  color: var(--color-primary-700, #0958d9);
 }
 
 /* ── GL dimension chip colors (light theme defaults) ── */
@@ -1221,7 +1215,7 @@ span.gl-dim-chip:hover {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.2;
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .gl-drilldown__filters-subtitle {
@@ -1263,7 +1257,7 @@ span.gl-dim-chip:hover {
   display: block;
   font-size: 14px;
   line-height: 1.2;
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .gl-drilldown__filters-grid {
@@ -1290,7 +1284,7 @@ span.gl-dim-chip:hover {
   display: block;
   font-size: 13px;
   line-height: 1.2;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 
@@ -1550,9 +1544,9 @@ span.gl-dim-chip:hover {
 }
 
 .u505-match__message--error {
-  color: var(--color-danger, #b42318);
-  background: color-mix(in srgb, var(--color-danger, #b42318) 12%, var(--color-bg-primary) 88%);
-  border-color: color-mix(in srgb, var(--color-danger, #b42318) 24%, var(--color-border) 76%);
+  color: var(--color-error, #b42318);
+  background: color-mix(in srgb, var(--color-error, #b42318) 12%, var(--color-bg-primary) 88%);
+  border-color: color-mix(in srgb, var(--color-error, #b42318) 24%, var(--color-border) 76%);
 }
 
 .u505-match__progress-header {
@@ -1598,9 +1592,9 @@ span.gl-dim-chip:hover {
 }
 
 .u505-match__status--danger {
-  color: var(--color-danger, #b42318);
-  background: color-mix(in srgb, var(--color-danger, #b42318) 12%, var(--color-bg-primary) 88%);
-  border-color: color-mix(in srgb, var(--color-danger, #b42318) 24%, var(--color-border) 76%);
+  color: var(--color-error, #b42318);
+  background: color-mix(in srgb, var(--color-error, #b42318) 12%, var(--color-bg-primary) 88%);
+  border-color: color-mix(in srgb, var(--color-error, #b42318) 24%, var(--color-border) 76%);
 }
 
 .u505-match__progress-meta {
@@ -1666,8 +1660,8 @@ span.gl-dim-chip:hover {
 .u505-match__error-card {
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--color-danger, #b42318) 24%, var(--color-border) 76%);
-  background: color-mix(in srgb, var(--color-danger, #b42318) 10%, var(--color-bg-primary) 90%);
+  border: 1px solid color-mix(in srgb, var(--color-error, #b42318) 24%, var(--color-border) 76%);
+  background: color-mix(in srgb, var(--color-error, #b42318) 10%, var(--color-bg-primary) 90%);
 }
 
 .u505-match__error-title {

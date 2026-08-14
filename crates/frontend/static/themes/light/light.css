@@ -179,6 +179,14 @@
   --color-primary-700: #1e40af;
   --color-success-600: #16a34a;
   --color-success-700: #15803d;
+  --color-success-50: rgba(34, 197, 94, 0.08);
+  --color-success-100: rgba(34, 197, 94, 0.18);
+  --color-success-200: rgba(34, 197, 94, 0.30);
+  --color-success-500: #22c55e;
+  --color-success-900: rgba(34, 197, 94, 0.18);
+  --color-error-200: rgba(239, 68, 68, 0.30);
+  --color-btn-primary-text: #ffffff;
+  --header-noise-opacity: 0;
   --color-warning-50: #fffbeb;
   --color-warning-500: #f59e0b;
   --color-warning-600: #d97706;
@@ -227,4 +235,13 @@
 
   --sidebar-scrollbar-thumb: rgba(0, 0, 0, 0.2);
   --sidebar-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+
+  /* Дополняем шкалы до полного набора, как в dark/forest. Сейчас эти ступени
+     читаются только из веток body[data-theme-base="dark"], т.е. в светлой теме
+     не применяются — но шкала должна быть полной во всех темах (UI-023). */
+  --color-menu-surface: #ffffff;
+  --color-neutral-700: rgba(0, 0, 0, 0.16);
+  --color-neutral-800: rgba(0, 0, 0, 0.60);
+  --color-primary-800: rgba(37, 99, 235, 0.35);
+  --color-primary-900: rgba(37, 99, 235, 0.20);
 }

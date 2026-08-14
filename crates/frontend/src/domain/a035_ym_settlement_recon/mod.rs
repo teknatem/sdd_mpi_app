@@ -409,8 +409,8 @@ pub fn YmSettlementReconList() -> impl IntoView {
                                             {sort_header("Ордер", "bank_order_id", true)}
                                             {sort_header("Дата ордера", "bank_order_date", true)}
                                             <th class="table__header-cell">"Период операций"</th>
-                                            <th class="table__header-cell table__header-cell--right">"Дней"</th>
-                                            <th class="table__header-cell table__header-cell--right">"Записей"</th>
+                                            <th class="table__header-cell">"Дней"</th>
+                                            <th class="table__header-cell">"Записей"</th>
                                             <th class="table__header-cell">"Схема"</th>
                                             <th class="table__header-cell">"Проведён"</th>
                                             {sort_header("Кабинет", "connection_name", false)}
@@ -781,9 +781,9 @@ fn ReconResultView(doc: DetailsDto) -> impl IntoView {
                         <tr class="table__header-row">
                             <th class="table__header-cell">"Оборот"</th>
                             <th class="table__header-cell">"Код"</th>
-                            <th class="table__header-cell table__header-cell--right">"Строк"</th>
-                            <th class="table__header-cell table__header-cell--right">"Сумма"</th>
-                            <th class="table__header-cell table__header-cell--right">"Доля"</th>
+                            <th class="table__header-cell">"Строк"</th>
+                            <th class="table__header-cell">"Сумма"</th>
+                            <th class="table__header-cell">"Доля"</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -843,8 +843,8 @@ fn ReconResultView(doc: DetailsDto) -> impl IntoView {
                                     <th class="table__header-cell">"Заказ"</th>
                                     <th class="table__header-cell">"Статус"</th>
                                     <th class="table__header-cell">"Дата заказа"</th>
-                                    <th class="table__header-cell table__header-cell--right">"Строк"</th>
-                                    <th class="table__header-cell table__header-cell--right">"Сумма перечисления"</th>
+                                    <th class="table__header-cell">"Строк"</th>
+                                    <th class="table__header-cell">"Сумма перечисления"</th>
                                 </tr>
                             </thead>
                             <tbody>

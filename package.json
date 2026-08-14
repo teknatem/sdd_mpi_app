@@ -8,8 +8,7 @@
   "devDependencies": {
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.28.1",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17"
+    "postcss": "^8.4.49"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",

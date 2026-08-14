@@ -1231,8 +1231,8 @@ fn RealizationLinesTable(
                         <th class="table__header-cell">"Товар (a007)"</th>
                         <th class="table__header-cell">"SKU"</th>
                         <th class="table__header-cell">"Наименование"</th>
-                        <th class="table__header-cell table__header-cell--right">"Кол-во"</th>
-                        <th class="table__header-cell table__header-cell--right">{amount_header}</th>
+                        <th class="table__header-cell">"Кол-во"</th>
+                        <th class="table__header-cell">{amount_header}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1295,10 +1295,10 @@ fn PaymentsReport(
                                 <th class="table__header-cell">"Товар (a007)"</th>
                                 <th class="table__header-cell">"Номенклатура"</th>
                                 <th class="table__header-cell">"Дата оплаты"</th>
-                                <th class="table__header-cell table__header-cell--right">"Сумма возврат"</th>
-                                <th class="table__header-cell table__header-cell--right">"Сумма выручка"</th>
-                                <th class="table__header-cell table__header-cell--right">"Кол-во возврат"</th>
-                                <th class="table__header-cell table__header-cell--right">"Кол-во выручка"</th>
+                                <th class="table__header-cell">"Сумма возврат"</th>
+                                <th class="table__header-cell">"Сумма выручка"</th>
+                                <th class="table__header-cell">"Кол-во возврат"</th>
+                                <th class="table__header-cell">"Кол-во выручка"</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1369,12 +1369,12 @@ fn ReconReport(
                                 <th class="table__header-cell">"SKU"</th>
                                 <th class="table__header-cell">"Дата доставки"</th>
                                 <th class="table__header-cell">{status_label}</th>
-                                <th class="table__header-cell table__header-cell--right">"Сумма реализ."</th>
-                                <th class="table__header-cell table__header-cell--right">{format!("Сумма {}", cmp_label)}</th>
-                                <th class="table__header-cell table__header-cell--right">"Δ сумма"</th>
-                                <th class="table__header-cell table__header-cell--right">"Кол-во реализ."</th>
-                                <th class="table__header-cell table__header-cell--right">{format!("Кол-во {}", cmp_label)}</th>
-                                <th class="table__header-cell table__header-cell--right">"Δ кол-во"</th>
+                                <th class="table__header-cell">"Сумма реализ."</th>
+                                <th class="table__header-cell">{format!("Сумма {}", cmp_label)}</th>
+                                <th class="table__header-cell">"Δ сумма"</th>
+                                <th class="table__header-cell">"Кол-во реализ."</th>
+                                <th class="table__header-cell">{format!("Кол-во {}", cmp_label)}</th>
+                                <th class="table__header-cell">"Δ кол-во"</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1549,9 +1549,9 @@ fn DeliveryOrdersReport(
                                 <th class="table__header-cell">"Товар (a007)"</th>
                                 <th class="table__header-cell">"SKU"</th>
                                 <th class="table__header-cell">"Наименование"</th>
-                                <th class="table__header-cell table__header-cell--right">"Кол-во"</th>
-                                <th class="table__header-cell table__header-cell--right">"Цена покупателя"</th>
-                                <th class="table__header-cell table__header-cell--right">"Сумма"</th>
+                                <th class="table__header-cell">"Кол-во"</th>
+                                <th class="table__header-cell">"Цена покупателя"</th>
+                                <th class="table__header-cell">"Сумма"</th>
                             </tr>
                         </thead>
                         <tbody>

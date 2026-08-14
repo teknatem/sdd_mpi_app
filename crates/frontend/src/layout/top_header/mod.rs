@@ -96,11 +96,13 @@ pub fn TopHeader() -> impl IntoView {
                 <button
                     class="app-header__icon-button"
                     on:click=move |_| {
-                        // Захватываем DOM ДО открытия вкладки
-                        if let Some(tree) = crate::shared::dom_validator::tree_builder::build_dom_tree() {
-                            crate::shared::dom_validator::set_dom_snapshot(&tree);
-                            ctx.open_tab("dom_inspector", "DOM Inspector");
+                        // Снимок делается ДО открытия вкладки: иначе в дереве окажется
+                        // сам инспектор. Съёмка — best-effort, вкладка открывается в
+                        // любом случае (иначе кнопка молча не срабатывала бы).
+                        if let Some(tree) = crate::shared::dom_inspector::tree_builder::build_dom_tree() {
+                            crate::shared::dom_inspector::set_dom_snapshot(&tree);
                         }
+                        ctx.open_tab("dom_inspector", "DOM Inspector");
                     }
                     title="DOM Inspector"
                 >

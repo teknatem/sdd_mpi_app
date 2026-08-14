@@ -3,12 +3,23 @@ use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, Node};
 
+/// Tab key of the inspector itself — its own tab is skipped so the tree shows
+/// the page under inspection, not the inspector. Without this the snapshot taken
+/// from the header (before the tab opens) and the one taken by "Обновить снимок"
+/// (with the tab open) would disagree.
+const SELF_TAB_KEY: &str = "dom_inspector";
+
 pub fn build_dom_tree() -> Option<DomNode> {
     let window = web_sys::window()?;
     let document = window.document()?;
     let body = document.body()?;
 
     Some(build_node_tree(&body.into(), 0))
+}
+
+/// True for the `.app-tabs__item` wrapper belonging to the inspector tab.
+fn is_self_tab(element: &Element) -> bool {
+    element.get_attribute("data-tab-key").as_deref() == Some(SELF_TAB_KEY)
 }
 
 fn collect_text_from_node(node: &Node) -> String {
@@ -98,7 +109,7 @@ fn build_node_tree(element: &Element, depth: usize) -> DomNode {
             if let Some(child_element) = child_node.dyn_ref::<Element>() {
                 let child_tag = child_element.tag_name().to_lowercase();
 
-                if allowed_tags.contains(&child_tag.as_str()) {
+                if allowed_tags.contains(&child_tag.as_str()) && !is_self_tab(child_element) {
                     children.push(build_node_tree(child_element, depth + 1));
                 }
             }

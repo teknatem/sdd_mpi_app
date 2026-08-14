@@ -559,10 +559,10 @@ fn view_table(
                         <th class="table__header-cell" style="width: 28%;">"Вид оборота"</th>
                         <th class="table__header-cell table__header-cell--center" style="width: 10%;">"Корр.счёт"</th>
                         <th class="table__header-cell" style="width: 8%;">"Слой"</th>
-                        <th class="table__header-cell table__header-cell--right" style="width: 14%;">"Дт оборот"</th>
-                        <th class="table__header-cell table__header-cell--right" style="width: 14%;">"Кт оборот"</th>
-                        <th class="table__header-cell table__header-cell--right" style="width: 12%; font-weight: 700; background: rgba(99,102,241,0.06);">"Сальдо"</th>
-                        <th class="table__header-cell table__header-cell--right" style="width: 8%;">"Кол-во"</th>
+                        <th class="table__header-cell" style="width: 14%;">"Дт оборот"</th>
+                        <th class="table__header-cell" style="width: 14%;">"Кт оборот"</th>
+                        <th class="table__header-cell" style="width: 12%; font-weight: 700; background: rgba(99,102,241,0.06);">"Сальдо"</th>
+                        <th class="table__header-cell" style="width: 8%;">"Кол-во"</th>
                         <th class="table__header-cell table__header-cell--center" style="width: 6%;"></th>
                     </tr>
                 </thead>

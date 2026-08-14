@@ -283,12 +283,12 @@ pub fn YmRevenueReconciliationPage() -> impl IntoView {
                                             <th class="table__header-cell">"Кабинет"</th>
                                             <th class="table__header-cell">"Модель"</th>
                                             <th class="table__header-cell">"campaignId"</th>
-                                            <th class="table__header-cell table__header-cell--right" style="border-left:1px solid var(--color-border);">"fina"</th>
-                                            <th class="table__header-cell table__header-cell--right">"ybuh"</th>
-                                            <th class="table__header-cell table__header-cell--right">"Дельта"</th>
-                                            <th class="table__header-cell table__header-cell--right" style="border-left:1px solid var(--color-border);">"fina"</th>
-                                            <th class="table__header-cell table__header-cell--right">"ybuh"</th>
-                                            <th class="table__header-cell table__header-cell--right">"Дельта"</th>
+                                            <th class="table__header-cell" style="border-left:1px solid var(--color-border);">"fina"</th>
+                                            <th class="table__header-cell">"ybuh"</th>
+                                            <th class="table__header-cell">"Дельта"</th>
+                                            <th class="table__header-cell" style="border-left:1px solid var(--color-border);">"fina"</th>
+                                            <th class="table__header-cell">"ybuh"</th>
+                                            <th class="table__header-cell">"Дельта"</th>
                                         </tr>
                                         <tr class="table__totals-row">
                                             <td class="table__cell" colspan="4"><strong>"ИТОГО"</strong></td>

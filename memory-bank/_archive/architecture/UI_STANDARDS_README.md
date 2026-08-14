@@ -1,3 +1,8 @@
+> **АРХИВ (2026-08-14).** Документ устарел и выведен из состава стандартов.
+> Действующий норматив — `memory-bank/architecture/ui-standard.md`,
+> фактическое состояние — `UI_REGISTRY.md` в корне.
+> Оставлен для истории; на него нельзя ссылаться как на стандарт.
+
 # UI Standards - Итоги внедрения
 
 **Дата:** 2025-12-19  
@@ -14,7 +19,7 @@
 
 - **[table-standards.md](./table-standards.md)** - Стандарты для простых и сложных таблиц
 - **[detail-page-standard.md](./detail-page-standard.md)** ⭐ **v2 (актуальный)** - Detail-страницы: PageFrame + MVVM + detail-grid + CardAnimated
-- **[detail-form-standard.md](./detail-form-standard.md)** - ~~Стандарты для форм~~ (v1, устарел — заменён detail-page-standard.md)
+- ~~detail-form-standard.md~~ - v1, устарел и перенесён в `../_archive/architecture/`; актуальное — detail-page-standard.md
 - **[thaw-ui-standard.md](./thaw-ui-standard.md)** - Использование компонентов Thaw UI (Leptos 0.8)
 
 ### 2. Backend компоненты
@@ -314,7 +319,7 @@ view! {
 ## 🔗 Связанные документы
 
 - [Table Standards](./table-standards.md) - Полный стандарт таблиц
-- [Detail Form Standard](./detail-form-standard.md) - Стандарт форм
+- [Detail Page Standard](./detail-page-standard.md) - Стандарт detail-страниц
 - [List Standard](./list-standard.md) - Оригинальный стандарт списков
 - [Modal UI Standard](./modal-ui-standard.md) - Стандарт модальных окон
 - `E:\dev\bolt\bolt-mpi-ui-redesign\BEM_MIGRATION_MAP.md` - Референс BEM

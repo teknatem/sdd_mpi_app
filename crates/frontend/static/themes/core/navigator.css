@@ -40,7 +40,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+  border-bottom: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
 }
 
 .navigator__title {
@@ -62,9 +62,9 @@
   flex: 1;
   height: 30px;
   padding: 0 var(--spacing-sm) 0 30px;
-  border: 1px solid var(--color-border-input, rgba(0, 0, 0, 0.15));
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.15));
   border-radius: var(--radius-md);
-  background: var(--color-bg-input, var(--color-bg-primary));
+  background: var(--color-bg-secondary, var(--color-bg-primary));
   color: var(--color-text-primary);
   font-size: var(--font-size-base);
   transition: border-color var(--transition-fast),
@@ -122,7 +122,7 @@
 .navigator__view-switch {
   display: inline-flex;
   position: relative;
-  background: var(--color-bg-muted, rgba(0, 0, 0, 0.04));
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.04));
   border-radius: var(--radius-md);
   padding: 2px;
   gap: 2px;
@@ -195,8 +195,8 @@
   gap: 4px;
   padding: 10px 12px;
   /* border-radius: var(--navigator-radius); */
-  background: var(--color-bg-elevated, var(--color-bg-primary));
-  border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+  background: var(--color-surface, var(--color-bg-primary));
+  border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
   border-top: 4px solid var(--mp-color, var(--color-accent));
   box-shadow: var(--shadow-sm);
   transition: transform 220ms ease, box-shadow 220ms ease;
@@ -314,7 +314,7 @@
 }
 
 .navigator-mp__link:hover {
-  background: var(--color-bg-muted, rgba(0, 0, 0, 0.05));
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.05));
   color: var(--color-accent, #4a90e2);
   transform: translateX(2px);
 }
@@ -358,8 +358,8 @@
   gap: 5px;
   padding: 10px 12px;
   border-radius: var(--navigator-radius);
-  background: var(--color-bg-elevated, var(--color-bg-primary));
-  border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+  background: var(--color-surface, var(--color-bg-primary));
+  border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
   color: var(--color-text-primary);
   text-decoration: none;
   cursor: pointer;
@@ -486,8 +486,8 @@
 
 .navigator-mp__table-wrapper {
   border-radius: var(--navigator-radius);
-  border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
-  background: var(--color-bg-elevated, var(--color-bg-primary));
+  border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
+  background: var(--color-surface, var(--color-bg-primary));
   overflow: auto;
   box-shadow: var(--shadow-sm);
   animation: nav-fade-up 280ms ease both;
@@ -511,13 +511,13 @@
 .navigator-mp__table thead th {
   position: sticky;
   top: 0;
-  background: var(--color-bg-elevated, var(--color-bg-primary));
+  background: var(--color-surface, var(--color-bg-primary));
   text-align: left;
   padding: 7px 10px;
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary, var(--color-text-muted, #444));
-  border-bottom: 2px solid var(--color-border-subtle, rgba(0, 0, 0, 0.15));
+  border-bottom: 2px solid var(--color-border-light, rgba(0, 0, 0, 0.15));
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
   user-select: none;
   z-index: var(--z-sticky);
@@ -574,12 +574,12 @@
 }
 
 .navigator-mp__row:hover {
-  background: var(--color-bg-muted, rgba(0, 0, 0, 0.04));
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.04));
 }
 
 .navigator-mp__row td {
   padding: 5px 10px;
-  border-bottom: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.05));
+  border-bottom: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.05));
   vertical-align: middle;
 }
 

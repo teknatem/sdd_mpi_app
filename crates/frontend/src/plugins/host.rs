@@ -779,7 +779,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                                 view! { <div class="plugin-host__state">"Запусков пока нет."</div> }.into_any()
                             } else {
                                 view! {
-                                    <table class="plugin-host__table">
+                                    <table class="table__data plugin-host__table">
                                         <thead>
                                             <tr>
                                                 <th>"Время"</th>

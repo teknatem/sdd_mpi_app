@@ -1,4 +1,13 @@
-# Стандарты таблиц (Table Standards)
+# Таблицы: пояснительное приложение (Table Standards)
+
+> **Статус (2026-08-14): пояснительное приложение, не норматив.**
+> Нормативные правила по таблицам — **UI-050…UI-053** в
+> `ui-standard.md`. Этот документ ценен вторым разделом: разбор реактивных
+> антипаттернов Leptos («RefCell already borrowed», «Reactive value has already
+> been disposed», условный рендер таблицы, run-once init) — это реальное знание,
+> добытое отладкой.
+>
+> Части, помеченные «Поправка», исправляют утверждения, разошедшиеся с кодом.
 
 ## Обзор
 
@@ -199,18 +208,18 @@ Effect::new(move |_| {
     }
 });
 
-// Reinitialize crosshair when data changes (for server-side pagination)
-Effect::new(move |_| {
-    let _items_count = state.with(|s| s.items.len());
-    if state.with(|s| s.is_loaded) {
-        spawn_local(async move {
-            gloo_timers::future::TimeoutFuture::new(100).await;
-            use crate::shared::table_utils::reinit_crosshair_highlight;
-            reinit_crosshair_highlight(TABLE_ID);
-        });
-    }
-});
 ```
+
+> **Поправка (2026-08-14).** Здесь раньше был второй `Effect`, вызывающий
+> `crate::shared::table_utils::reinit_crosshair_highlight(TABLE_ID)`.
+> **Такой функции не существует и никогда не существовало** — в `table_utils.rs`
+> есть только функции ресайза колонок (`init_column_resize`,
+> `save_column_widths`, `restore_column_widths`, `auto_fit_column`,
+> `was_just_resizing`, `clear_resize_flag`).
+>
+> Переинициализация не нужна: `<TableCrosshairHighlight table_id=.../>` —
+> компонент, который сам вешает слушатели через свой `Effect` и переживает смену
+> данных. Достаточно один раз отрендерить его рядом с таблицей.
 
 **Почему это нужно:**
 
@@ -1089,7 +1098,7 @@ pub fn create_state() -> RwSignal<FeatureState> {
 - [ ] Чекбоксы в первой колонке (40px фиксированная ширина)
 - [ ] Серверная пагинация (offset/limit)
 - [ ] Фильтр-панель с collapse
-- [ ] Строка итогов от сервера в thead (через TableTotalsRow)
+- [ ] Строка итогов от сервера в thead (см. поправку про `TableTotalsRow` ниже)
 - [ ] Кнопки Post/Unpost для выбранных с счётчиком
 - [ ] Экспорт в Excel
 - [ ] Resize колонок с сохранением в localStorage
@@ -1124,9 +1133,24 @@ pub fn create_state() -> RwSignal<FeatureState> {
 
 ---
 
+## Поправка про итоги (2026-08-14)
+
+Примеры выше используют `<TableTotalsRow>`. **У компонента 0 применений в коде.**
+Фактически итоги рендерятся тремя разными способами:
+
+- `.filter-panel-totals` — блок над таблицей (так сделано в объявленном здесь
+  эталоне `a016_ym_returns/ui/list/mod.rs`);
+- сырой `<tr class="table__totals-row">` — 4 файла `general_ledger/`;
+- собственные классы страницы (`d406-row--total` и т.п.).
+
+Т.е. документ предписывает то, чего никто не делает. Решение о судьбе компонента
+(довести до применения или удалить) принимается вместе с решением про
+`<StandardTable>` — см. `ui-standard.md`, раздел «Общий компонент таблицы».
+
 ## См. также
 
-- [List Standard](./list-standard.md) - Детальный стандарт списков
-- [Detail Form Standard](./detail-form-standard.md) - Стандарт форм детальных записей
+- [UI Standard](./ui-standard.md) - **действующий норматив** (UI-050…UI-053)
+- `UI_REGISTRY.md` (корень репозитория) - фактический реестр классов и токенов
+- [Detail Page Standard](./detail-page-standard.md) - Стандарт detail-страниц
 - [Modal UI Standard](./modal-ui-standard.md) - Стандарт модальных окон
-- `E:\dev\bolt\bolt-mpi-ui-redesign\BEM_MIGRATION_MAP.md` - Референс BEM
+- [List Standard](../_archive/architecture/list-standard.md) - архив, не норматив

@@ -60,7 +60,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 8px);
     padding: 0 10px;
-    background: var(--color-bg-elevated, var(--color-bg));
+    background: var(--color-surface, var(--color-bg-primary));
     color: var(--color-text-primary);
 }
 .d407-page .d407-btn {
@@ -68,7 +68,7 @@
     padding: 0 16px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 8px);
-    background: var(--color-bg-elevated, var(--color-bg));
+    background: var(--color-surface, var(--color-bg-primary));
     color: var(--color-text-primary);
     cursor: pointer;
     font-size: 13px;
@@ -93,7 +93,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 8px);
     padding: 12px 14px;
-    background: var(--color-bg-elevated, var(--color-bg));
+    background: var(--color-surface, var(--color-bg-primary));
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -142,7 +142,7 @@
 .d407-page .d407-table th {
     font-weight: 600;
     color: var(--color-text-secondary);
-    background: var(--color-bg-subtle, transparent);
+    background: var(--color-bg-secondary, transparent);
     position: sticky;
     top: 0;
 }
@@ -156,10 +156,10 @@
     border-bottom: none;
 }
 .d407-page .d407-row--warn td {
-    background: var(--color-warning-bg, rgba(234, 179, 8, 0.08));
+    background: var(--color-warning-50, rgba(234, 179, 8, 0.08));
 }
 .d407-page .d407-row--bad td {
-    background: var(--color-danger-bg, rgba(239, 68, 68, 0.10));
+    background: var(--color-error-50, rgba(239, 68, 68, 0.10));
 }
 
 /* ---- chips ---- */
@@ -176,7 +176,7 @@
     border-radius: 999px;
     padding: 3px 10px;
     font-size: 12px;
-    background: var(--color-bg-elevated, var(--color-bg));
+    background: var(--color-surface, var(--color-bg-primary));
 }
 
 /* ---- verdict list ---- */
@@ -189,7 +189,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 8px);
     padding: 10px 12px;
-    background: var(--color-bg-elevated, var(--color-bg));
+    background: var(--color-surface, var(--color-bg-primary));
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -227,16 +227,16 @@
     border: 1px solid var(--color-border);
 }
 .d407-page .d407-badge--ok {
-    background: var(--color-success-bg, rgba(34, 197, 94, 0.12));
+    background: var(--color-success-50, rgba(34, 197, 94, 0.12));
     border-color: var(--color-success, #22c55e);
 }
 .d407-page .d407-badge--warn {
-    background: var(--color-warning-bg, rgba(234, 179, 8, 0.12));
+    background: var(--color-warning-50, rgba(234, 179, 8, 0.12));
     border-color: var(--color-warning, #eab308);
 }
 .d407-page .d407-badge--bad {
-    background: var(--color-danger-bg, rgba(239, 68, 68, 0.12));
-    border-color: var(--color-danger, #ef4444);
+    background: var(--color-error-50, rgba(239, 68, 68, 0.12));
+    border-color: var(--color-error, #ef4444);
 }
 
 /* ---- states ---- */
@@ -249,6 +249,6 @@
     border-radius: var(--radius-md, 8px);
 }
 .d407-page .d407-state--error {
-    color: var(--color-danger, #ef4444);
+    color: var(--color-error, #ef4444);
     border-style: solid;
 }

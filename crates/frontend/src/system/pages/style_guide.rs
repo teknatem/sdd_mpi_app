@@ -116,7 +116,7 @@ pub fn StyleGuidePage() -> impl IntoView {
                                     <tr>
                                         <th class="table__header-cell">"Код"</th>
                                         <th class="table__header-cell">"Документ"</th>
-                                        <th class="table__header-cell table__header-cell--right">"Сумма"</th>
+                                        <th class="table__header-cell">"Сумма"</th>
                                     </tr>
                                 </thead>
                                 <tbody>

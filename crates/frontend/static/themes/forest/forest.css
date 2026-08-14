@@ -198,6 +198,13 @@
   --color-primary-700: #2e7d32;
   --color-success-600: #43a047;
   --color-success-700: #2e7d32;
+  --color-success-50: rgba(76, 175, 80, 0.08);
+  --color-success-100: rgba(76, 175, 80, 0.18);
+  --color-success-200: rgba(76, 175, 80, 0.30);
+  --color-success-500: #4caf50;
+  --color-success-900: rgba(76, 175, 80, 0.18);
+  --color-error-200: rgba(244, 67, 54, 0.30);
+  --color-btn-primary-text: #ffffff;
   --color-warning-50: #ffecb3;
   --color-warning-500: #ffa726;
   --color-warning-600: #fb8c00;
@@ -251,4 +258,26 @@
 
   --sidebar-scrollbar-thumb: rgba(0, 0, 0, 0.2);
   --sidebar-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+
+  /* Forest объявлена base: Dark (shared/theme/registry.rs), поэтому к ней
+     применяются правила body[data-theme-base="dark"] в components.css.
+     Без этих токенов ломались .picker__item / .picker__row — фон и рамка
+     не применялись вовсе. */
+  --color-neutral-700: rgba(255, 255, 255, 0.16);
+  --color-neutral-800: rgba(30, 50, 34, 0.60);
+  --color-primary-800: rgba(67, 160, 71, 0.35);
+  --color-primary-900: rgba(67, 160, 71, 0.20);
+
+  /* Вкладки: тот же набор, что в dark/light, в зелёной гамме */
+  --tab-text: rgba(255, 255, 255, 0.90);
+  --tab-text-hover: rgba(255, 255, 255, 1);
+  --tab-text-active: rgba(255, 255, 255, 0.95);
+  --tab-border-active: #43a047;
+  --tab-bg: rgba(10, 66, 12, 0.15);
+  --tab-bg-hover: rgba(0, 0, 0, 0.5);
+  --tab-bg-active: rgba(67, 160, 71, 0.10);
+  --tab-close-bg: rgba(255, 255, 255, 0.20);
+  --tab-close-text: rgba(255, 255, 255, 0.70);
+  --tab-close-hover: #ff69b4;
+  --tab-close-active: #90ee90;
 }

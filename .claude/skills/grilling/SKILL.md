@@ -18,7 +18,7 @@ multiple questions at once is bewildering.
 If a *fact* can be found by exploring the environment (filesystem, tools, etc.), look it up rather
 than asking me. The *decisions*, though, are mine — put each one to me and wait for my answer.
 
-Разведку веди чтением: Grep, Read, Glob, `CLAUDE.md`, `ARCHITECTURE.md`, `.claude/memory/`.
+Разведку веди чтением: Grep, Read, Glob, `CLAUDE.md`, `ARCHITECTURE.md`, `CONTEXT.md`.
 **Не запускай сборки и тесты во время интервью** (`cargo check`, `cargo test`, `trunk`) — здесь это
 самая дорогая операция (минуты на крейт), а до кода дело ещё не дошло. Проверка компиляцией — после
 того, как договорились и что-то написали.

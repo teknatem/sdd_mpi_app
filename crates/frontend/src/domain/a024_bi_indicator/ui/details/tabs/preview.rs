@@ -84,7 +84,7 @@ pub fn PreviewTab(vm: BiIndicatorDetailsVm) -> impl IntoView {
                             "Слева задаются значения для рендера. Поля со стрелкой можно быстро заполнить данными из результата теста."
                         </p>
                         <div class="param-table-wrapper">
-                            <table class="param-table">
+                            <table class="table__data param-table">
                                 <thead>
                                     <tr>
                                         <th class="param-table__col-vis"></th>

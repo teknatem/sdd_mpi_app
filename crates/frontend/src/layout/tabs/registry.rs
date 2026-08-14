@@ -1410,8 +1410,8 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
             view! { <StyleGuidePage /> }.into_any()
         }
         "dom_inspector" => {
-            log!("✅ Creating DomValidatorPage");
-            view! { <crate::shared::dom_validator::page::DomValidatorPage /> }.into_any()
+            log!("✅ Creating DomInspectorPage");
+            view! { <crate::shared::dom_inspector::page::DomInspectorPage /> }.into_any()
         }
 
         // ═══════════════════════════════════════════════════════════════════

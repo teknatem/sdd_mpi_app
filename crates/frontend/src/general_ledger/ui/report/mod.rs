@@ -450,8 +450,8 @@ pub fn GeneralLedgerReportPage() -> impl IntoView {
                                     <th class="table__header-cell table__header-cell--center" style="width: 7%;">"Кт"</th>
                                     <th class="table__header-cell" style="width: 16%;">"Код оборота"</th>
                                     <th class="table__header-cell" style="width: 8%;">"Слой"</th>
-                                    <th class="table__header-cell table__header-cell--right" style="width: 14%;">"Оборот"</th>
-                                    <th class="table__header-cell table__header-cell--right" style="width: 10%;">"Количество"</th>
+                                    <th class="table__header-cell" style="width: 14%;">"Оборот"</th>
+                                    <th class="table__header-cell" style="width: 10%;">"Количество"</th>
                                     <th class="table__header-cell table__header-cell--center" style="width: 18%;">"Изм."</th>
                                 </tr>
                             </thead>

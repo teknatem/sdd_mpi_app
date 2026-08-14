@@ -39,9 +39,9 @@ model, not just consuming it.)
 
 ## Перед сессией: прочитай, что уже решено
 
-Проект держит приоритет источников: **код > `CONTEXT.md` > `.claude/memory/` > `memory-bank/` > `docs/`**.
+Проект держит приоритет источников: **код > `CONTEXT.md` > авто-память > `memory-bank/` > `docs/`**.
 До первого вопроса прочитай `CONTEXT.md` и таблицу именования в `CLAUDE.md`; при необходимости
-`ARCHITECTURE.md` (каталог объектов) и `.claude/memory/MEMORY.md` (бизнес-факты WB/YM/ГК).
+`ARCHITECTURE.md` (каталог объектов) и авто-память (бизнес-факты WB/YM/ГК).
 Не спрашивай то, что там зафиксировано.
 
 ## During the session

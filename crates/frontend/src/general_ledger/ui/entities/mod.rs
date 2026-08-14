@@ -79,7 +79,7 @@ pub fn GeneralLedgerEntitiesPage() -> impl IntoView {
                                         <th class="table__header-cell" style="width: 18%;">"Наименование"</th>
                                         <th class="table__header-cell" style="width: 14%;">"Вид"</th>
                                         <th class="table__header-cell">"Описание"</th>
-                                        <th class="table__header-cell table__header-cell--right" style="width: 12%;">"Проводок"</th>
+                                        <th class="table__header-cell" style="width: 12%;">"Проводок"</th>
                                     </tr>
                                 </thead>
                                 <tbody>

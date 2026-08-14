@@ -5,7 +5,7 @@
 **Статус:** ✅ Актуальный стандарт  
 **Эталоны:** `a015_wb_orders`, `a004_nomenclature`
 
-> Предыдущий стандарт: `detail-form-standard.md` (v1.0, 2025-12-19) — устарел, использует `.detail-form`, `.field-row` паттерны.  
+> Предыдущий стандарт: `../_archive/architecture/detail-form-standard.md` (v1.0, 2025-12-19) — устарел, в архиве, использует `.detail-form`, `.field-row` паттерны.  
 > v2.0 → v2.1 (2026-02-28): TabBar переведён с Thaw `Flex + Button` на нативные `div.page__tabs` + `button.page__tab`; удалён "особый случай" a004 (теперь полноценный эталон); добавлен `page__tab:disabled`.
 
 ---
@@ -511,8 +511,10 @@ HTML-элементы (`<div>`, `<span>` и т.д.) этой проблемы **
 
 ## Связанные документы
 
-- `memory-bank/architecture/detail-form-standard.md` — v1 (устарел, field-row паттерн)
-- `memory-bank/architecture/UI_STANDARDS_README.md` — обзор всех стандартов
+- `memory-bank/_archive/architecture/detail-form-standard.md` — v1 (устарел, field-row паттерн)
+- `memory-bank/architecture/ui-standard.md` — **норматив UI** (правила UI-0XX)
+- `UI_REGISTRY.md` (корень) — фактический реестр классов и токенов
+- `memory-bank/architecture/edit-details-mvvm-standard.md` — редактируемые формы
 - `memory-bank/architecture/modal-ui-standard.md` — стандарт модальных окон
 - `memory-bank/architecture/css-page-structure.md` — BEM DOM-иерархия, page__tabs
 - `crates/frontend/src/shared/components/card_animated.rs` — компонент

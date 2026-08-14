@@ -1,11 +1,36 @@
 #!/bin/sh
-# Auto-regenerate ARCHITECTURE.md when code that feeds it changes.
+# Auto-regenerate the generated maps when code that feeds them changes.
 # Versioned hook — enabled via:  git config core.hooksPath tools/hooks
-# Runs only if staged files touch the sources the generator reads, so most
-# commits pay no cost. Regenerated ARCHITECTURE.md is staged into the commit.
+# Runs only if staged files touch the sources a generator reads, so most
+# commits pay no cost. Regenerated maps are staged into the commit.
+#
+#   ARCHITECTURE.md  <- domain/projections/usecases/routes/frontend layout
+#   UI_REGISTRY.md   <- crates/frontend/static/**.css + frontend .rs class usage
+#
+# Never blocks a commit: a failing generator or an unregistered CSS block is a
+# warning, not a gate.
 
 staged=$(git diff --cached --name-only)
 
+# ---- UI style registry -------------------------------------------------------
+if echo "$staged" | grep -Eq 'crates/frontend/static/|tools/gen_ui_registry\.ps1'; then
+  echo "[pre-commit] Frontend styles changed — regenerating UI_REGISTRY.md..."
+  if powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/gen_ui_registry.ps1; then
+    git add UI_REGISTRY.md
+    # The allowlist gate is advisory. It only speaks once
+    # crates/frontend/static/ui-registry.allow.json exists.
+    unreg=$(grep -c 'unregistered' UI_REGISTRY.md 2>/dev/null || echo 0)
+    if [ "$unreg" -gt 0 ]; then
+      echo "[pre-commit] WARN: $unreg CSS block root(s) are not in ui-registry.allow.json." >&2
+      echo "[pre-commit]       See the 'Block roots' table in UI_REGISTRY.md." >&2
+      echo "[pre-commit]       Approve one by adding { \"block\": ..., \"reason\": ... } to the allowlist." >&2
+    fi
+  else
+    echo "[pre-commit] WARNING: UI registry generator failed; committing without refreshing it." >&2
+  fi
+fi
+
+# ---- Architecture map --------------------------------------------------------
 echo "$staged" | grep -Eq \
   'crates/contracts/src/domain/|crates/backend/src/domain/|crates/backend/src/projections/|crates/backend/src/usecases/|crates/backend/src/data_schemes/|crates/backend/src/data_view/|crates/backend/src/dashboards/|crates/backend/src/quality/checks/|crates/backend/src/system/tasks/managers/|crates/backend/src/system/access/scope_catalog\.rs|crates/backend/src/shared/analytics/(account|turnover)_registry\.rs|crates/backend/src/api/routes\.rs|crates/frontend/src/layout/(left/sidebar|tabs/)|tools/gen_architecture\.ps1' \
   || exit 0

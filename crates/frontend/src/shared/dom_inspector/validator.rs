@@ -78,10 +78,17 @@ pub fn validate_pages() -> ValidationReport {
         };
     };
 
-    // All app-tabs__item wrappers (one per open tab)
-    let tab_items = document
-        .query_selector_all(".app-tabs__item")
-        .unwrap_or_else(|_| document.query_selector_all("*").unwrap());
+    // All app-tabs__item wrappers (one per open tab).
+    // A failed selector means no tabs are mounted — return an empty report rather
+    // than falling back to "*", which would validate every element on the page.
+    let Ok(tab_items) = document.query_selector_all(".app-tabs__item") else {
+        return ValidationReport {
+            issues,
+            total_tabs,
+            ok_count,
+            legacy_count,
+        };
+    };
 
     for i in 0..tab_items.length() {
         let Some(node) = tab_items.get(i) else {
@@ -98,7 +105,7 @@ pub fn validate_pages() -> ValidationReport {
         total_tabs += 1;
 
         // Find the first child element — the page root
-        let page_root = first_element_child(tab_el);
+        let page_root = tab_el.first_element_child();
 
         match page_root {
             None => {
@@ -212,10 +219,6 @@ pub fn validate_pages() -> ValidationReport {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-fn first_element_child(el: &Element) -> Option<Element> {
-    el.first_element_child()
-}
 
 fn has_class_child(el: &Element, class: &str) -> bool {
     let children = el.children();

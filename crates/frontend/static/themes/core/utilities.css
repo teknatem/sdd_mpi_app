@@ -1,6 +1,7 @@
 /* ============================================
    Utility Classes
-   Minimal utilities - main customization via Tailwind
+   Minimal utilities. There is no Tailwind in this project - styling is
+   BEM classes over the tokens in themes/core/variables.css + themes/*/.
    ============================================ */
 
 /* ============================================
@@ -364,5 +365,5 @@
   inset: 0;
   background-size: 180px;
   background-repeat: repeat;
-  opacity: var(--noise-opacity);
+  opacity: var(--header-noise-opacity);
 }

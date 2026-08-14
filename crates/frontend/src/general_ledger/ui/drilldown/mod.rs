@@ -507,10 +507,10 @@ pub fn GlDrilldownPage(
                                 <thead>
                                     <tr class="table__header-row">
                                         <th class="table__header-cell">{group_label.clone()}</th>
-                                        <th class="table__header-cell table__header-cell--right">
+                                        <th class="table__header-cell">
                                             "Сумма"
                                         </th>
-                                        <th class="table__header-cell table__header-cell--right">
+                                        <th class="table__header-cell">
                                             "Кол-во"
                                         </th>
                                     </tr>

@@ -1,172 +1,80 @@
 # Leptos Marketplace
 
-Полнофункциональная десктопная система управления маркетплейсами с интеграцией 1С:Управление торговлей 11, Wildberries и Ozon.
+Десктопная система учёта и аналитики для торговли на маркетплейсах (Wildberries, Ozon,
+Яндекс Маркет) с синхронизацией из 1С:Управление торговлей 11. Rust: Axum + Leptos/WASM.
 
-## 🚀 Quick Start
+## Запуск для разработки
 
-### Требования
+Требуется Rust (stable, edition 2021) и Trunk (`cargo install trunk`).
 
-- **Rust** (stable, edition 2021)
-- **Trunk** (`cargo install trunk`)
-- **SQLite** (для прямого доступа к БД)
-- **Node.js + pnpm** (для некоторых dev tools)
-
-### Запуск для разработки
-
-Откройте два терминала:
-
-**Терминал 1 - Backend:**
-```powershell
-cargo run --bin backend
-```
-Backend запустится на `http://localhost:3000`
-
-**Терминал 2 - Frontend:**
-```powershell
-trunk serve --port 8080
-```
-Frontend будет доступен на `http://localhost:8080`
-
-### Production Build
+Два терминала из корня:
 
 ```powershell
-# Build frontend
-trunk build --release
-
-# Build backend
-cargo build --release --bin backend
-
-# Результат: dist/ (frontend) + target/release/backend.exe
+cargo run -p backend          # Axum API на http://localhost:3000
+trunk serve --port 8080       # фронт на http://localhost:8080 (проксирует API на :3000)
 ```
 
-## 📚 Документация
+Если `cargo run` падает с «Access is denied» — старый `backend.exe` ещё держит файл:
+`powershell -File tools/restart_backend.ps1`.
 
-### Для AI-ассистентов
-
-- **`.cursorrules`** - Быстрый справочник по проекту
-- **`memory-bank/`** - Полная база знаний для AI
-
-### Архитектура
-
-- **`memory-bank/projectbrief.md`** - Общее описание проекта
-- **`memory-bank/systemPatterns.md`** - Архитектурные паттерны
-- **`memory-bank/architecture/`** - Детальная документация архитектуры
-  - `domain-layer-architecture.md` - Domain layer rules
-  - `naming-conventions.md` - Система индексированного именования
-  - `project-structure.md` - Структура workspace
-
-### Разработка
-
-- **`memory-bank/techContext.md`** - Технологический стек и setup
-- **`memory-bank/code-standards/`** - Стандарты кодирования
-  - `code-quality-rules.md` - Правила качества кода
-  - `dev-commands.md` - Build команды
-
-### Фичи
-
-- **`memory-bank/features/`** - Документация по конкретным фичам
-  - `usecase-u501-import-from-ut.md` - Импорт из 1С
-  - `README_u501.md` - Quick start по u501
-  - `aggregate_picker_implementation.md` - Picker компоненты
-
-### Прогресс
-
-- **`memory-bank/progress.md`** - Что реализовано, что в планах
-- **`memory-bank/activeContext.md`** - Текущий фокус разработки
-
-## 🏗️ Архитектура
-
-### Структура workspace
-
-```
-leptos_marketplace_1/
-├── crates/
-│   ├── contracts/    # Shared DTOs & types
-│   ├── backend/      # Axum server
-│   └── frontend/     # Leptos WASM app
-├── memory-bank/      # Documentation
-├── marketplace.db    # SQLite database
-└── dist/            # Frontend build output
-```
-
-### Принципы
-
-- **DDD** (Domain-Driven Design)
-- **VSA** (Vertical Slice Architecture)
-- **Indexed naming**: a001-a499 (aggregates), u501-u999 (usecases), p901-p999 (projections)
-- **Shared contracts**: Type safety между frontend и backend
-
-## 🔑 Основные фичи
-
-### Aggregates (Domain entities)
-- **a001**: Подключения к 1С
-- **a002**: Организации
-- **a004**: Номенклатура
-- **a005**: Подключения Wildberries
-- **a006**: Подключения Ozon
-- **a014**: Транзакции Ozon
-- **a015**: Заказы Wildberries
-
-### UseCases (Operations)
-- **u501**: Импорт из 1С:УТ11
-- **u504**: Интеграция Wildberries
-- **u505**: Интеграция Ozon
-- **u506**: Интеграция LemanaPro
-
-### Projections (Analytics)
-- **p902**: Регистр продаж
-- **p904**: Аналитика продаж
-- **p905**: История комиссий WB
-
-## 🛠️ Development
-
-### Команды
+Проверка перед коммитом:
 
 ```powershell
-# Проверка кода
-cargo check
-
-# Форматирование
-cargo fmt
-
-# Linting
-cargo clippy
-
-# Тесты
-cargo test
+cargo check -p backend
+cargo check -p contracts
+cargo check -p frontend --target wasm32-unknown-unknown   # фронт собирается только под wasm
+cargo test -p backend router_builds                        # после правок роутов
 ```
 
-### База данных
-
-- **File**: `marketplace.db` (SQLite)
-- **Migrations**: `migrate_*.sql` файлы
-- **Tools**: sqlite3 CLI, DB Browser for SQLite
-
-### Применение миграции
+Release:
 
 ```powershell
-sqlite3 marketplace.db < migrate_xxx.sql
+trunk build --release                      # → dist/
+cargo build --release --bin backend        # → target/release/backend.exe
 ```
 
-## 📖 Дополнительная информация
+## Данные
 
-### Полезные ссылки
+Рабочая БД и база знаний живут **вне репозитория** — `F:/data/leptos_marketplace_1/`
+(корень задаётся ключом `[data].root` в `config.toml`, шаблон — `config.toml.example`).
+Файл БД — `<root>/db/app.db`.
 
-- [Leptos Book](https://book.leptos.dev/)
-- [Axum Documentation](https://docs.rs/axum/)
-- [Rust Book](https://doc.rust-lang.org/)
+Миграции — SQL-файлы `migrations/NNNN_имя.sql`, применяются **автоматически** при старте
+бэкенда с трекингом по checksum. Новая миграция = следующий свободный номер.
 
-### Внутренняя документация
+## Структура
 
-- `docs/` - Дополнительные гайды
-- `memory-bank/todo/` - Планируемые фичи
-- `.cursorrules` - Project intelligence для AI
+```
+crates/
+├── contracts/    # общие DTO, определения агрегатов, metadata.json
+├── backend/      # Axum, домен, БД, проекции, главная книга
+└── frontend/     # Leptos/WASM SPA
+```
 
-## 📝 License
+Принципы: DDD + VSA (вертикальные срезы), индексированное именование объектов
+(`a0XX` агрегаты, `p9XX` проекции, `u5XX` use-cases, `d4XX` дашборды), общие контракты
+между фронтом и бэком.
+
+## Документация
+
+Четыре точки входа, по убыванию частоты использования:
+
+| Файл | Что там |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | **Гид по проекту**: как собирать, схема именования, карты бэка и фронта, конвенции. Начинать здесь — и людям, и AI-ассистентам |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | **Каталог объектов**, генерируется из кода: все агрегаты, проекции, use-cases, задачи, план счетов, разделы UI, API-роуты. Ищи объект здесь, не грепая исходники |
+| [CONTEXT.md](CONTEXT.md) | **Глоссарий домена**: что значит «слой учёта», «репост», «кабинет», чем `dsXX` отличается от `dvXX` |
+| [memory-bank/](memory-bank/) | ADR, UI-стандарты, runbook'и, известные грабли — см. [индекс](memory-bank/README.md) |
+
+Плюс [docs/](docs/README.md) — гайды по отдельным фичам и планы.
+
+ARCHITECTURE.md регенерируется автоматически pre-commit хуком. После свежего клона включи
+хуки один раз:
+
+```powershell
+git config core.hooksPath tools/hooks
+```
+
+## Лицензия
 
 Proprietary. All rights reserved.
-
----
-
-**Для получения полной информации о проекте, архитектуре и паттернах, см. `memory-bank/` папку.**
-

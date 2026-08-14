@@ -1,6 +1,12 @@
 # EditDetails MVVM Standard
 
-Стандарт для редактируемых форм details в проекте Leptos Marketplace.
+Стандарт для **редактируемых** форм details в проекте Leptos Marketplace.
+
+> **Область действия.** Этот документ дополняет `detail-page-standard.md`
+> (просмотровые detail-страницы) частью про редактирование: ViewModel с
+> двусторонней привязкой, вложенные таблицы, lazy loading вкладок.
+> Общая структура страницы, TabBar и раскладка карточек берутся из
+> `detail-page-standard.md` и `ui-standard.md` — при расхождении правы они.
 
 ## Обзор
 
@@ -150,42 +156,14 @@ pub fn NomenclatureDetails(
 }
 ```
 
-## TabBar - переключатель вкладок (THAW)
+## TabBar - переключатель вкладок
 
-Используем `Flex` + `Button` для создания segmented control:
-
-```rust
-#[component]
-fn TabBar(vm: NomenclatureDetailsVm) -> impl IntoView {
-    let active_tab = vm.active_tab;
-    let is_edit_mode = vm.is_edit_mode();
-    let barcodes_count = vm.barcodes_count;
-
-    view! {
-        <Flex
-            gap=FlexGap::Small
-            style="margin-bottom: var(--spacing-md); padding: var(--spacing-sm); background: var(--color-bg-secondary); border-radius: var(--radius-lg); border: 1px solid var(--color-border);"
-        >
-            <Button
-                appearance=Signal::derive({
-                    let active_tab = active_tab;
-                    move || if active_tab.get() == "general" {
-                        ButtonAppearance::Primary
-                    } else {
-                        ButtonAppearance::Subtle
-                    }
-                })
-                size=ButtonSize::Small
-                on_click=move |_| vm.set_tab("general")
-            >
-                {icon("file-text")}
-                " Основная"
-            </Button>
-            // ... другие вкладки
-        </Flex>
-    }
-}
-```
+> **УСТАРЕЛО.** Раньше здесь предписывался Thaw `Flex` + `Button` с инлайн-стилем
+> на контейнере. Действующее правило — **UI-003**: TabBar это `div.page__tabs` +
+> нативные `button.page__tab`, расположенный **между** header и `page__content`.
+> Шаблон — `detail-page-standard.md`, правило — `ui-standard.md`.
+> Остальная часть этого документа (ViewModel, двусторонняя привязка к THAW-инпутам,
+> вложенные таблицы, lazy loading вкладок) актуальна.
 
 ## tabs/\*.rs - UI вкладок
 

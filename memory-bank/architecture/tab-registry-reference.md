@@ -167,7 +167,7 @@
 | `sys_task_details`      | ScheduledTaskDetails (новый) |
 | `sys_task_details_{id}` | ScheduledTaskDetails         |
 | `sys_thaw_test`         | ThawTestPage                 |
-| `dom_inspector`         | DomValidatorPage             |
+| `dom_inspector`         | DomInspectorPage             |
 
 
 ## Как добавить новый таб

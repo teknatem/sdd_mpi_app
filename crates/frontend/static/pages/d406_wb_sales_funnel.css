@@ -65,8 +65,8 @@
 .d406-page .d406-field input:focus,
 .d406-page .d406-field select:focus {
     outline: none;
-    border-color: var(--color-brand, #2563eb);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand, #2563eb) 18%, transparent);
+    border-color: var(--color-primary, #2563eb);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #2563eb) 18%, transparent);
 }
 .d406-page .d406-actions {
     display: flex;
@@ -90,20 +90,20 @@
     transition: background 0.12s, border-color 0.12s;
 }
 .d406-page .d406-btn:hover:not(:disabled) {
-    background: var(--colorNeutralBackground1Hover, color-mix(in srgb, var(--color-brand, #2563eb) 6%, var(--color-surface)));
-    border-color: var(--color-brand, #2563eb);
+    background: var(--colorNeutralBackground1Hover, color-mix(in srgb, var(--color-primary, #2563eb) 6%, var(--color-surface)));
+    border-color: var(--color-primary, #2563eb);
 }
 .d406-page .d406-btn:disabled {
     opacity: 0.55;
     cursor: default;
 }
 .d406-page .d406-btn--primary {
-    background: var(--color-brand, #2563eb);
-    border-color: var(--color-brand, #2563eb);
+    background: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
     color: #fff;
 }
 .d406-page .d406-btn--primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-brand, #2563eb) 88%, #000);
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 88%, #000);
 }
 
 /* ---- tabs (thaw TabList) ---- */
@@ -138,7 +138,7 @@
 }
 .d406-page .d406-table th:hover {
     color: var(--color-text-primary);
-    background: color-mix(in srgb, var(--color-brand, #2563eb) 8%, var(--color-bg-primary, #f4f5f7));
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 8%, var(--color-bg-primary, #f4f5f7));
 }
 /* Тёмная тема: непрозрачный фон заголовка/итога, иначе строки просвечивают сквозь sticky. */
 body[data-theme-base="dark"] .d406-page .d406-table th {
@@ -157,7 +157,7 @@ body[data-theme-base="dark"] .d406-page .d406-table th:hover {
 }
 .d406-page .d406-sort--active {
     opacity: 1;
-    color: var(--color-brand, #2563eb);
+    color: var(--color-primary, #2563eb);
 }
 .d406-page .d406-table td {
     border-bottom: 1px solid var(--color-border-light, var(--color-border));
@@ -167,7 +167,7 @@ body[data-theme-base="dark"] .d406-page .d406-table th:hover {
     background: color-mix(in srgb, var(--color-text-primary) 2.5%, transparent);
 }
 .d406-page .d406-table tbody tr:not(.d406-row--total):hover {
-    background: color-mix(in srgb, var(--color-brand, #2563eb) 7%, transparent);
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 7%, transparent);
 }
 .d406-page .d406-date {
     white-space: nowrap;
@@ -202,10 +202,10 @@ body[data-theme-base="dark"] .d406-page .d406-table th:hover {
     top: 39px;
     z-index: 1;
     border-bottom: 2px solid var(--color-border);
-    background: color-mix(in srgb, var(--color-brand, #2563eb) 10%, var(--color-bg-primary, #f4f5f7));
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 10%, var(--color-bg-primary, #f4f5f7));
 }
 body[data-theme-base="dark"] .d406-page .d406-row--total td {
-    background: color-mix(in srgb, var(--color-brand, #2563eb) 22%, #2b2b2b);
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 22%, #2b2b2b);
 }
 .d406-page .d406-state {
     padding: 22px;
@@ -330,7 +330,7 @@ body[data-theme-base="dark"] .d406-page .d406-row--total td {
     text-underline-offset: 3px;
 }
 .d406-page .d406-drill:hover {
-    background: var(--colorNeutralBackground1Hover, color-mix(in srgb, var(--color-brand, #2563eb) 10%, var(--color-surface)));
+    background: var(--colorNeutralBackground1Hover, color-mix(in srgb, var(--color-primary, #2563eb) 10%, var(--color-surface)));
 }
 .d406-modal-overlay {
     position: fixed;

@@ -8,7 +8,7 @@ pub mod code_format;
 pub mod components;
 pub mod data;
 pub mod date_utils;
-pub mod dom_validator;
+pub mod dom_inspector;
 pub mod drilldown_report;
 pub mod excel_importer;
 pub mod export;

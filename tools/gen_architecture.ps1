@@ -9,7 +9,8 @@
       - Use-cases u5XX     -> dir names crates/backend/src/usecases/
       - Data schemes dsXX  -> dir names crates/backend/src/data_schemes/
       - DataView dvXXX     -> dir names + //! header crates/backend/src/data_view/
-      - Dashboards d4XX    -> dir names crates/backend/src/dashboards/
+      - Dashboards d4XX    -> dir names, union of backend/ and frontend/ src/dashboards/
+                              (most dashboards are frontend-only)
       - Quality checks     -> file names + //! header crates/backend/src/quality/checks/
       - Tasks task0XX      -> file names crates/backend/src/system/tasks/managers/
       - Chart of accounts  -> ACCOUNT_REGISTRY (shared/analytics/account_registry.rs)
@@ -103,6 +104,40 @@ function Add-Catalog([string]$relDir, [string]$prefix, [string]$title, [bool]$fi
     W ''
 }
 
+# Dashboards live mostly in the FRONTEND (only d400 has a backend half), so a single
+# directory scan would miss most of them. Union both sides and show where each half is.
+function Add-DashboardCatalog([string]$title) {
+    $sides = @{
+        Backend  = Join-Path $root 'crates/backend/src/dashboards'
+        Frontend = Join-Path $root 'crates/frontend/src/dashboards'
+    }
+    $found = @{}   # code -> @{ Label; Backend; Frontend }
+    foreach ($side in $sides.Keys) {
+        if (-not (Test-Path $sides[$side])) { continue }
+        Get-ChildItem $sides[$side] -Directory |
+            Where-Object { $_.Name -match '^d\d' } |
+            ForEach-Object {
+                $sc = Split-Code $_.Name
+                if (-not $found.ContainsKey($sc.Code)) {
+                    $found[$sc.Code] = @{ Label = $sc.Label; Backend = ''; Frontend = '' }
+                }
+                # Frontend label wins: the UI half carries the name users actually see.
+                if ($side -eq 'Frontend') { $found[$sc.Code].Label = $sc.Label }
+                $found[$sc.Code][$side] = '+'
+            }
+    }
+    if ($found.Count -eq 0) { return }
+    W "## $title"
+    W ''
+    W '| Code | Name | Backend | Frontend |'
+    W '|------|------|---------|----------|'
+    foreach ($code in ($found.Keys | Sort-Object)) {
+        $e = $found[$code]
+        W "| $(Q $code) | $($e.Label) | $($e.Backend) | $($e.Frontend) |"
+    }
+    W ''
+}
+
 # Like Add-Catalog, but the name comes from the module's own '//!' headline.
 # Used for layers whose directory/file names carry no readable label.
 function Add-DocCatalog([string]$relDir, [string]$title, [bool]$filesNotDirs = $false, [string[]]$skip = @()) {
@@ -180,8 +215,8 @@ W ''
 Add-Catalog 'crates/backend/src/projections'           'p'    'Projections (p9XX)' $false $true
 Add-Catalog 'crates/backend/src/usecases'              'u'    'Use-cases (u5XX)'   $false $true
 Add-Catalog 'crates/backend/src/data_schemes'          'ds'   'Data schemes (dsXX)'
-Add-Catalog 'crates/backend/src/dashboards'            'd'    'Dashboards (d4XX)'
 Add-Catalog 'crates/backend/src/system/tasks/managers' 'task' 'Scheduled tasks (task0XX)' $true
+Add-DashboardCatalog 'Dashboards (d4XX)'
 
 # ----- Headline-based catalogs -----
 Add-DocCatalog 'crates/backend/src/data_view'     'DataView (dvXXX)'  $false @('filters', 'mod')

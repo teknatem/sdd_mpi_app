@@ -45,7 +45,7 @@
 
 .chat-workspace__plan-id {
     flex: 0 0 auto;
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-family-mono, monospace);
     font-size: 11px;
     color: var(--color-text-secondary);
 }
