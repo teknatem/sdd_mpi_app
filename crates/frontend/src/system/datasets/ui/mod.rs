@@ -216,9 +216,9 @@ fn DatasetsContent() -> impl IntoView {
 
     let tab_class = move |tab: ActiveTab| {
         if active_tab.get() == tab {
-            "datasets__tab datasets__tab--active"
+            "detail-tabs__item detail-tabs__item--active"
         } else {
-            "datasets__tab"
+            "detail-tabs__item"
         }
     };
 
@@ -262,7 +262,7 @@ fn DatasetsContent() -> impl IntoView {
                     <div class="alert alert--success">{msg}</div>
                 })}
 
-                <div class="datasets__tabs">
+                <div class="detail-tabs">
                     <button
                         class=move || tab_class(ActiveTab::Export)
                         on:click=move |_| active_tab.set(ActiveTab::Export)

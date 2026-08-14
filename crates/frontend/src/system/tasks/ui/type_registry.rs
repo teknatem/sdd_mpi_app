@@ -1,8 +1,17 @@
+//! Реестр типов регламентных заданий.
+//!
+//! Страница построена на общем шаблоне `spec-list` (см. themes/core/components.css):
+//! список именованных пунктов с коротким названием, техническим кодом, описанием,
+//! колонками-характеристиками и раскрываемыми подробностями.
+
 use crate::shared::icons::icon;
+use crate::shared::page_frame::PageFrame;
+use crate::shared::page_standard::PAGE_CAT_LIST;
 use crate::system::tasks::api;
 use contracts::system::tasks::metadata::{TaskConfigFieldTypeDto, TaskMetadataDto};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use std::collections::{HashMap, HashSet};
 
 // ============================================================================
 // Helpers
@@ -17,338 +26,171 @@ fn field_type_label(t: &TaskConfigFieldTypeDto) -> &'static str {
     }
 }
 
-fn field_type_badge_style(t: &TaskConfigFieldTypeDto) -> &'static str {
+fn field_type_badge_class(t: &TaskConfigFieldTypeDto) -> &'static str {
     match t {
-        TaskConfigFieldTypeDto::ConnectionMp => {
-            "display:inline-block;padding:1px 7px;border-radius:10px;\
-             background:var(--colorPaletteBlueBorder2,#0f6cbd22);\
-             color:var(--colorBrandForeground1);font-size:11px;font-weight:600;"
-        }
-        TaskConfigFieldTypeDto::Integer => {
-            "display:inline-block;padding:1px 7px;border-radius:10px;\
-             background:var(--colorPaletteGreenBackground2,#10750022);\
-             color:var(--colorPaletteGreenForeground1);font-size:11px;font-weight:600;"
-        }
-        TaskConfigFieldTypeDto::Text => {
-            "display:inline-block;padding:1px 7px;border-radius:10px;\
-             background:var(--colorNeutralBackground3);\
-             color:var(--color-text-secondary);font-size:11px;font-weight:600;"
-        }
-        TaskConfigFieldTypeDto::Date => {
-            "display:inline-block;padding:1px 7px;border-radius:10px;\
-             background:var(--colorPalettePurpleBackground2,#7b449b22);\
-             color:var(--colorPalettePurpleForeground2,#7b449b);font-size:11px;font-weight:600;"
-        }
+        TaskConfigFieldTypeDto::ConnectionMp => "badge badge--primary",
+        TaskConfigFieldTypeDto::Integer => "badge badge--success",
+        TaskConfigFieldTypeDto::Text => "badge badge--neutral",
+        TaskConfigFieldTypeDto::Date => "badge badge--accent",
     }
 }
 
+fn plural_types(n: usize) -> String {
+    let suffix = if n % 10 == 1 && n % 100 != 11 {
+        ""
+    } else if (2..=4).contains(&(n % 10)) && !(12..=14).contains(&(n % 100)) {
+        "а"
+    } else {
+        "ов"
+    };
+    format!("{n} тип{suffix} заданий зарегистрировано")
+}
+
+/// Текст, по которому идёт быстрый поиск. Описание попадает в него только в
+/// подробном режиме — ищем ровно по тому, что видно на экране.
+fn haystack(meta: &TaskMetadataDto, compact: bool) -> String {
+    let mut text = format!("{} {}", meta.display_name, meta.task_type);
+    if !compact {
+        text.push(' ');
+        text.push_str(&meta.description);
+    }
+    text.to_lowercase()
+}
+
 // ============================================================================
-// Card per task type
+// Раскрытые подробности типа задания
 // ============================================================================
 
 #[component]
-fn TaskTypeCard(meta: TaskMetadataDto) -> impl IntoView {
-    let (expanded, set_expanded) = signal(false);
-
-    let task_type = meta.task_type.clone();
-    let disp_name = meta.display_name.clone();
-    let description = meta.description.clone();
-    let apis = meta.external_apis.clone();
-    let constraints = meta.constraints.clone();
-    let write_tables = meta.write_tables.clone();
-    let fields = meta.config_fields.clone();
-
-    let has_apis = !apis.is_empty();
-    let has_constraints = !constraints.is_empty();
-    let has_write_tables = !write_tables.is_empty();
-    let has_fields = !fields.is_empty();
+fn TaskTypeDetails(meta: TaskMetadataDto) -> impl IntoView {
+    let has_write_tables = !meta.write_tables.is_empty();
+    let has_constraints = !meta.constraints.is_empty();
+    let has_apis = !meta.external_apis.is_empty();
+    let has_fields = !meta.config_fields.is_empty();
 
     view! {
-        <div style="border:1px solid var(--color-border);border-radius:var(--radius-md,8px);\
-                    background:var(--colorNeutralBackground1);overflow:hidden;">
-            // ---- header (always visible, clickable) ----
-            <div
-                style="display:flex;align-items:center;gap:12px;padding:14px 18px;\
-                       cursor:pointer;user-select:none;\
-                       border-bottom:1px solid transparent;\
-                       transition:background 0.15s;"
-                on:click=move |_| set_expanded.update(|v| *v = !*v)
-            >
-                <span style="display:flex;align-items:center;color:var(--color-text-secondary);
-                             transition:transform 0.2s;"
-                      style:transform=move || if expanded.get() { "rotate(90deg)" } else { "rotate(0deg)" }>
-                    {icon("chevron-right")}
-                </span>
-                <div style="flex:1;min-width:0;">
-                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                        <span style="font-weight:600;font-size:14px;color:var(--color-text);">
-                            {disp_name}
-                        </span>
-                        <code style="font-size:11px;padding:1px 8px;border-radius:10px;\
-                                     background:var(--colorNeutralBackground3);\
-                                     color:var(--color-text-secondary);font-family:monospace;">
-                            {task_type}
-                        </code>
-                    </div>
-                    <div style="font-size:12px;color:var(--color-text-secondary);margin-top:3px;\
-                                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        {description.clone()}
-                    </div>
-                </div>
-                // badges summary
-                <div style="display:flex;gap:6px;flex-shrink:0;">
-                    {if has_fields {
-                        let n = fields.len();
-                        view! {
-                            <span style="font-size:11px;padding:2px 8px;border-radius:10px;\
-                                         background:var(--colorNeutralBackground3);\
-                                         color:var(--color-text-secondary);">
-                                {format!("{} пар.", n)}
-                            </span>
-                        }.into_any()
-                    } else {
-                        view! { <></> }.into_any()
-                    }}
-                    {if has_apis {
-                        let n = apis.len();
-                        view! {
-                            <span style="font-size:11px;padding:2px 8px;border-radius:10px;\
-                                         background:var(--colorNeutralBackground3);\
-                                         color:var(--color-text-secondary);">
-                                {format!("{} API", n)}
-                            </span>
-                        }.into_any()
-                    } else {
-                        view! { <></> }.into_any()
-                    }}
-                </div>
+        <div class="task-type-registry__details">
+            <div>
+                <div class="task-type-registry__section-title">"Описание"</div>
+                <div class="task-type-registry__prose">{meta.description.clone()}</div>
             </div>
 
-            // ---- expanded body ----
-            {move || expanded.get().then(|| {
-                let description2   = description.clone();
-                let apis2          = apis.clone();
-                let constraints2   = constraints.clone();
-                let write_tables2  = write_tables.clone();
-                let fields2        = fields.clone();
-                let has_apis2      = has_apis;
-                let has_constraints2 = has_constraints;
-                let has_write_tables2 = has_write_tables;
-                let has_fields2    = has_fields;
-
-                view! {
-                    <div style="padding:18px;display:flex;flex-direction:column;gap:18px;\
-                                border-top:1px solid var(--color-border);\
-                                background:var(--colorNeutralBackground2);">
-
-                        // description
-                        <div>
-                            <div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);\
-                                        text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">
-                                "Описание"
-                            </div>
-                            <div style="font-size:13px;color:var(--color-text);line-height:1.6;">
-                                {description2}
-                            </div>
-                        </div>
-
-                        // write tables
-                        {if has_write_tables2 {
-                            let tables = write_tables2.clone();
-                            view! {
-                                <div>
-                                    <div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">
-                                        "Таблицы записи"
-                                    </div>
-                                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                        {tables.into_iter().map(|table| view! {
-                                            <code style="font-size:12px;padding:3px 8px;border-radius:6px;background:var(--colorNeutralBackground3);color:var(--color-text);">
-                                                {table}
-                                            </code>
-                                        }).collect_view()}
-                                    </div>
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! { <></> }.into_any()
-                        }}
-
-                        // constraints
-                        {if has_constraints2 {
-                            let cs = constraints2.clone();
-                            view! {
-                                <div>
-                                    <div style="font-size:12px;font-weight:600;\
-                                                color:var(--color-text-secondary);\
-                                                text-transform:uppercase;letter-spacing:0.06em;\
-                                                margin-bottom:6px;">
-                                        "Ограничения"
-                                    </div>
-                                    <ul style="margin:0;padding-left:18px;display:flex;\
-                                               flex-direction:column;gap:3px;">
-                                        {cs.into_iter().map(|c| view! {
-                                            <li style="font-size:13px;color:var(--color-text);">
-                                                {c}
-                                            </li>
-                                        }).collect_view()}
-                                    </ul>
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! { <></> }.into_any()
-                        }}
-
-                        // external APIs
-                        {if has_apis2 {
-                            let ap = apis2.clone();
-                            view! {
-                                <div>
-                                    <div style="font-size:12px;font-weight:600;\
-                                                color:var(--color-text-secondary);\
-                                                text-transform:uppercase;letter-spacing:0.06em;\
-                                                margin-bottom:8px;">
-                                        "Внешние API"
-                                    </div>
-                                    <div style="display:flex;flex-direction:column;gap:6px;">
-                                        {ap.into_iter().map(|a| view! {
-                                            <div style="background:var(--colorNeutralBackground1);\
-                                                        border:1px solid var(--color-border);\
-                                                        border-radius:var(--radius-sm,6px);\
-                                                        padding:10px 14px;\
-                                                        display:flex;align-items:flex-start;gap:12px;">
-                                                <div style="flex:1;">
-                                                    <div style="font-size:13px;font-weight:600;
-                                                                color:var(--color-text);">
-                                                        {a.name.clone()}
-                                                    </div>
-                                                    <code style="font-size:11px;\
-                                                                 color:var(--color-text-tertiary);">
-                                                        {a.base_url.clone()}
-                                                    </code>
-                                                </div>
-                                                {if !a.rate_limit_desc.is_empty() {
-                                                    view! {
-                                                        <span style="font-size:11px;padding:2px 8px;\
-                                                                     border-radius:10px;white-space:nowrap;\
-                                                                     background:var(--colorPaletteYellowBackground2,#fef3b422);\
-                                                                     color:var(--colorPaletteYellowForeground1,#835c00);\
-                                                                     border:1px solid var(--colorPaletteYellowBorder1,#c19c0088);">
-                                                            {icon("zap")} " " {a.rate_limit_desc.clone()}
-                                                        </span>
-                                                    }.into_any()
-                                                } else {
-                                                    view! { <></> }.into_any()
-                                                }}
-                                            </div>
-                                        }).collect_view()}
-                                    </div>
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! { <></> }.into_any()
-                        }}
-
-                        // config fields table
-                        {if has_fields2 {
-                            let flds = fields2.clone();
-                            view! {
-                                <div>
-                                    <div style="font-size:12px;font-weight:600;\
-                                                color:var(--color-text-secondary);\
-                                                text-transform:uppercase;letter-spacing:0.06em;\
-                                                margin-bottom:8px;">
-                                        "Параметры конфигурации"
-                                    </div>
-                                    <div style="overflow-x:auto;">
-                                        <table style="width:100%;border-collapse:collapse;\
-                                                      font-size:12px;">
-                                            <thead>
-                                                <tr style="background:var(--colorNeutralBackground3);\
-                                                           color:var(--color-text-secondary);\
-                                                           font-size:11px;text-transform:uppercase;\
-                                                           letter-spacing:0.05em;">
-                                                    <th style="text-align:left;padding:7px 12px;\
-                                                               white-space:nowrap;">"Ключ"</th>
-                                                    <th style="text-align:left;padding:7px 12px;">"Название"</th>
-                                                    <th style="text-align:left;padding:7px 12px;">"Тип"</th>
-                                                    <th style="text-align:center;padding:7px 12px;">"Обяз."</th>
-                                                    <th style="text-align:left;padding:7px 12px;">"По умолч."</th>
-                                                    <th style="text-align:left;padding:7px 12px;">"Диапазон"</th>
-                                                    <th style="text-align:left;padding:7px 12px;">"Подсказка"</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {flds.into_iter().enumerate().map(|(i, f)| {
-                                                    let bg = if i % 2 == 0 {
-                                                        "background:var(--colorNeutralBackground1);"
-                                                    } else {
-                                                        "background:var(--colorNeutralBackground2);"
-                                                    };
-                                                    let range = match (f.min_value, f.max_value) {
-                                                        (Some(mn), Some(mx)) => format!("{} – {}", mn, mx),
-                                                        (Some(mn), None) => format!("≥ {}", mn),
-                                                        (None, Some(mx)) => format!("≤ {}", mx),
-                                                        (None, None) => "—".to_string(),
-                                                    };
-                                                    let badge_style = field_type_badge_style(&f.field_type).to_string();
-                                                    let type_label  = field_type_label(&f.field_type).to_string();
-                                                    let default_str = f.default_value.clone()
-                                                        .map(|d| format!("`{}`", d))
-                                                        .unwrap_or_else(|| "—".to_string());
-                                                    let required_str = if f.required { "✓" } else { "" };
-                                                    view! {
-                                                        <tr style=bg>
-                                                            <td style="padding:7px 12px;white-space:nowrap;">
-                                                                <code style="font-family:monospace;\
-                                                                             font-size:11px;font-weight:600;\
-                                                                             color:var(--colorBrandForeground1);">
-                                                                    {f.key.clone()}
-                                                                </code>
-                                                            </td>
-                                                            <td style="padding:7px 12px;white-space:nowrap;">
-                                                                {f.label.clone()}
-                                                            </td>
-                                                            <td style="padding:7px 12px;white-space:nowrap;">
-                                                                <span style=badge_style>{type_label}</span>
-                                                            </td>
-                                                            <td style="padding:7px 12px;text-align:center;\
-                                                                       color:var(--colorPaletteGreenForeground1);\
-                                                                       font-weight:700;">
-                                                                {required_str}
-                                                            </td>
-                                                            <td style="padding:7px 12px;white-space:nowrap;\
-                                                                       font-family:monospace;font-size:11px;\
-                                                                       color:var(--color-text-secondary);">
-                                                                {default_str}
-                                                            </td>
-                                                            <td style="padding:7px 12px;white-space:nowrap;\
-                                                                       color:var(--color-text-secondary);">
-                                                                {range}
-                                                            </td>
-                                                            <td style="padding:7px 12px;\
-                                                                       color:var(--color-text-tertiary);\
-                                                                       font-size:11px;">
-                                                                {f.hint.clone()}
-                                                            </td>
-                                                        </tr>
-                                                    }
-                                                }).collect_view()}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! {
-                                <div style="font-size:12px;color:var(--color-text-tertiary);\
-                                            font-style:italic;">
-                                    "Параметры не определены — используется произвольный JSON."
-                                </div>
-                            }.into_any()
-                        }}
+            <Show when=move || has_write_tables>
+                <div>
+                    <div class="task-type-registry__section-title">"Таблицы записи"</div>
+                    <div class="task-type-registry__chips">
+                        {meta.write_tables.clone().into_iter()
+                            .map(|table| view! { <code class="spec-list__code">{table}</code> })
+                            .collect_view()}
                     </div>
-                }
-            })}
+                </div>
+            </Show>
+
+            <Show when=move || has_constraints>
+                <div>
+                    <div class="task-type-registry__section-title">"Ограничения"</div>
+                    <ul class="task-type-registry__constraints">
+                        {meta.constraints.clone().into_iter()
+                            .map(|item| view! { <li>{item}</li> })
+                            .collect_view()}
+                    </ul>
+                </div>
+            </Show>
+
+            <Show when=move || has_apis>
+                <div>
+                    <div class="task-type-registry__section-title">"Внешние API"</div>
+                    <div class="task-type-registry__apis">
+                        {meta.external_apis.clone().into_iter().map(|api| {
+                            let has_limit = !api.rate_limit_desc.is_empty();
+                            view! {
+                                <div class="task-type-registry__api">
+                                    <div class="task-type-registry__api-main">
+                                        <div class="spec-list__name">{api.name.clone()}</div>
+                                        <code class="task-type-registry__api-url">{api.base_url.clone()}</code>
+                                    </div>
+                                    <Show when=move || has_limit>
+                                        <span class="badge badge--warning">
+                                            {icon("zap")}
+                                            " "
+                                            {api.rate_limit_desc.clone()}
+                                        </span>
+                                    </Show>
+                                </div>
+                            }
+                        }).collect_view()}
+                    </div>
+                </div>
+            </Show>
+
+            <div>
+                <div class="task-type-registry__section-title">"Параметры конфигурации"</div>
+                {if has_fields {
+                    view! {
+                        <div class="table-wrapper">
+                            <table class="table__data table--striped">
+                                <thead class="table__head">
+                                    <tr>
+                                        <th class="table__header-cell">"Ключ"</th>
+                                        <th class="table__header-cell">"Название"</th>
+                                        <th class="table__header-cell">"Тип"</th>
+                                        <th class="table__header-cell">"Обяз."</th>
+                                        <th class="table__header-cell">"По умолч."</th>
+                                        <th class="table__header-cell">"Диапазон"</th>
+                                        <th class="table__header-cell">"Подсказка"</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {meta.config_fields.clone().into_iter().map(|field| {
+                                        let range = match (field.min_value, field.max_value) {
+                                            (Some(mn), Some(mx)) => format!("{mn} – {mx}"),
+                                            (Some(mn), None) => format!("≥ {mn}"),
+                                            (None, Some(mx)) => format!("≤ {mx}"),
+                                            (None, None) => "—".to_string(),
+                                        };
+                                        let default_str = field
+                                            .default_value
+                                            .clone()
+                                            .map(|value| format!("`{value}`"))
+                                            .unwrap_or_else(|| "—".to_string());
+                                        view! {
+                                            <tr class="table__row">
+                                                <td class="table__cell">
+                                                    <code class="spec-list__code">{field.key.clone()}</code>
+                                                </td>
+                                                <td class="table__cell">{field.label.clone()}</td>
+                                                <td class="table__cell">
+                                                    <span class=field_type_badge_class(&field.field_type)>
+                                                        {field_type_label(&field.field_type)}
+                                                    </span>
+                                                </td>
+                                                <td class="table__cell">
+                                                    {if field.required {
+                                                        view! {
+                                                            <span class="task-type-registry__required">"✓"</span>
+                                                        }.into_any()
+                                                    } else {
+                                                        view! { <span class="text-muted">"—"</span> }.into_any()
+                                                    }}
+                                                </td>
+                                                <td class="table__cell table__cell--muted">{default_str}</td>
+                                                <td class="table__cell table__cell--muted">{range}</td>
+                                                <td class="table__cell table__cell--muted">{field.hint.clone()}</td>
+                                            </tr>
+                                        }
+                                    }).collect_view()}
+                                </tbody>
+                            </table>
+                        </div>
+                    }.into_any()
+                } else {
+                    view! {
+                        <div class="task-type-registry__prose text-muted">
+                            "Параметры не определены — используется произвольный JSON."
+                        </div>
+                    }.into_any()
+                }}
+            </div>
         </div>
     }
 }
@@ -359,81 +201,227 @@ fn TaskTypeCard(meta: TaskMetadataDto) -> impl IntoView {
 
 #[component]
 pub fn TaskTypeRegistryPage() -> impl IntoView {
-    let (loading, set_loading) = signal(true);
-    let (error, set_error) = signal::<Option<String>>(None);
-    let (types, set_types) = signal::<Vec<TaskMetadataDto>>(vec![]);
+    let loading = RwSignal::new(true);
+    let error = RwSignal::new(None::<String>);
+    let types = RwSignal::new(Vec::<TaskMetadataDto>::new());
+    let auto_task_counts = RwSignal::new(HashMap::<String, usize>::new());
+
+    // Тулбар списка: краткий/подробный режим и быстрый поиск.
+    let compact = RwSignal::new(false);
+    let query = RwSignal::new(String::new());
+    let expanded = RwSignal::new(HashSet::<String>::new());
 
     Effect::new(move |_| {
         spawn_local(async move {
             match api::get_task_types().await {
                 Ok(list) => {
-                    set_types.set(list);
-                    set_loading.set(false);
+                    types.set(list);
                 }
                 Err(e) => {
-                    set_error.set(Some(e));
-                    set_loading.set(false);
+                    error.set(Some(e));
                 }
             }
+
+            match api::fetch_scheduled_tasks().await {
+                Ok(tasks) => {
+                    let mut counts = HashMap::new();
+                    for task in tasks.into_iter().filter(|task| task.is_enabled) {
+                        *counts.entry(task.task_type).or_insert(0) += 1;
+                    }
+                    auto_task_counts.set(counts);
+                }
+                Err(e) => {
+                    error.update(|current| {
+                        let message =
+                            format!("Не удалось загрузить задания для колонки «Авто»: {e}");
+                        *current = Some(match current.take() {
+                            Some(existing) => format!("{existing}; {message}"),
+                            None => message,
+                        });
+                    });
+                }
+            }
+
+            loading.set(false);
         });
     });
 
-    view! {
-        <div style="padding:24px;max-width:1100px;display:flex;flex-direction:column;gap:16px;">
+    let visible = move || -> Vec<TaskMetadataDto> {
+        let needle = query.get().trim().to_lowercase();
+        let is_compact = compact.get();
+        types
+            .get()
+            .into_iter()
+            .filter(|meta| needle.is_empty() || haystack(meta, is_compact).contains(&needle))
+            .collect()
+    };
 
-            // ---- header ----
-            <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
-                        margin-bottom:4px;">
-                <div>
-                    <h2 style="margin:0;font-size:18px;font-weight:700;color:var(--color-text);">
-                        "Реестр типов заданий"
-                    </h2>
-                    <p style="margin:4px 0 0;font-size:13px;color:var(--color-text-secondary);">
-                        "Все зарегистрированные обработчики регламентных заданий — параметры, "
-                        "внешние API и ограничения."
+    view! {
+        <PageFrame
+            page_id="sys_task_type_registry--list"
+            category=PAGE_CAT_LIST
+            class="task-type-registry"
+        >
+            <div class="page__header">
+                <div class="page__header-left">
+                    <h1 class="page__title">"Реестр типов заданий"</h1>
+                    <p class="page__subtitle">
+                        "Обработчики регламентных заданий: параметры, внешние API и ограничения."
                     </p>
+                </div>
+                <div class="page__header-right">
+                    <span class="badge badge--neutral">
+                        {move || plural_types(types.get().len())}
+                    </span>
                 </div>
             </div>
 
-            // ---- loading ----
-            {move || loading.get().then(|| view! {
-                <div style="display:flex;align-items:center;gap:8px;\
-                            color:var(--color-text-secondary);font-size:13px;">
-                    {icon("refresh-cw")} " Загрузка..."
-                </div>
-            })}
+            <div class="page__content">
+                <Show when=move || loading.get()>
+                    <div class="loading-state">{icon("refresh-cw")} " Загрузка..."</div>
+                </Show>
 
-            // ---- error ----
-            {move || error.get().map(|e| view! {
-                <div style="padding:12px 16px;border-radius:var(--radius-sm);\
-                            background:var(--colorPaletteRedBackground2);\
-                            color:var(--colorPaletteRedForeground2);font-size:13px;">
-                    {icon("alert-circle")} " " {e}
-                </div>
-            })}
+                {move || error.get().map(|err| view! {
+                    <div class="alert alert--error">{icon("alert-circle")} " " {err}</div>
+                })}
 
-            // ---- count badge ----
-            {move || {
-                let n = types.get().len();
-                if n > 0 {
-                    view! {
-                        <div style="font-size:12px;color:var(--color-text-tertiary);">
-                            {format!("{} тип{} заданий зарегистрировано",
-                                n,
-                                if n == 1 { "" } else if n < 5 { "а" } else { "ов" }
-                            )}
+                <div class="spec-list" class:spec-list--compact=move || compact.get()>
+                    <div class="spec-list__toolbar">
+                        <div class="spec-list__search">
+                            <span class="spec-list__search-icon">{icon("search")}</span>
+                            <input
+                                class="form__input"
+                                type="text"
+                                placeholder="Поиск по видимым текстам"
+                                prop:value=move || query.get()
+                                on:input=move |ev| query.set(event_target_value(&ev))
+                            />
+                            <Show when=move || !query.get().is_empty()>
+                                <button
+                                    class="spec-list__search-clear"
+                                    title="Очистить"
+                                    on:click=move |_| query.set(String::new())
+                                >
+                                    {icon("x")}
+                                </button>
+                            </Show>
                         </div>
-                    }.into_any()
-                } else {
-                    view! { <></> }.into_any()
-                }
-            }}
 
-            // ---- cards ----
-            {move || types.get().into_iter().map(|meta| {
-                view! { <TaskTypeCard meta=meta /> }
-            }).collect_view()}
+                        <div class="dpc-mode-tabs">
+                            <button
+                                class="dpc-mode-tab"
+                                class:dpc-mode-tab--active=move || compact.get()
+                                on:click=move |_| compact.set(true)
+                            >
+                                "Кратко"
+                            </button>
+                            <button
+                                class="dpc-mode-tab"
+                                class:dpc-mode-tab--active=move || !compact.get()
+                                on:click=move |_| compact.set(false)
+                            >
+                                "Подробно"
+                            </button>
+                        </div>
 
-        </div>
+                        <span class="spec-list__count">
+                            {move || format!("Показано {} из {}", visible().len(), types.get().len())}
+                        </span>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="table__data">
+                            <thead class="table__head">
+                                <tr>
+                                    <th class="table__header-cell">"Тип задания"</th>
+                                    <th class="table__header-cell">"Параметры"</th>
+                                    <th class="table__header-cell">"Внешние API"</th>
+                                    <th class="table__header-cell">"Авто"</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <For
+                                    each=visible
+                                    key=|meta| meta.task_type.clone()
+                                    children=move |meta| {
+                                        let task_type = meta.task_type.clone();
+                                        let key_for_toggle = task_type.clone();
+                                        let key_for_chevron = task_type.clone();
+                                        let key_for_body = task_type.clone();
+                                        let chevron_open = move || expanded.get().contains(&key_for_chevron);
+                                        let body_open = move || expanded.get().contains(&key_for_body);
+                                        let field_count = meta.config_fields.len();
+                                        let api_count = meta.external_apis.len();
+                                        let auto_count_task_type = task_type.clone();
+                                        let auto_count = Memo::new(move |_| {
+                                            auto_task_counts
+                                                .get()
+                                                .get(&auto_count_task_type)
+                                                .copied()
+                                                .unwrap_or(0)
+                                        });
+                                        let meta_for_details = meta.clone();
+                                        view! {
+                                            <tr
+                                                class="spec-list__row spec-list__row--clickable"
+                                                on:click=move |_| expanded.update(|set| {
+                                                    if !set.remove(&key_for_toggle) {
+                                                        set.insert(key_for_toggle.clone());
+                                                    }
+                                                })
+                                            >
+                                                <td class="table__cell">
+                                                    <div class="task-type-registry__title">
+                                                        <span
+                                                            class="task-type-registry__chevron"
+                                                            class:task-type-registry__chevron--expanded=chevron_open
+                                                        >
+                                                            {icon("chevron-right")}
+                                                        </span>
+                                                        <span class="spec-list__name">{meta.display_name.clone()}</span>
+                                                        <code class="spec-list__code">{task_type.clone()}</code>
+                                                    </div>
+                                                    <div class="spec-list__note">{meta.description.clone()}</div>
+                                                </td>
+                                                <td class="table__cell">
+                                                    <span class="badge badge--neutral">{format!("{field_count} пар.")}</span>
+                                                </td>
+                                                <td class="table__cell">
+                                                    <span class="badge badge--neutral">{format!("{api_count} API")}</span>
+                                                </td>
+                                                <td class="table__cell">
+                                                    <span class=move || {
+                                                        if auto_count.get() > 0 {
+                                                            "badge badge--primary"
+                                                        } else {
+                                                            "badge badge--neutral"
+                                                        }
+                                                    }>
+                                                        {move || auto_count.get()}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            <Show when=body_open>
+                                                <tr class="task-type-registry__details-row">
+                                                    <td class="table__cell" colspan="4">
+                                                        <TaskTypeDetails meta=meta_for_details.clone() />
+                                                    </td>
+                                                </tr>
+                                            </Show>
+                                        }
+                                    }
+                                />
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <Show when=move || !loading.get() && visible().is_empty()>
+                        <div class="spec-list__empty">
+                            "Ничего не найдено — измените поисковый запрос."
+                        </div>
+                    </Show>
+                </div>
+            </div>
+        </PageFrame>
     }
 }

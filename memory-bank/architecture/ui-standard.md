@@ -30,7 +30,8 @@ tags: [frontend, css, bem, tokens, tables, standard]
 |----|---------|--|
 | **UI-001** | Корень страницы — `<PageFrame page_id="{entity}--{category}" category=PAGE_CAT_*>`. Руками `<div class="page" id=...>` не писать. | [авто] |
 | **UI-002** | `page__header` и `page__content` — **прямые** дети корня страницы. | [авто] |
-| **UI-003** | Вкладки — `div.page__tabs` + нативные `button.page__tab`, **между** header и `page__content` (не внутри). Не Thaw `<Button>`. | [скилл] |
+| **UI-003** | Вкладки **уровня страницы** — `div.page__tabs` + нативные `button.page__tab`, **между** header и `page__content` (не внутри). Не Thaw `<Button>`. | [скилл] |
+| **UI-003a** | Вкладки **внутри контента** (не уровня страницы) — `div.detail-tabs` + `button.detail-tabs__item` / `--active`. Это единственный underline-вариант; свой набор правил под подчёркивание не заводить. Геометрия выверена по `sys_tasks`. | [скилл] |
 | **UI-004** | Категория из `shared/page_standard.rs`. `legacy` — честная пометка «ещё не по стандарту», а не способ обойти проверку; `custom` — осознанно свободная вёрстка. | [авто] |
 
 Детали и шаблоны: `detail-page-standard.md`, `css-page-structure.md`.
@@ -95,6 +96,21 @@ tags: [frontend, css, bem, tokens, tables, standard]
 **Образец** — `.data-matrix` (`components.css`): общая база + модификаторы
 страниц (`roles-matrix`, `skills-matrix`, GL-матрица). Единственное место, где
 это с самого начала сделано правильно; новые таблицы копировать с него.
+
+### `spec-list` — список именованных пунктов
+
+Для интерфейсов до ~200 строк, где у пункта есть короткое имя, технический код,
+длинное описание, несколько колонок-характеристик и категория (p903 «Поля»,
+`sys_task_type_registry`). Даёт готовыми: тулбар с быстрым поиском, режим
+«кратко/подробно» (`spec-list--compact` скрывает `spec-list__note`), подсветку
+строки рамкой вместо смены фона и цветную полосу категории через рантайм-переменную
+`--spec-cat`. Категорию **не** оформлять заливкой строки — она конфликтует с hover.
+Бейджи брать из `.badge`, чипы-переключатели — из `dpc-mode-tab`.
+
+> Thaw `<Table>` для таких списков не подходит: `.thaw-table-cell{height:36px!important}`
+> ломает двухстрочную строку в подробном режиме, а `.thaw-table-row:hover{background:
+> transparent!important}` стирает окраску строки. Здесь — сырой `table__data` плюс
+> `table_utils::init_column_resize` (ширины переживают перезагрузку, Thaw так не умеет).
 
 Разбор реактивных антипаттернов Leptos вокруг таблиц («RefCell already
 borrowed», «Reactive value has already been disposed», условный рендер таблицы,

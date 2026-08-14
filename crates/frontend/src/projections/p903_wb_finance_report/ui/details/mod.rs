@@ -9,6 +9,7 @@ use crate::shared::icons::icon;
 use crate::shared::json_viewer::widget::JsonViewer;
 use crate::shared::list_utils::{format_number, get_sort_class, get_sort_indicator};
 use crate::shared::page_frame::PageFrame;
+use crate::shared::table_utils::init_column_resize;
 use api::{fetch_detail, fetch_linked_sales, post_detail, WbSalesLink};
 use contracts::general_ledger::GeneralLedgerEntryDto;
 use contracts::projections::p903_wb_finance_report::dto::WbFinanceReportDto;
@@ -41,6 +42,18 @@ enum FinancialResultRole {
 }
 
 const EXCLUDED_PAYMENT_PROCESSING_VALUE: &str = "Комиссия за организацию платежа с НДС";
+
+const FIELDS_TABLE_ID: &str = "p903-fields-table";
+const FIELDS_COLUMN_WIDTHS_KEY: &str = "p903_fields_column_widths";
+
+/// Колонки списка полей: ключ сортировки, заголовок, стартовая ширина.
+const FIELD_COLUMNS: [(&str, &str, &str); 5] = [
+    ("description", "Описание", "auto"),
+    ("gl_role", "Роль", "150px"),
+    ("financial_result", "Результат", "120px"),
+    ("field_id", "Идентификатор", "220px"),
+    ("value", "Значение", "200px"),
+];
 
 fn extra_string_field(item: &WbFinanceReportDto, field: &str) -> Option<String> {
     item.extra
@@ -256,9 +269,24 @@ fn gl_role_badge_label(role: GlFieldRole) -> &'static str {
 
 fn gl_role_badge_class(role: GlFieldRole) -> &'static str {
     match role {
-        GlFieldRole::Condition => "p903-gl-badge p903-gl-badge--condition",
-        GlFieldRole::Resource => "p903-gl-badge p903-gl-badge--resource",
-        GlFieldRole::ResourceAndCondition => "p903-gl-badge p903-gl-badge--resource-and-cond",
+        GlFieldRole::Condition => "badge badge--accent",
+        GlFieldRole::Resource => "badge badge--primary",
+        GlFieldRole::ResourceAndCondition => "badge badge--warning",
+    }
+}
+
+/// Цвет полосы категории слева от строки. Отдаётся в разметку рантайм-переменной
+/// `--spec-cat`, чтобы не заводить модификатор `spec-list__row--*` под каждую роль.
+/// Берутся насыщенные токены темы, а не приглушённые бордеры бейджей: полоса —
+/// единственная метка категории в строке и должна читаться с расстояния.
+fn gl_role_cat_color(role: Option<GlFieldRole>, derived: bool) -> &'static str {
+    match role {
+        Some(GlFieldRole::Condition) => "var(--color-accent)",
+        Some(GlFieldRole::Resource) => "var(--color-primary)",
+        Some(GlFieldRole::ResourceAndCondition) => "var(--color-warning)",
+        // Производные поля: добавлены системой, в ответе WB API их нет.
+        None if derived => "var(--color-border)",
+        None => "transparent",
     }
 }
 
@@ -287,9 +315,9 @@ fn financial_result_sort_order(role: FinancialResultRole) -> u8 {
 
 fn financial_result_badge_class(role: FinancialResultRole) -> &'static str {
     match role {
-        FinancialResultRole::Income => "p903-fin-badge p903-fin-badge--income",
-        FinancialResultRole::Expense => "p903-fin-badge p903-fin-badge--expense",
-        FinancialResultRole::Info => "p903-fin-badge p903-fin-badge--info",
+        FinancialResultRole::Income => "badge badge--success",
+        FinancialResultRole::Expense => "badge badge--error",
+        FinancialResultRole::Info => "badge badge--neutral",
     }
 }
 
@@ -357,11 +385,112 @@ fn field_financial_result_role(
     }
 }
 
-fn gl_role_row_class(role: GlFieldRole) -> &'static str {
-    match role {
-        GlFieldRole::Condition => "p903-fields-row--condition",
-        GlFieldRole::Resource => "p903-fields-row--resource",
-        GlFieldRole::ResourceAndCondition => "p903-fields-row--resource-and-cond",
+/// Категория для чипов-фильтров над списком.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CategoryFilter {
+    All,
+    Condition,
+    Resource,
+    Both,
+    Other,
+}
+
+impl CategoryFilter {
+    fn label(self) -> &'static str {
+        match self {
+            CategoryFilter::All => "Все",
+            CategoryFilter::Condition => "Условие",
+            CategoryFilter::Resource => "Ресурс",
+            CategoryFilter::Both => "Ресурс + условие",
+            CategoryFilter::Other => "Прочее",
+        }
+    }
+
+    fn accepts(self, role: Option<GlFieldRole>) -> bool {
+        match self {
+            CategoryFilter::All => true,
+            CategoryFilter::Condition => role == Some(GlFieldRole::Condition),
+            CategoryFilter::Resource => role == Some(GlFieldRole::Resource),
+            CategoryFilter::Both => role == Some(GlFieldRole::ResourceAndCondition),
+            CategoryFilter::Other => role.is_none(),
+        }
+    }
+}
+
+const CATEGORY_FILTERS: [CategoryFilter; 5] = [
+    CategoryFilter::All,
+    CategoryFilter::Condition,
+    CategoryFilter::Resource,
+    CategoryFilter::Both,
+    CategoryFilter::Other,
+];
+
+/// Строка списка со всем, что нужно и для отрисовки, и для поиска, и для выгрузки.
+/// Собирается один раз, чтобы фильтр, таблица и CSV работали по одному набору.
+#[derive(Debug, Clone)]
+struct FieldView {
+    description: String,
+    note: Option<&'static str>,
+    field_id: String,
+    value: String,
+    gl_role: Option<GlFieldRole>,
+    result_role: FinancialResultRole,
+    derived: bool,
+    emphasized: bool,
+}
+
+impl FieldView {
+    fn new(row: &FieldRow, entries: &[GeneralLedgerEntryDto]) -> Self {
+        Self {
+            description: display_field_description(row),
+            note: display_field_note(&row.field_id),
+            field_id: row.field_id.clone(),
+            value: row.value.clone(),
+            gl_role: field_gl_role(&row.field_id, entries),
+            result_role: field_financial_result_role(row, entries),
+            derived: is_derived_field(&row.field_id),
+            emphasized: is_emphasized_string_field(&row.field_id),
+        }
+    }
+
+    /// Текст, по которому идёт быстрый поиск. Описание попадает в него только в
+    /// подробном режиме — ищем ровно по тому, что видно на экране.
+    fn haystack(&self, compact: bool) -> String {
+        let mut text = format!(
+            "{} {} {} {} {}",
+            self.description,
+            self.field_id,
+            self.value,
+            gl_role_sort_label(self.gl_role),
+            financial_result_badge_label(self.result_role),
+        );
+        if !compact {
+            if let Some(note) = self.note {
+                text.push(' ');
+                text.push_str(note);
+            }
+        }
+        text.to_lowercase()
+    }
+
+    /// Вкладка, которую открывает значение-ссылка.
+    fn link_target(&self) -> Option<(String, String)> {
+        let has_value = self.value != "-" && !self.value.is_empty();
+        if !has_value {
+            return None;
+        }
+        let short = &self.value[..self.value.len().min(8)];
+        match self.field_id.as_str() {
+            "marketplace_product_ref" => Some((
+                format!("a007_marketplace_product_details_{}", self.value),
+                format!("Товар {short}"),
+            )),
+            "marketplace_order_ref" => Some((
+                format!("a015_wb_orders_details_{}", self.value),
+                format!("Заказ {short}"),
+            )),
+            _ => None,
+        }
     }
 }
 
@@ -378,6 +507,11 @@ pub fn WbFinanceReportDetail(id: String, #[prop(into)] on_close: Callback<()>) -
     let (active_tab, set_active_tab) = signal("fields");
     let (sort_by, set_sort_by) = signal("description".to_string());
     let (sort_desc, set_sort_desc) = signal(false);
+
+    // Тулбар списка полей: краткий/подробный режим, поиск, фильтр по категории.
+    let compact = RwSignal::new(false);
+    let query = RwSignal::new(String::new());
+    let category = RwSignal::new(CategoryFilter::All);
 
     // Linked sales documents
     let (linked_sales, set_linked_sales) = signal::<Vec<WbSalesLink>>(Vec::new());
@@ -765,6 +899,43 @@ pub fn WbFinanceReportDetail(id: String, #[prop(into)] on_close: Callback<()>) -
         rows
     };
 
+    // Отфильтрованный список: по нему рисуется таблица и выгружается CSV,
+    // иначе поиск и выгрузка разошлись бы. Второе значение — сколько строк всего.
+    let visible_rows = move || -> (Vec<FieldView>, usize) {
+        let entries = general_ledger_entries.get();
+        let all: Vec<FieldView> = get_field_rows()
+            .iter()
+            .map(|row| FieldView::new(row, &entries))
+            .collect();
+        let total = all.len();
+
+        let is_compact = compact.get();
+        let selected = category.get();
+        let needle = query.get().trim().to_lowercase();
+
+        let rows = all
+            .into_iter()
+            .filter(|row| selected.accepts(row.gl_role))
+            .filter(|row| needle.is_empty() || row.haystack(is_compact).contains(&needle))
+            .collect();
+
+        (rows, total)
+    };
+
+    // Ресайз колонок списка полей. Таблица появляется в DOM не сразу и пересоздаётся
+    // при возврате на вкладку, поэтому эффект следит за вкладкой, а не отрабатывает
+    // однократно; повторный вызов init_column_resize безопасен.
+    Effect::new(move |_| {
+        let is_fields = active_tab.get() == "fields";
+        let has_data = data.get().is_some();
+        if is_fields && has_data {
+            spawn_local(async {
+                gloo_timers::future::TimeoutFuture::new(50).await;
+                init_column_resize(FIELDS_TABLE_ID, FIELDS_COLUMN_WIDTHS_KEY);
+            });
+        }
+    });
+
     let handle_column_sort = move |column: &'static str| {
         let current_sort = sort_by.get();
         if current_sort == column {
@@ -775,9 +946,9 @@ pub fn WbFinanceReportDetail(id: String, #[prop(into)] on_close: Callback<()>) -
         }
     };
 
-    // Экспорт в Excel
+    // Экспорт в Excel — выгружается ровно то, что видно в списке после фильтров.
     let export_to_excel = move || {
-        let field_rows = get_field_rows();
+        let (field_rows, _) = visible_rows();
         if field_rows.is_empty() {
             log!("No data to export");
             return;
@@ -789,16 +960,12 @@ pub fn WbFinanceReportDetail(id: String, #[prop(into)] on_close: Callback<()>) -
         // Заголовок с точкой с запятой как разделитель
         csv.push_str("Описание;Роль;Результат;Идентификатор;Значение\n");
 
-        let gl_entries = general_ledger_entries.get_untracked();
         for row in field_rows {
-            let gl_role = gl_role_sort_label(field_gl_role(&row.field_id, &gl_entries));
-            let result_role =
-                financial_result_badge_label(field_financial_result_role(&row, &gl_entries));
             csv.push_str(&format!(
                 "\"{}\";\"{}\";\"{}\";\"{}\";\"{}\"\n",
                 row.description.replace('\"', "\"\""),
-                gl_role.replace('\"', "\"\""),
-                result_role.replace('\"', "\"\""),
+                gl_role_sort_label(row.gl_role).replace('\"', "\"\""),
+                financial_result_badge_label(row.result_role).replace('\"', "\"\""),
                 row.field_id.replace('\"', "\"\""),
                 row.value.replace('\"', "\"\"")
             ));
@@ -859,9 +1026,9 @@ pub fn WbFinanceReportDetail(id: String, #[prop(into)] on_close: Callback<()>) -
 
     view! {
         <PageFrame page_id="p903_wb_finance_report--detail" category="detail" class="p903-detail">
-            <div class="modal-header">
-                <h3 class="modal-title">"WB Finance Report Details"</h3>
-                <div class="modal-header-actions">
+            <div class="page__header">
+                <h3 class="page__title">"WB Finance Report Details"</h3>
+                <div class="page__actions">
                     <Button
                         appearance=ButtonAppearance::Primary
                         size=ButtonSize::Small
@@ -906,233 +1073,197 @@ pub fn WbFinanceReportDetail(id: String, #[prop(into)] on_close: Callback<()>) -
                 } else if data.get().is_some() {
                     view! {
                         <div>
-                            <div class="p903-detail__tabs-bar">
-                                <div class="detail-tabs">
-                                    <button
-                                        class=move || if active_tab.get() == "fields" {
-                                            "detail-tabs__item detail-tabs__item--active"
-                                        } else {
-                                            "detail-tabs__item"
-                                        }
-                                        on:click=move |_| set_active_tab.set("fields")
-                                    >
-                                        "Fields"
-                                    </button>
-                                    <button
-                                        class=move || if active_tab.get() == "json" {
-                                            "detail-tabs__item detail-tabs__item--active"
-                                        } else {
-                                            "detail-tabs__item"
-                                        }
-                                        on:click=move |_| set_active_tab.set("json")
-                                    >
-                                        "Raw JSON"
-                                    </button>
-                                    <button
-                                        class=move || if active_tab.get() == "links" {
-                                            "detail-tabs__item detail-tabs__item--active"
-                                        } else {
-                                            "detail-tabs__item"
-                                        }
-                                        on:click=move |_| set_active_tab.set("links")
-                                    >
-                                        "Links"
-                                    </button>
-                                    <button
-                                        class=move || if active_tab.get() == "general_ledger" {
-                                            "detail-tabs__item detail-tabs__item--active"
-                                        } else {
-                                            "detail-tabs__item"
-                                        }
-                                        on:click=move |_| set_active_tab.set("general_ledger")
-                                    >
-                                        "General Ledger"
-                                    </button>
-                                </div>
-                                {
-                                    let export_excel = export_to_excel.clone();
-                                    view! {
-                                        <Button
-                                            appearance=ButtonAppearance::Secondary
-                                            size=ButtonSize::Small
-                                            on_click=move |_| export_excel()
+                            <div class="detail-tabs">
+                                {["fields", "json", "links", "general_ledger"]
+                                    .into_iter()
+                                    .zip(["Fields", "Raw JSON", "Links", "General Ledger"])
+                                    .map(|(key, label)| view! {
+                                        <button
+                                            class="detail-tabs__item"
+                                            class:detail-tabs__item--active=move || active_tab.get() == key
+                                            on:click=move |_| set_active_tab.set(key)
                                         >
-                                            {icon("download")}
-                                            " Excel (csv)"
-                                        </Button>
-                                    }
-                                }
+                                            {label}
+                                        </button>
+                                    })
+                                    .collect_view()}
                             </div>
 
                             // Tab Content
                             {move || {
                                 if active_tab.get() == "fields" {
-                                    let field_rows = get_field_rows();
-                                    let gl_entries = general_ledger_entries.get();
+                                    let tabs_store = tabs_store.clone();
+                                    let export_excel = export_to_excel.clone();
                                     view! {
-                                        <div class="table-wrapper">
-                                            <Table attr:style="width: 100%; table-layout: fixed;">
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHeaderCell resizable=true min_width=240.0>
-                                                            "Описание"
-                                                            <span
-                                                                class={move || get_sort_class("description", &sort_by.get())}
-                                                                on:click=move |_| handle_column_sort("description")
-                                                            >
-                                                                {move || get_sort_indicator("description", &sort_by.get(), !sort_desc.get())}
-                                                            </span>
-                                                        </TableHeaderCell>
-                                                        <TableHeaderCell resizable=true min_width=120.0>
-                                                            "Роль"
-                                                            <span
-                                                                class={move || get_sort_class("gl_role", &sort_by.get())}
-                                                                on:click=move |_| handle_column_sort("gl_role")
-                                                            >
-                                                                {move || get_sort_indicator("gl_role", &sort_by.get(), !sort_desc.get())}
-                                                            </span>
-                                                        </TableHeaderCell>
-                                                        <TableHeaderCell resizable=true min_width=120.0>
-                                                            "Результат"
-                                                            <span
-                                                                class={move || get_sort_class("financial_result", &sort_by.get())}
-                                                                on:click=move |_| handle_column_sort("financial_result")
-                                                            >
-                                                                {move || get_sort_indicator("financial_result", &sort_by.get(), !sort_desc.get())}
-                                                            </span>
-                                                        </TableHeaderCell>
-                                                        <TableHeaderCell resizable=true min_width=150.0>
-                                                            "Идентификатор"
-                                                            <span
-                                                                class={move || get_sort_class("field_id", &sort_by.get())}
-                                                                on:click=move |_| handle_column_sort("field_id")
-                                                            >
-                                                                {move || get_sort_indicator("field_id", &sort_by.get(), !sort_desc.get())}
-                                                            </span>
-                                                        </TableHeaderCell>
-                                                        <TableHeaderCell resizable=true min_width=160.0>
-                                                            "Значение"
-                                                            <span
-                                                                class={move || get_sort_class("value", &sort_by.get())}
-                                                                on:click=move |_| handle_column_sort("value")
-                                                            >
-                                                                {move || get_sort_indicator("value", &sort_by.get(), !sort_desc.get())}
-                                                            </span>
-                                                        </TableHeaderCell>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {field_rows
+                                        <div class="spec-list" class:spec-list--compact=move || compact.get()>
+                                            <div class="spec-list__toolbar">
+                                                <div class="spec-list__search">
+                                                    <span class="spec-list__search-icon">{icon("search")}</span>
+                                                    <input
+                                                        class="form__input"
+                                                        type="text"
+                                                        placeholder="Поиск по видимым текстам"
+                                                        prop:value=move || query.get()
+                                                        on:input=move |ev| query.set(event_target_value(&ev))
+                                                    />
+                                                    <Show when=move || !query.get().is_empty()>
+                                                        <button
+                                                            class="spec-list__search-clear"
+                                                            title="Очистить"
+                                                            on:click=move |_| query.set(String::new())
+                                                        >
+                                                            {icon("x")}
+                                                        </button>
+                                                    </Show>
+                                                </div>
+
+                                                // Фильтр по категории строки (роль поля в проводках ГК)
+                                                <div class="dpc-mode-tabs">
+                                                    {CATEGORY_FILTERS
                                                         .into_iter()
-                                                        .map(|row| {
-                                                            let description = display_field_description(&row);
-                                                            let note = display_field_note(&row.field_id).map(str::to_string);
-                                                            let gl_role = field_gl_role(&row.field_id, &gl_entries);
-                                                            let result_role = field_financial_result_role(&row, &gl_entries);
-                                                            let emphasized_value =
-                                                                is_emphasized_string_field(&row.field_id);
-                                                            let derived = is_derived_field(&row.field_id);
-                                                            let row_class = {
-                                                                let mut classes = String::new();
-                                                                if let Some(role) = gl_role {
-                                                                    classes.push_str(gl_role_row_class(role));
-                                                                }
-                                                                if derived {
-                                                                    if !classes.is_empty() {
-                                                                        classes.push(' ');
-                                                                    }
-                                                                    classes.push_str("p903-fields-row--derived");
-                                                                }
-                                                                classes
-                                                            };
-                                                            let tabs_store = tabs_store.clone();
-                                                            // Предвычисляем значения из row, чтобы не захватывать
-                                                            // сам row в нескольких view-замыканиях.
-                                                            let field_id_display = row.field_id.clone();
-                                                            let value = row.value.clone();
-                                                            let has_value = value != "-" && !value.is_empty();
-                                                            let link_target = match row.field_id.as_str() {
-                                                                "marketplace_product_ref" if has_value => Some((
-                                                                    format!("a007_marketplace_product_details_{}", value),
-                                                                    format!("Товар {}", &value[..value.len().min(8)]),
-                                                                )),
-                                                                "marketplace_order_ref" if has_value => Some((
-                                                                    format!("a015_wb_orders_details_{}", value),
-                                                                    format!("Заказ {}", &value[..value.len().min(8)]),
-                                                                )),
-                                                                _ => None,
-                                                            };
-                                                            view! {
-                                                                <TableRow class={row_class}>
-                                                                    <TableCell>
-                                                                        <TableCellLayout>
-                                                                            <div class="p903-field-desc">{description}</div>
-                                                                            {note.clone().map(|note_text| view! {
-                                                                                <div class="p903-field-note">{note_text}</div>
-                                                                            })}
-                                                                        </TableCellLayout>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <TableCellLayout>
-                                                                            <div class="p903-badge-center">
-                                                                                {if let Some(role) = gl_role {
-                                                                                    view! {
-                                                                                        <span class={gl_role_badge_class(role)}>
-                                                                                            {gl_role_badge_label(role)}
-                                                                                        </span>
-                                                                                    }.into_any()
-                                                                                } else {
-                                                                                    view! {
-                                                                                        <span class="p903-badge-dash">"—"</span>
-                                                                                    }.into_any()
-                                                                                }}
-                                                                            </div>
-                                                                        </TableCellLayout>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <TableCellLayout>
-                                                                            <div class="p903-badge-center">
-                                                                                <span class={financial_result_badge_class(result_role)}>
-                                                                                    {financial_result_badge_label(result_role)}
-                                                                                </span>
-                                                                            </div>
-                                                                        </TableCellLayout>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <TableCellLayout>
-                                                                            <span class="p903-field-id">{field_id_display}</span>
-                                                                        </TableCellLayout>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <TableCellLayout>
-                                                                            {
-                                                                                if let Some((tab_key, tab_label)) = link_target {
-                                                                                    let tabs_store = tabs_store.clone();
-                                                                                    view! {
-                                                                                        <a href="#" class="table__link" on:click=move |e| {
-                                                                                            e.prevent_default();
-                                                                                            tabs_store.open_tab(&tab_key, &tab_label);
-                                                                                        }>{value}</a>
-                                                                                    }.into_any()
-                                                                                } else if emphasized_value {
-                                                                                    view! {
-                                                                                        <code class="p903-field-value--code">{value}</code>
-                                                                                    }.into_any()
-                                                                                } else {
-                                                                                    view! {
-                                                                                        <span class="p903-field-value">{value}</span>
-                                                                                    }.into_any()
-                                                                                }
-                                                                            }
-                                                                        </TableCellLayout>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            }
-                                                            .into_view()
+                                                        .map(|item| view! {
+                                                            <button
+                                                                class="dpc-mode-tab"
+                                                                class:dpc-mode-tab--active=move || category.get() == item
+                                                                on:click=move |_| category.set(item)
+                                                            >
+                                                                {item.label()}
+                                                            </button>
                                                         })
                                                         .collect_view()}
-                                                </TableBody>
-                                            </Table>
+                                                </div>
+
+                                                // Режим отображения: в кратком описания пунктов скрыты
+                                                <div class="dpc-mode-tabs">
+                                                    <button
+                                                        class="dpc-mode-tab"
+                                                        class:dpc-mode-tab--active=move || compact.get()
+                                                        on:click=move |_| compact.set(true)
+                                                    >
+                                                        "Кратко"
+                                                    </button>
+                                                    <button
+                                                        class="dpc-mode-tab"
+                                                        class:dpc-mode-tab--active=move || !compact.get()
+                                                        on:click=move |_| compact.set(false)
+                                                    >
+                                                        "Подробно"
+                                                    </button>
+                                                </div>
+
+                                                <span class="spec-list__count">
+                                                    {move || {
+                                                        let (rows, total) = visible_rows();
+                                                        format!("Показано {} из {}", rows.len(), total)
+                                                    }}
+                                                </span>
+
+                                                <span class="spec-list__toolbar-spacer"></span>
+
+                                                <Button
+                                                    appearance=ButtonAppearance::Secondary
+                                                    size=ButtonSize::Small
+                                                    on_click=move |_| export_excel()
+                                                >
+                                                    {icon("download")}
+                                                    " Excel (csv)"
+                                                </Button>
+                                            </div>
+
+                                            <div class="table-wrapper">
+                                                <table id=FIELDS_TABLE_ID class="table__data">
+                                                    <thead class="table__head">
+                                                        <tr>
+                                                            {FIELD_COLUMNS
+                                                                .into_iter()
+                                                                .map(|(key, title, width)| view! {
+                                                                    <th class="table__header-cell resizable" style=format!("width:{width};")>
+                                                                        <div
+                                                                            class="table__sortable-header"
+                                                                            on:click=move |_| handle_column_sort(key)
+                                                                        >
+                                                                            {title}
+                                                                            <span class=move || get_sort_class(&sort_by.get(), key)>
+                                                                                {move || get_sort_indicator(&sort_by.get(), key, !sort_desc.get())}
+                                                                            </span>
+                                                                        </div>
+                                                                    </th>
+                                                                })
+                                                                .collect_view()}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        // Список перерисовывается целиком: строк ~40, а <For> по ключу
+                                                        // не обновил бы роль и результат после проведения документа —
+                                                        // ключи те же, а содержимое другое.
+                                                        {move || {
+                                                            let tabs_store = tabs_store.clone();
+                                                            visible_rows().0.into_iter().map(move |row| {
+                                                                let tabs_store = tabs_store.clone();
+                                                                let value = row.value.clone();
+                                                                let link_target = row.link_target();
+                                                                view! {
+                                                                    <tr
+                                                                        class="spec-list__row"
+                                                                        style=format!(
+                                                                            "--spec-cat:{};",
+                                                                            gl_role_cat_color(row.gl_role, row.derived),
+                                                                        )
+                                                                    >
+                                                                        <td class="table__cell">
+                                                                            <div class="spec-list__name">{row.description.clone()}</div>
+                                                                            {row.note.map(|note| view! {
+                                                                                <div class="spec-list__note">{note}</div>
+                                                                            })}
+                                                                        </td>
+                                                                        <td class="table__cell">
+                                                                            {match row.gl_role {
+                                                                                Some(role) => view! {
+                                                                                    <span class=gl_role_badge_class(role)>
+                                                                                        {gl_role_badge_label(role)}
+                                                                                    </span>
+                                                                                }.into_any(),
+                                                                                None => view! {
+                                                                                    <span class="text-muted">"—"</span>
+                                                                                }.into_any(),
+                                                                            }}
+                                                                        </td>
+                                                                        <td class="table__cell">
+                                                                            <span class=financial_result_badge_class(row.result_role)>
+                                                                                {financial_result_badge_label(row.result_role)}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td class="table__cell">
+                                                                            <span class="spec-list__ident">{row.field_id.clone()}</span>
+                                                                        </td>
+                                                                        <td class="table__cell">
+                                                                            {if let Some((tab_key, tab_label)) = link_target {
+                                                                                view! {
+                                                                                    <a href="#" class="table__link" on:click=move |ev| {
+                                                                                        ev.prevent_default();
+                                                                                        tabs_store.open_tab(&tab_key, &tab_label);
+                                                                                    }>{value}</a>
+                                                                                }.into_any()
+                                                                            } else if row.emphasized {
+                                                                                view! { <code class="spec-list__code">{value}</code> }.into_any()
+                                                                            } else {
+                                                                                view! { <span class="spec-list__name">{value}</span> }.into_any()
+                                                                            }}
+                                                                        </td>
+                                                                    </tr>
+                                                                }
+                                                            })
+                                                            .collect_view()
+                                                        }}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <Show when=move || visible_rows().0.is_empty()>
+                                                <div class="spec-list__empty">
+                                                    "Ничего не найдено — измените запрос или снимите фильтр категории."
+                                                </div>
+                                            </Show>
                                         </div>
                                     }
                                         .into_any()

@@ -25,18 +25,41 @@
 
 use leptos::task::spawn_local;
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, MouseEvent as WebMouseEvent};
 
-// Global registry: tracks which table IDs already have column-resize listeners attached.
-// Prevents accumulation of document-level mousemove/mouseup closures when a component
-// is unmounted and remounted (each remount would otherwise add another set of listeners
-// that are never removed, since they are registered with `forget()`).
+// Global registry: tracks which table IDs already have document-level (mousemove/mouseup)
+// listeners attached. Prevents accumulation of closures when a component is unmounted and
+// remounted — they are registered with `forget()` and cannot be removed later.
+// Сами ручки (.table__resizer) под этот учёт не попадают: после перерисовки таблицы
+// это уже другие <th>, и ручки нужно навесить заново.
 thread_local! {
     static RESIZE_INITIALIZED: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    static RESIZE_STATE: RefCell<HashMap<String, Rc<RefCell<ResizeState>>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Колонка, которую тянут прямо сейчас. Состояние одно на таблицу — физически
+/// нельзя тянуть две колонки сразу, а документные обработчики так переживают
+/// перерисовку таблицы: они держат ссылку на состояние, а не на конкретный <th>.
+#[derive(Default)]
+struct ResizeState {
+    th: Option<HtmlElement>,
+    start_x: i32,
+    start_width: i32,
+    did_resize: bool,
+}
+
+fn resize_state(table_id: &str) -> Rc<RefCell<ResizeState>> {
+    RESIZE_STATE.with(|map| {
+        map.borrow_mut()
+            .entry(table_id.to_string())
+            .or_insert_with(|| Rc::new(RefCell::new(ResizeState::default())))
+            .clone()
+    })
 }
 
 /// Проверяет, было ли только что изменение ширины колонки.
@@ -217,6 +240,10 @@ pub fn auto_fit_column(table_id: &str, col_index: u32, storage_key: &str) {
 /// Добавляет resize-handle к каждому заголовку и обрабатывает события мыши.
 /// Ширины сохраняются в localStorage и восстанавливаются при следующем открытии.
 ///
+/// Вызывать можно повторно: документные обработчики регистрируются один раз на
+/// `table_id`, а ручки навешиваются на те `<th>`, у которых их ещё нет. Это нужно
+/// после перерисовки таблицы — иначе на второй раз ресайз молча переставал работать.
+///
 /// # Аргументы
 /// * `table_id` - ID таблицы в DOM
 /// * `storage_key` - Ключ для localStorage (например, "a012_wb_sales_column_widths")
@@ -228,16 +255,6 @@ pub fn auto_fit_column(table_id: &str, col_index: u32, storage_key: &str) {
 /// });
 /// ```
 pub fn init_column_resize(table_id: &str, storage_key: &str) {
-    // Skip if this table's document-level listeners were already registered.
-    // The listeners use `forget()` and cannot be removed later, so we guard against
-    // adding duplicates every time the component remounts.
-    let already_registered = RESIZE_INITIALIZED.with(|set| set.borrow().contains(table_id));
-    if already_registered {
-        // Restore saved widths even on remounts so the table looks correct.
-        restore_column_widths(table_id, storage_key);
-        return;
-    }
-
     let Some(window) = web_sys::window() else {
         return;
     };
@@ -256,6 +273,62 @@ pub fn init_column_resize(table_id: &str, storage_key: &str) {
 
     let table_id_owned = table_id.to_string();
     let storage_key_owned = storage_key.to_string();
+    let state = resize_state(table_id);
+
+    // Документные обработчики — ровно один раз на таблицу за время жизни приложения.
+    // insert() возвращает true только при первой регистрации.
+    let first_registration =
+        RESIZE_INITIALIZED.with(|set| set.borrow_mut().insert(table_id.to_string()));
+    if first_registration {
+        let state_mm = state.clone();
+        let mousemove = Closure::wrap(Box::new(move |e: WebMouseEvent| {
+            let mut state = state_mm.borrow_mut();
+            let Some(th) = state.th.clone() else {
+                return;
+            };
+            state.did_resize = true;
+            let new_width = (state.start_width + e.client_x() - state.start_x).max(40);
+            let _ = th.style().set_property("width", &format!("{}px", new_width));
+            let _ = th.style().set_property("min-width", &format!("{}px", new_width));
+        }) as Box<dyn FnMut(WebMouseEvent)>);
+
+        let _ =
+            document.add_event_listener_with_callback("mousemove", mousemove.as_ref().unchecked_ref());
+        mousemove.forget();
+
+        let state_mu = state.clone();
+        let table_id_mu = table_id_owned.clone();
+        let storage_key_mu = storage_key_owned.clone();
+        let mouseup = Closure::wrap(Box::new(move |_: WebMouseEvent| {
+            let was_resizing = {
+                let mut state = state_mu.borrow_mut();
+                if state.th.is_none() {
+                    return;
+                }
+                state.th = None;
+                std::mem::take(&mut state.did_resize)
+            };
+
+            if let Some(body) = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.body())
+            {
+                let _ = body.class_list().remove_1("resizing-column");
+                if was_resizing {
+                    // Save column widths to localStorage
+                    save_column_widths(&table_id_mu, &storage_key_mu);
+                    let _ = body.set_attribute("data-was-resizing", "true");
+                    spawn_local(async {
+                        gloo_timers::future::TimeoutFuture::new(50).await;
+                        clear_resize_flag();
+                    });
+                }
+            }
+        }) as Box<dyn FnMut(WebMouseEvent)>);
+
+        let _ = document.add_event_listener_with_callback("mouseup", mouseup.as_ref().unchecked_ref());
+        mouseup.forget();
+    }
 
     for i in 0..headers.length() {
         let Some(th) = headers.get(i) else { continue };
@@ -303,29 +376,21 @@ pub fn init_column_resize(table_id: &str, storage_key: &str) {
             .add_event_listener_with_callback("click", click_blocker.as_ref().unchecked_ref());
         click_blocker.forget();
 
-        // State for this column
-        let resizing = Rc::new(RefCell::new(false));
-        let did_resize = Rc::new(RefCell::new(false));
-        let start_x = Rc::new(RefCell::new(0i32));
-        let start_width = Rc::new(RefCell::new(0i32));
-        let th_ref = Rc::new(RefCell::new(th.clone()));
-        let table_id_for_save = table_id_owned.clone();
-        let storage_key_for_save = storage_key_owned.clone();
-
-        // Mousedown on handle
-        let resizing_md = resizing.clone();
-        let did_resize_md = did_resize.clone();
-        let start_x_md = start_x.clone();
-        let start_width_md = start_width.clone();
-        let th_md = th_ref.clone();
+        // Mousedown на ручке: запоминаем тянущуюся колонку в состоянии таблицы,
+        // дальше её ведут документные обработчики.
+        let state_md = state.clone();
+        let th_md = th.clone();
 
         let mousedown = Closure::wrap(Box::new(move |e: WebMouseEvent| {
             e.prevent_default();
             e.stop_propagation();
-            *resizing_md.borrow_mut() = true;
-            *did_resize_md.borrow_mut() = false;
-            *start_x_md.borrow_mut() = e.client_x();
-            *start_width_md.borrow_mut() = th_md.borrow().offset_width();
+            {
+                let mut state = state_md.borrow_mut();
+                state.th = Some(th_md.clone());
+                state.did_resize = false;
+                state.start_x = e.client_x();
+                state.start_width = th_md.offset_width();
+            }
 
             if let Some(body) = web_sys::window()
                 .and_then(|w| w.document())
@@ -339,72 +404,6 @@ pub fn init_column_resize(table_id: &str, storage_key: &str) {
             .add_event_listener_with_callback("mousedown", mousedown.as_ref().unchecked_ref());
         mousedown.forget();
 
-        // Mousemove on document
-        let resizing_mm = resizing.clone();
-        let did_resize_mm = did_resize.clone();
-        let start_x_mm = start_x.clone();
-        let start_width_mm = start_width.clone();
-        let th_mm = th_ref.clone();
-
-        let mousemove = Closure::wrap(Box::new(move |e: WebMouseEvent| {
-            if !*resizing_mm.borrow() {
-                return;
-            }
-            *did_resize_mm.borrow_mut() = true;
-            let diff = e.client_x() - *start_x_mm.borrow();
-            let new_width = (*start_width_mm.borrow() + diff).max(40);
-            let _ = th_mm
-                .borrow()
-                .style()
-                .set_property("width", &format!("{}px", new_width));
-            let _ = th_mm
-                .borrow()
-                .style()
-                .set_property("min-width", &format!("{}px", new_width));
-        }) as Box<dyn FnMut(WebMouseEvent)>);
-
-        let _ = document
-            .add_event_listener_with_callback("mousemove", mousemove.as_ref().unchecked_ref());
-        mousemove.forget();
-
-        // Mouseup on document
-        let resizing_mu = resizing.clone();
-        let did_resize_mu = did_resize.clone();
-        let table_id_mu = table_id_for_save.clone();
-        let storage_key_mu = storage_key_for_save.clone();
-
-        let mouseup = Closure::wrap(Box::new(move |_: WebMouseEvent| {
-            if !*resizing_mu.borrow() {
-                return;
-            }
-            let was_resizing = *did_resize_mu.borrow();
-            *resizing_mu.borrow_mut() = false;
-            *did_resize_mu.borrow_mut() = false;
-
-            if let Some(body) = web_sys::window()
-                .and_then(|w| w.document())
-                .and_then(|d| d.body())
-            {
-                let _ = body.class_list().remove_1("resizing-column");
-                if was_resizing {
-                    // Save column widths to localStorage
-                    save_column_widths(&table_id_mu, &storage_key_mu);
-                    let _ = body.set_attribute("data-was-resizing", "true");
-                    spawn_local(async {
-                        gloo_timers::future::TimeoutFuture::new(50).await;
-                        clear_resize_flag();
-                    });
-                }
-            }
-        }) as Box<dyn FnMut(WebMouseEvent)>);
-
-        let _ =
-            document.add_event_listener_with_callback("mouseup", mouseup.as_ref().unchecked_ref());
-        mouseup.forget();
-
         let _ = th.append_child(&handle);
     }
-
-    // Mark this table as having document-level resize listeners attached.
-    RESIZE_INITIALIZED.with(|set| set.borrow_mut().insert(table_id.to_string()));
 }

@@ -704,64 +704,82 @@
 }
 
 
-/* Detail tabs (pill style) */
+/* ── Detail tabs — единственный underline-вариант вкладок внутри контента ─────
+   Вкладки уровня страницы (между page__header и page__content) — это page__tabs,
+   см. UI-003. Здесь — вкладки внутри самого контента.
+   Геометрия выверена по sys_tasks: полоса 3px со скруглёнными торцами, короче
+   текста, близко к нему; активная вкладка «псевдо-жирная» через text-shadow,
+   чтобы при переключении надписи не меняли ширину и вкладки не дёргались.
+   ──────────────────────────────────────────────────────────────────────────── */
 .detail-tabs {
   display: flex;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm) 0;
-  margin-bottom: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border);
+  gap: 0;
+  padding: 0;
+  margin-bottom: var(--spacing-md);
   background: var(--color-bg-primary);
-  position: sticky;
-  top: 0;
-  z-index: var(--z-header);
   flex-shrink: 0;
 }
 
 .detail-tabs__item {
-  padding: var(--spacing-sm) var(--spacing-lg);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) 10px;
   border: none;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   cursor: pointer;
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-sm);
+  font-family: inherit;
+  font-weight: var(--font-weight-normal);
+  font-size: var(--font-size-base);
+  line-height: 20px;
   color: var(--color-text-secondary);
   background: transparent;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast);
+}
+
+/* Полоса-индикатор. 999px — «капсула»; токена под такой радиус нет
+   (--radius-full: 50% дал бы эллипс на полосе высотой 3px). */
+.detail-tabs__item::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background var(--transition-fast);
 }
 
 .detail-tabs__item:hover {
-  background: rgba(59, 130, 246, 0.1);
   color: var(--color-text-primary);
 }
 
-.detail-tabs__item--active {
-  background: var(--color-primary);
-  color: white;
-}
-
-.detail-tabs__item--active:hover {
-  background: var(--btn-primary-hover);
-}
-
-.detail-tabs__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 var(--spacing-xs);
-  margin-left: var(--spacing-xs);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  border-radius: var(--radius-full);
+.detail-tabs__item:hover::after {
   background: var(--color-border);
-  color: var(--color-text-secondary);
 }
 
-.detail-tabs__item--active .detail-tabs__badge {
-  background: rgba(255, 255, 255, 0.3);
-  color: white;
+.detail-tabs__item--active {
+  color: var(--color-primary);
+  text-shadow: -0.03ex 0 0 currentColor, 0.03ex 0 0 currentColor;
+  -webkit-text-stroke-width: 0.04ex;
+}
+
+.detail-tabs__item--active::after,
+.detail-tabs__item--active:hover::after {
+  background: var(--color-primary);
+}
+
+.detail-tabs__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.detail-tabs__item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Tab icon spacing (for THAW Button based tabs) */
@@ -926,6 +944,175 @@
   margin-left: 6px;
   display: inline-flex;
   align-items: center;
+}
+
+/* Итоговая полоса над списком («Найдено: N», суммы по странице).
+   Жила в pages/p903_wb_finance_report.css, но применяется глобально. */
+.list-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   spec-list — список именованных пунктов с характеристиками.
+
+   Для интерфейсов до ~200 строк, где у пункта есть короткое имя,
+   технический код, длинное описание, несколько колонок-характеристик
+   и категория. Даёт тулбар (поиск / чипы категорий / режимы), режим
+   «кратко» и подсветку строки рамкой вместо смены фона.
+
+   Скелет таблицы берётся у .table__data — здесь только то, чего там нет.
+   Цвет категории приходит рантайм-переменной --spec-cat (инлайн, UI-030),
+   поэтому модификаторов под каждую категорию не заводится.
+   ───────────────────────────────────────────────────────────── */
+
+.spec-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.spec-list__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  padding: var(--spacing-sm) 0;
+}
+
+.spec-list__toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.spec-list__search {
+  position: relative;
+  flex: 0 1 320px;
+  min-width: 180px;
+}
+
+.spec-list__search .form__input {
+  width: 100%;
+  padding-left: 30px;
+  padding-right: 28px;
+}
+
+.spec-list__search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.spec-list__search-clear {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.spec-list__search-clear:hover {
+  color: var(--color-text-primary);
+}
+
+.spec-list__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* Строка: цветная полоса категории слева, рамка при наведении.
+   Фон при наведении намеренно не меняется — иначе он перекрывает
+   собственную окраску строки и «мигает».
+   Рамка рисуется inset-тенью, а не outline: тень следует border-radius,
+   поэтому у выделения скруглённые углы. Ради этого таблице списка нужен
+   border-collapse: separate — при collapse радиус строки не применяется. */
+.spec-list .table__data {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.spec-list__row {
+  border-radius: var(--radius-sm);
+  box-shadow: inset 3px 0 0 var(--spec-cat, transparent);
+}
+
+.spec-list .table__data tbody tr:hover {
+  background: inherit;
+}
+
+.spec-list__row:hover {
+  box-shadow:
+    inset 3px 0 0 var(--spec-cat, transparent),
+    inset 0 0 0 1px var(--color-primary);
+}
+
+.spec-list__row--clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.spec-list__name {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.spec-list__code {
+  display: inline-block;
+  padding: 1px var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: var(--badge-neutral-bg);
+  color: var(--badge-neutral-text);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+/* Технический идентификатор в отдельной колонке — просто моноширинный текст.
+   Плашка здесь только шумит: колонка целиком состоит из идентификаторов. */
+.spec-list__ident {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.spec-list__note {
+  margin-top: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Режим «кратко» — одно правило вместо ветвления в разметке. */
+.spec-list--compact .spec-list__note {
+  display: none;
+}
+
+.spec-list__empty {
+  padding: var(--spacing-xl) var(--spacing-md);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1475,50 +1662,7 @@ th.resizable {
   gap: 14px;
 }
 
-/* Underlined tabs: flat triggers with an accent bar under the active one */
-.indicator-detail__tabs {
-  display: flex;
-  align-items: stretch;
-  gap: 22px;
-  border-bottom: 1px solid var(--color-border, rgba(128, 128, 128, 0.2));
-}
-
-.indicator-detail__tab {
-  position: relative;
-  min-height: 34px;
-  padding: 0 2px 8px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.12s;
-}
-
-.indicator-detail__tab::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: transparent;
-  transition: background 0.12s;
-}
-
-.indicator-detail__tab:hover {
-  color: var(--color-text-primary);
-}
-
-.indicator-detail__tab--active {
-  color: var(--color-text-primary);
-}
-
-.indicator-detail__tab--active::after {
-  background: var(--colorBrandForeground1, #2563eb);
-}
+/* Вкладки карточки индикатора — общий блок `detail-tabs`, своих правил нет. */
 
 /* Technical "Подробности" tab: stacked period cards, meta rows and prose */
 .indicator-detail__details-tab {
@@ -1863,14 +2007,6 @@ th.resizable {
   .indicator-detail__header-actions {
     width: 100%;
     justify-content: space-between;
-  }
-
-  .indicator-detail__tabs {
-    width: 100%;
-  }
-
-  .indicator-detail__tab {
-    flex: 1 1 0;
   }
 
   .indicator-detail__about,
@@ -2774,40 +2910,7 @@ th.resizable {
   margin: 0;
 }
 
-.excel-importer__tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.excel-importer__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  border-bottom: 3px solid transparent;
-  transition: all var(--transition-fast);
-}
-
-.excel-importer__tab:hover {
-  background: rgba(59, 130, 246, 0.08);
-  color: var(--color-text-primary);
-}
-
-.excel-importer__tab--active {
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  border-bottom-color: var(--color-primary);
-}
+/* Вкладки импортёра — общий блок `detail-tabs`, своих правил нет. */
 
 .excel-importer__content {
   flex: 1;
@@ -5504,72 +5607,7 @@ body[data-theme-base="dark"] .empty-state {
   padding: 16px;
 }
 
-.dv-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--spacing-lg);
-  padding: 16px;
-}
-
-.dv-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: var(--spacing-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  cursor: pointer;
-  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
-}
-
-.dv-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
-  border-color: var(--color-accent);
-}
-
-.dv-card__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.dv-card__id {
-  font-family: var(--font-family-mono);
-  font-size: 12px;
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.dv-card__version {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  margin-left: auto;
-}
-
-.dv-card__name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.dv-card__description {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-  flex: 1;
-}
-
-.dv-card__sources,
-.dv-card__dims {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-top: 4px;
-}
+/* Каталог DataView построен на общем блоке `spec-list`; карточек `dv-card` больше нет. */
 
 /* ── DataView picker (inside a024_bi_indicator DataSpec tab) ────────────── */
 .dv-status-banner {

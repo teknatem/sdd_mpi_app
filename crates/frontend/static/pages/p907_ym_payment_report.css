@@ -1,43 +1,9 @@
 /* Page-specific styles for p907_ym_payment_report.
    Detail scoped under `.p907-detail` (PageFrame `class`).
-   See per-page CSS convention: all selectors stay under the page root. */
+   See per-page CSS convention: all selectors stay under the page root.
 
-/* ── Detail: underline tabs (как у p903) ──────────────────────────────────── */
-.p907-detail .detail-tabs {
-  gap: var(--spacing-lg);
-  padding: 0;
-  margin-bottom: 0;
-  border-bottom: 1px solid var(--color-border);
-  background: transparent;
-}
-
-.p907-detail .detail-tabs__item {
-  padding: var(--spacing-sm) var(--spacing-xs);
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  margin-bottom: -1px;
-}
-
-.p907-detail .detail-tabs__item:hover {
-  background: transparent;
-  color: var(--color-text-primary);
-  border-bottom-color: var(--color-border);
-}
-
-.p907-detail .detail-tabs__item--active,
-.p907-detail .detail-tabs__item--active:hover {
-  background: transparent;
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-}
-
-.p907-detail .detail-tabs__item:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
+   Вкладки берутся из общего блока `detail-tabs` (themes/core/components.css),
+   строки списка полей — из `spec-list`; здесь остаётся только своё. */
 
 /* ── Detail: кликабельный заголовок столбца (вся подпись сортирует) ───────── */
 .p907-detail .p907-sort-header {
@@ -56,7 +22,7 @@
 }
 
 .p907-detail .p907-ref-repr {
-  font-size: 12px;
-  color: var(--color-text-secondary, #64748b);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
   font-style: italic;
 }

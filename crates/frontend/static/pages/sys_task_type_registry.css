@@ -1,0 +1,109 @@
+/* Page-specific styles for sys_task_type_registry.
+   Всё под корнем страницы (#sys_task_type_registry--list) — см. UI-014.
+
+   Список строится на общем блоке `spec-list`, таблицы — на `table__data`,
+   бейджи — на `badge`. Здесь остаётся только то, чего в общих блоках нет:
+   раскрываемые подробности типа задания. */
+
+#sys_task_type_registry--list .task-type-registry__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+#sys_task_type_registry--list .task-type-registry__chevron {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+  transition: transform var(--transition-fast);
+}
+
+#sys_task_type_registry--list .task-type-registry__chevron--expanded {
+  transform: rotate(90deg);
+}
+
+/* ── Раскрытые подробности ────────────────────────────────────────────── */
+
+#sys_task_type_registry--list .task-type-registry__details-row {
+  background: var(--color-bg-secondary);
+}
+
+/* Второй уровень отбивается от строки-владельца отступом слева и вертикальной
+   линией: иначе подробности сливаются со списком и непонятно, что где. */
+#sys_task_type_registry--list .task-type-registry__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  margin-left: var(--spacing-lg);
+  padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-lg);
+  border-left: 2px solid var(--badge-accent-border);
+}
+
+/* Таблица параметров лежит внутри раскрытой строки, то есть внутри внешней
+   .table-wrapper. Своя вертикальная прокрутка ей не нужна — её ведёт страница;
+   остаётся только горизонтальная. */
+#sys_task_type_registry--list .task-type-registry__details .table-wrapper {
+  overflow-y: visible;
+}
+
+#sys_task_type_registry--list .task-type-registry__section-title {
+  margin-bottom: 6px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--badge-accent-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#sys_task_type_registry--list .task-type-registry__prose {
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+}
+
+#sys_task_type_registry--list .task-type-registry__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#sys_task_type_registry--list .task-type-registry__constraints {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  font-size: var(--font-size-base);
+}
+
+#sys_task_type_registry--list .task-type-registry__apis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#sys_task_type_registry--list .task-type-registry__api {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+}
+
+#sys_task_type_registry--list .task-type-registry__api-main {
+  flex: 1;
+  min-width: 0;
+}
+
+#sys_task_type_registry--list .task-type-registry__api-url {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+#sys_task_type_registry--list .task-type-registry__required {
+  color: var(--color-success);
+  font-weight: var(--font-weight-bold);
+}

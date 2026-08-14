@@ -3129,16 +3129,16 @@ fn IndicatorDetailModal(
                     </div>
                 </div>
                 <div class="modal-body indicator-detail__body">
-                    <div class="indicator-detail__tabs">
+                    <div class="detail-tabs">
                         {if has_drilldown {
                             view! {
                                 <button
                                     type="button"
                                     class=move || {
                                         if active_tab.get() == "drill" {
-                                            "indicator-detail__tab indicator-detail__tab--active".to_string()
+                                            "detail-tabs__item detail-tabs__item--active".to_string()
                                         } else {
-                                            "indicator-detail__tab".to_string()
+                                            "detail-tabs__item".to_string()
                                         }
                                     }
                                     on:click=move |_| active_tab.set("drill".to_string())
@@ -3153,9 +3153,9 @@ fn IndicatorDetailModal(
                             type="button"
                             class=move || {
                                 if active_tab.get() == "details" {
-                                    "indicator-detail__tab indicator-detail__tab--active".to_string()
+                                    "detail-tabs__item detail-tabs__item--active".to_string()
                                 } else {
-                                    "indicator-detail__tab".to_string()
+                                    "detail-tabs__item".to_string()
                                 }
                             }
                             on:click=move |_| active_tab.set("details".to_string())

@@ -722,8 +722,10 @@ pub fn YmPaymentReportDetail(
                                             get_field_rows()
                                             .into_iter()
                                             .map(move |row| {
-                                                let row_class = if is_derived_field(&row.field_id) {
-                                                    "p903-fields-row--derived"
+                                                // Производные поля отмечаются серой полосой слева
+                                                // (та же механика, что в spec-list).
+                                                let row_style = if is_derived_field(&row.field_id) {
+                                                    "--spec-cat:var(--color-border);"
                                                 } else {
                                                     ""
                                                 };
@@ -749,20 +751,20 @@ pub fn YmPaymentReportDetail(
                                                 };
                                                 let tabs_store = tabs_store.clone();
                                                 view! {
-                                                    <TableRow class={row_class}>
+                                                    <TableRow class="spec-list__row" attr:style=row_style>
                                                         <TableCell>
                                                             <TableCellLayout>
-                                                                <span class="p903-field-desc">{row.description}</span>
+                                                                <span class="spec-list__name">{row.description}</span>
                                                             </TableCellLayout>
                                                         </TableCell>
                                                         <TableCell>
                                                             <TableCellLayout>
-                                                                <span class="p903-field-desc">{type_label}</span>
+                                                                <span class="spec-list__name">{type_label}</span>
                                                             </TableCellLayout>
                                                         </TableCell>
                                                         <TableCell>
                                                             <TableCellLayout>
-                                                                <span class="p903-field-id">{row.field_id}</span>
+                                                                <span class="spec-list__ident">{row.field_id}</span>
                                                             </TableCellLayout>
                                                         </TableCell>
                                                         <TableCell>
@@ -778,7 +780,7 @@ pub fn YmPaymentReportDetail(
                                                                         }.into_any()
                                                                     } else {
                                                                         view! {
-                                                                            <span class="p903-field-value">{value}</span>
+                                                                            <span class="spec-list__name">{value}</span>
                                                                         }.into_any()
                                                                     }}
                                                                     {representation.map(|rep| view! {

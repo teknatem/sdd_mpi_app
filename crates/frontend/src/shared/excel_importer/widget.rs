@@ -196,12 +196,12 @@ pub fn ExcelImporter(
                 } else if excel_data.get().is_some() {
                     view! {
                         <>
-                            <div class="excel-importer__tabs">
+                            <div class="detail-tabs">
                                 <button
                                     class=move || if active_tab.get() == 0 {
-                                        "excel-importer__tab excel-importer__tab--active"
+                                        "detail-tabs__item detail-tabs__item--active"
                                     } else {
-                                        "excel-importer__tab"
+                                        "detail-tabs__item"
                                     }
                                     on:click=move |_| set_active_tab.set(0)
                                 >
@@ -210,9 +210,9 @@ pub fn ExcelImporter(
                                 </button>
                                 <button
                                     class=move || if active_tab.get() == 1 {
-                                        "excel-importer__tab excel-importer__tab--active"
+                                        "detail-tabs__item detail-tabs__item--active"
                                     } else {
-                                        "excel-importer__tab"
+                                        "detail-tabs__item"
                                     }
                                     on:click=move |_| set_active_tab.set(1)
                                 >
@@ -221,9 +221,9 @@ pub fn ExcelImporter(
                                 </button>
                                 <button
                                     class=move || if active_tab.get() == 2 {
-                                        "excel-importer__tab excel-importer__tab--active"
+                                        "detail-tabs__item detail-tabs__item--active"
                                     } else {
-                                        "excel-importer__tab"
+                                        "detail-tabs__item"
                                     }
                                     on:click=move |_| set_active_tab.set(2)
                                 >

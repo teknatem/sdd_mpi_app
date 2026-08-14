@@ -218,12 +218,19 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
     let (metadata, set_metadata) = signal(None::<TaskMetadataDto>);
     let (active_tab, set_active_tab) = signal("settings".to_string());
     let (task_types, set_task_types) = signal(Vec::<TaskMetadataDto>::new());
+    let task_types_error = RwSignal::new(None::<String>);
 
     // ---- Load available task types once ----
     Effect::new(move |_| {
         spawn_local(async move {
-            if let Ok(types) = api::get_task_types().await {
-                set_task_types.set(types);
+            match api::get_task_types().await {
+                Ok(types) => {
+                    set_task_types.set(types);
+                    task_types_error.set(None);
+                }
+                Err(error) => {
+                    task_types_error.set(Some(error));
+                }
             }
         });
     });
@@ -260,19 +267,15 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
         });
     });
 
-    // Load metadata whenever task_type changes
+    // Resolve metadata from the already loaded type registry. Reading both
+    // signals makes the effect rerun regardless of which request finishes first.
     Effect::new(move |_| {
         let tt = task_type.get();
-        if tt.is_empty() {
-            return;
-        }
-        spawn_local(async move {
-            if let Ok(types) = api::get_task_types().await {
-                if let Some(m) = types.into_iter().find(|m| m.task_type == tt) {
-                    set_metadata.set(Some(m));
-                }
-            }
-        });
+        let resolved = task_types
+            .get()
+            .into_iter()
+            .find(|metadata| metadata.task_type == tt);
+        set_metadata.set(resolved);
     });
 
     // Load runs when history tab is opened
@@ -667,13 +670,65 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
             // the browser <select> cannot find the matching <option> before reactive options
             // are painted (timing race), Thaw then writes "" back into the signal.
             <div class="page__content" style=move || if active_tab.get() != "settings" { "display:none;" } else { "" }>
-                // 2-column grid: left = Идентификация + Конфигурация, right = Watermark + Параметры
+                // 2-column grid: left = Тип обработчика + Идентификация + Конфигурация,
+                // right = Watermark + Параметры
                 <div class="detail-grid">
 
-                    // ── Left column: Идентификация + Конфигурация ─────────────────────
+                    // ── Left column: Тип обработчика + Идентификация + Конфигурация ──
                     <div class="detail-grid__col">
 
-                        <CardAnimated delay_ms=0 nav_id="sys_task_details_identity">
+                        <CardAnimated delay_ms=0 nav_id="sys_task_details_handler_type">
+                            <h4 class="details-section__title">"Тип обработчика"</h4>
+                            <div class="form__group">
+                                <select
+                                    class="form__select"
+                                    prop:value=move || {
+                                        // Reapply the value after the async option list changes.
+                                        let _ = task_types.get();
+                                        task_type.get()
+                                    }
+                                    on:change=move |event| {
+                                        task_type.set(event_target_value(&event));
+                                    }
+                                >
+                                    <option
+                                        value=""
+                                        selected=move || task_type.get().is_empty()
+                                    >
+                                        "— Выберите тип —"
+                                    </option>
+                                    {move || {
+                                        let current = task_type.get();
+                                        let types = task_types.get();
+                                        let current_is_missing = !current.is_empty()
+                                            && !types.iter().any(|t| t.task_type == current);
+                                        let missing_option = current_is_missing.then(|| {
+                                            let value = current.clone();
+                                            let label = format!("{current} (не зарегистрирован)");
+                                            view! { <option value=value selected=true>{label}</option> }
+                                        });
+                                        let registered_options = types.into_iter().map(|t| {
+                                            let selected = t.task_type == current;
+                                            let value = t.task_type.clone();
+                                            let label = format!("{}: {}", t.task_type, t.display_name);
+                                            view! { <option value=value selected=selected>{label}</option> }
+                                        }).collect_view();
+
+                                        view! {
+                                            {missing_option}
+                                            {registered_options}
+                                        }
+                                    }}
+                                </select>
+                                {move || task_types_error.get().map(|error| view! {
+                                    <div style="font-size:var(--font-size-sm);color:var(--color-error);margin-top:4px;">
+                                        {format!("Не удалось загрузить список типов: {error}")}
+                                    </div>
+                                })}
+                            </div>
+                        </CardAnimated>
+
+                        <CardAnimated delay_ms=40 nav_id="sys_task_details_identity">
                             <h4 class="details-section__title">"Идентификация"</h4>
                             <div style="display:flex;flex-direction:column;gap:var(--spacing-sm);">
                                 <div class="form__group">
@@ -691,7 +746,7 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
                             </div>
                         </CardAnimated>
 
-                        <CardAnimated delay_ms=40 nav_id="sys_task_details_config">
+                        <CardAnimated delay_ms=80 nav_id="sys_task_details_config">
                             <h4 class="details-section__title">"Конфигурация"</h4>
                             {move || {
                                 let schema = metadata.get()
@@ -872,17 +927,6 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
                         <CardAnimated delay_ms=160 nav_id="sys_task_details_params">
                             <h4 class="details-section__title">"Параметры"</h4>
                             <div style="display:flex;flex-direction:column;gap:var(--spacing-sm);">
-                                <div class="form__group">
-                                    <label class="form__label">"Тип обработчика"</label>
-                                    <Select value=task_type>
-                                        <option value="">"— Выберите тип —"</option>
-                                        {move || task_types.get().into_iter().map(|t| {
-                                            let val   = t.task_type.clone();
-                                            let label = format!("{}: {}", t.task_type, t.display_name);
-                                            view! { <option value=val>{label}</option> }
-                                        }).collect_view()}
-                                    </Select>
-                                </div>
                                 <div class="form__group">
                                     <label class="form__label">"Расписание (Cron)"</label>
                                     <CronEditor value=schedule_cron />
