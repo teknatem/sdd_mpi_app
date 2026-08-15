@@ -148,6 +148,7 @@ pub fn tab_label_for_key(key: &str) -> &'static str {
         "sys_roles" => "Роли",
         "sys_roles_matrix" => "Матрица ролей",
         "sys_audit" => "Аудит доступа",
+        "sys_metrics" => "Метрики проекта",
         "sys_datasets" => "Наборы данных и перенос",
         "sys_raw_storage" => "Настройка raw JSON",
         "sys_tasks" => "Регламентные задания",

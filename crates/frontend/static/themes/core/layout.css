@@ -238,6 +238,306 @@
   pointer-events: none;
 }
 
+.page__tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* ── Page Tabs: два варианта бара ────────────────────────────────────────
+   Компонент — `shared/components/page_tabs.rs`. Light — компактная полоска
+   32px с нижним индикатором (геометрия как у `.detail-tabs`, UI-003a).
+   Ручной `.page__tabs` без модификатора по-прежнему рисует старые
+   прямоугольники — его не трогаем, пока страницы не перейдут на PageTabs.
+   Heavy выше на поле под тень. Переполненный Heavy становится Light.
+
+   Геометрия Heavy (`--tabs-tab-h`, `--tabs-shadow-h`, `--tabs-slant`,
+   `--tabs-overlap`, `--tabs-pad-left`) приходит с элемента из Rust.
+   Значения ниже — только запасной fallback, если style ещё не проставился.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.page__tabs--light,
+.page__tabs--heavy {
+  --tabs-scrollbar-h: 7px;
+}
+
+/* Подписи и бейджи задают естественную ширину вкладки. Это делает замер
+   переполнения однозначным и не позволяет тексту ломать фиксированную высоту. */
+.page__tabs--light .page__tab,
+.page__tabs--heavy .page__tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Лёгкий вариант — underline, как `.detail-tabs`. Прямоугольную заливку
+   базового `.page__tab` гасим. При переполнении — горизонтальный scrollbar. */
+.page__tabs--light {
+  height: 32px;
+  min-height: 32px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.page__tabs--light.page__tabs--overflow {
+  height: calc(32px + var(--tabs-scrollbar-h));
+  min-height: calc(32px + var(--tabs-scrollbar-h));
+}
+
+.page__tabs--light::-webkit-scrollbar {
+  height: var(--tabs-scrollbar-h);
+}
+
+.page__tabs--light::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page__tabs--light::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--tabs-scrollbar-h);
+}
+
+.page__tabs--light .page__tab {
+  height: 32px;
+  padding: 0 10px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  opacity: 1;
+  font-weight: var(--font-weight-normal, 400);
+  color: var(--color-text-secondary);
+  transition: color var(--transition-fast, 0.15s ease);
+}
+
+.page__tabs--light .page__tab::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background var(--transition-fast, 0.15s ease);
+}
+
+.page__tabs--light .page__tab:hover,
+.page__tabs--light .page__tab:active {
+  background: none;
+  color: var(--color-text-primary);
+  opacity: 1;
+}
+
+.page__tabs--light .page__tab:hover::after {
+  background: var(--color-border);
+}
+
+.page__tabs--light .page__tab--active,
+.page__tabs--light .page__tab--active:hover,
+.page__tabs--light .page__tab--active:active {
+  background: none;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-normal, 400);
+  opacity: 1;
+  /* Псевдо-жирный, как у .detail-tabs: ширина подписи не прыгает. */
+  text-shadow: -0.03ex 0 0 currentColor, 0.03ex 0 0 currentColor;
+  -webkit-text-stroke-width: 0.04ex;
+}
+
+.page__tabs--light .page__tab--active::after,
+.page__tabs--light .page__tab--active:hover::after {
+  background: var(--color-primary);
+}
+
+/* ── Тяжёлый вариант ─────────────────────────────────────────────────────
+   Ярлыки — наклонная черепица: левая грань вертикальная, скошена правая,
+   соседи стоят внахлёст. Всю графику рисует `svg.tabs-art` поверх бара по
+   координатам самих кнопок; кнопки ничего не рисуют.
+
+   Хит-тест: коробка кнопки включает скос (padding-right: var(--tabs-slant)),
+   соседи заезжают друг на друга на var(--tabs-overlap), clip-path режет
+   коробку по силуэту, z-index убывает вправо — клик по скосу достаётся
+   левому ярлыку, как на картинке.
+
+   Фон: верх бара компонент не красит вообще — его даёт `background` самого
+   `.page__tabs` (`--header-bg` местами градиент, в SVG `fill` такое не
+   положить). Низ красится `--tabs-sheet`, то есть тем же токеном, которым
+   закрашена область под баром, — отсюда совпадение фона сверху и снизу.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.page__tabs--heavy {
+  --tabs-tab-h: 33px;
+  --tabs-shadow-h: 3px;
+  --tabs-slant: 18.48px;
+  --tabs-overlap: 12px;
+  --tabs-pad-left: 14px;
+
+  height: calc(var(--tabs-tab-h) + var(--tabs-shadow-h));
+  min-height: calc(var(--tabs-tab-h) + var(--tabs-shadow-h));
+
+  /* Лист под баром: этим красится `.app-main`, поверх которой лежит
+     `.page__content`. Им же заливается активный ярлык. */
+  --tabs-sheet: var(--app-main-bg, var(--color-bg-primary));
+
+  /* Солид-дублёр шапки — подмешивается в заливку неактивных. */
+  --tabs-shade: var(--page-header-bg-solid, #d4d4d4);
+
+  --tabs-tab-bg: color-mix(in srgb, var(--tabs-sheet) 20%, var(--tabs-shade) 80%);
+  --tabs-tab-bg-hover: color-mix(in srgb, var(--tabs-sheet) 45%, var(--tabs-shade) 55%);
+
+  /* Нейтральный серый: на тёмных темах читается как светлая грань, на светлой
+     его приходится осветлять отдельно — иначе контур листа выглядит почти
+     чёрным (см. переопределение ниже). */
+  --tabs-line: #777777;
+
+  /* Контур неактивных: та же линия, приглушённая заливкой ярлыка. Он держит
+     силуэт закладки, но не спорит с кромкой листа. */
+  --tabs-line-dim: color-mix(in srgb, var(--tabs-line) 45%, var(--tabs-tab-bg) 55%);
+
+  --tabs-shadow-color: #000000;
+  --tabs-shadow-opacity: 0.18;
+
+  padding-left: var(--tabs-pad-left);
+}
+
+/* На светлом фоне та же плотность тени выглядит грязным пятном, а контур —
+   почти чёрной рамкой вокруг листа. Оба ослабляем. */
+body[data-theme-base="light"] .page__tabs--heavy {
+  --tabs-shadow-opacity: 0.10;
+  --tabs-line: #aeb4bb;
+}
+
+.page__tabs--heavy .page__tab {
+  height: var(--tabs-tab-h);
+  align-self: flex-end;
+  padding: 0 18px;
+  padding-right: calc(18px + var(--tabs-slant));
+  z-index: var(--tabs-z, 2);
+  font-weight: 600;
+
+  /* Базовый прямоугольник со скруглением и разделителями гасим — остаётся
+     раскладка, текст и клик. */
+  background: none;
+  border: none;
+  border-radius: 0;
+  opacity: 1;
+  color: var(--color-text-secondary);
+
+  /* Параллелограмм ярлыка: верх = ширина без скоса, низ включает скос. */
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--tabs-slant)) 0,
+    100% 100%,
+    0 100%
+  );
+
+  /* Подпись доходит до полного цвета следом за всплытием ярлыка — задержка
+     покрывает уход предыдущего. */
+  transition: color 0.16s ease 0.15s;
+}
+
+.page__tabs--heavy .page__tab:hover,
+.page__tabs--heavy .page__tab:active {
+  background: none;
+  color: var(--color-text-primary);
+}
+
+.page__tabs--heavy .page__tab--active {
+  background: none;
+  color: var(--color-text-primary);
+}
+
+.page__tabs--heavy .page__tab:disabled {
+  opacity: 0.35;
+}
+
+.page__tabs--heavy .page__tab + .page__tab {
+  margin-left: calc(-1 * var(--tabs-overlap));
+}
+
+/* ── Графика тяжёлого варианта ───────────────────────────────────────────
+   Без `viewBox`: координаты SVG совпадают с пикселями бара один к одному,
+   ровно в них и считает page_tabs.rs.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.tabs-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Цвет тени задаётся здесь, а не атрибутом в разметке. */
+.tabs-art__flood {
+  flood-color: var(--tabs-shadow-color);
+  flood-opacity: var(--tabs-shadow-opacity);
+}
+
+/* Фигура замкнута, поэтому обводка идёт и по дну — там её накрывает кромка
+   листа, а у соседа слева ещё и заливка перекрывающего ярлыка. Видимым
+   остаётся ровно силуэт: верх со скруглениями и скос. */
+.tabs-art__tab {
+  fill: var(--tabs-tab-bg);
+  stroke: var(--tabs-line-dim);
+  stroke-width: 1;
+  transition: fill 0.15s ease;
+}
+
+.tabs-art__tab--hover {
+  fill: var(--tabs-tab-bg-hover);
+}
+
+/* Кромка листа — через весь бар. */
+.tabs-art__edge {
+  stroke: var(--tabs-line);
+  stroke-width: 1;
+}
+
+/* Активный ярлык вырастает от кромки; неактивные сложены в ноль.
+
+   Соседи стоят внахлёст, поэтому одновременные уход и приход накладывались бы
+   друг на друга ровно в этом нахлёсте — два контура и две тени крест-накрест.
+   Разводим по времени: уходящий складывается быстро и гаснет, приходящий
+   стартует, когда от предыдущего уже ничего не осталось. */
+.tabs-art__ear {
+  transform-box: view-box;
+  transform: scaleY(0);
+  opacity: 0;
+  transition: transform 0.12s ease, opacity 0.1s ease;
+}
+
+/* Приход резко нелинейный: почти весь путь проходится в первые мгновения, а
+   последние проценты высоты доезжают медленно — ярлык будто отрывается от
+   кромки рывком и мягко встаёт на место. */
+.tabs-art__ear[data-on="true"] {
+  transform: scaleY(1);
+  opacity: 1;
+  transition:
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1) 0.12s,
+    opacity 0.08s ease 0.12s;
+}
+
+.tabs-art__ear-fill {
+  fill: var(--tabs-sheet);
+}
+
+.tabs-art__ear-line {
+  fill: none;
+  stroke: var(--tabs-line);
+  stroke-width: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabs-art__tab,
+  .tabs-art__ear,
+  .page__tabs--heavy .page__tab {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
 /* TODO: migrate a012/a013/a020 to page__tabs at page level, then remove */
 .page__tab-content {
   padding: var(--spacing-lg);

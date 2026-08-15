@@ -153,6 +153,17 @@
    --radius-lg: 8px;
    --radius-full: 50%;
 
+   /* Viz primitives (см. themes/core/viz.css): плитка, метр, спарклайн,
+      бар-в-ячейке. Геометрия здесь, а не в самих компонентах, чтобы страница
+      могла переопределить масштаб блока, не переписывая правила.
+      `--meter-track-radius` — половина высоты трека: `--radius-full` это 50%,
+      на полосе он даёт эллипс. */
+   --font-size-hero: 2.2rem;
+   --meter-track-height: 6px;
+   --meter-track-radius: 3px;
+   --sparkline-height: 28px;
+   --cell-bar-height: 3px;
+
    /* Typography - Font Sizes */
    --font-size-xs: 11px;
    --font-size-sm: 12px;

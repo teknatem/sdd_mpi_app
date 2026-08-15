@@ -475,6 +475,7 @@
 
 | Tab key | Label | Scope | Component |
 |---------|-------|-------|-----------|
+| `sys_metrics` | Метрики проекта |  | ProjectMetricsPage |
 | `sys_users` | Пользователи |  | UsersListPage |
 | `sys_roles` | Роли |  | RolesListPage |
 | `sys_roles_matrix` | Матрица ролей |  | RoleMatrixPage |

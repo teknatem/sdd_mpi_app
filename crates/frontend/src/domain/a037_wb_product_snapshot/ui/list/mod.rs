@@ -11,12 +11,9 @@ use crate::shared::icons::icon;
 use crate::shared::list_utils::{get_sort_class, get_sort_indicator};
 use crate::shared::page_frame::PageFrame;
 use crate::shared::table_utils::init_column_resize;
-use crate::usecases::u504_import_from_wildberries::api as u504_api;
+use crate::usecases::shared::{client, ImportUseCase};
 use contracts::domain::a006_connection_mp::aggregate::ConnectionMP;
 use contracts::domain::common::AggregateId;
-use contracts::usecases::u504_import_from_wildberries::progress::ImportStatus;
-use contracts::usecases::u504_import_from_wildberries::request::ImportMode;
-use contracts::usecases::u504_import_from_wildberries::ImportRequest;
 use gloo_net::http::Request;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -108,7 +105,7 @@ pub fn WbProductSnapshotList() -> impl IntoView {
     let (error, set_error) = signal::<Option<String>>(None);
     let (is_filter_expanded, set_is_filter_expanded) = signal(false);
     let (connections, set_connections) = signal::<Vec<ConnectionMP>>(Vec::new());
-    let (import_session_id, set_import_session_id) = signal::<Option<String>>(None);
+    let (import_running, set_import_running) = signal(false);
     let (import_status, set_import_status) = signal::<Option<String>>(None);
 
     let open_detail = move |id: String, document_date: String| {
@@ -360,72 +357,36 @@ pub fn WbProductSnapshotList() -> impl IntoView {
         let date_from = today - chrono::Duration::days(6);
 
         set_error.set(None);
+        set_import_running.set(true);
         set_import_status.set(Some("Запуск сбора…".to_string()));
 
         spawn_local(async move {
-            let request = ImportRequest {
+            let outcome = client::run_to_completion(
+                ImportUseCase::Wildberries,
                 connection_id,
-                target_aggregates: vec!["a037_wb_product_snapshot".to_string()],
+                "a037_wb_product_snapshot",
                 date_from,
-                date_to: today,
-                mode: ImportMode::Interactive,
-            };
+                today,
+                |progress| {
+                    let current = progress.current_item.clone().unwrap_or_default();
+                    set_import_status.set(Some(if current.is_empty() {
+                        "Сбор выполняется…".to_string()
+                    } else {
+                        format!("Сбор: {}", current)
+                    }));
+                },
+            )
+            .await;
 
-            let session_id = match u504_api::start_import(request).await {
-                Ok(response) => response.session_id,
+            match outcome {
+                Ok(()) => set_import_status.set(Some("Сбор завершён".to_string())),
                 Err(e) => {
                     set_import_status.set(None);
-                    set_error.set(Some(format!("Ошибка запуска сбора: {}", e)));
-                    return;
-                }
-            };
-            set_import_session_id.set(Some(session_id.clone()));
-
-            loop {
-                gloo_timers::future::TimeoutFuture::new(2000).await;
-                match u504_api::get_progress(&session_id).await {
-                    Ok(progress) => {
-                        let current = progress
-                            .aggregates
-                            .first()
-                            .and_then(|a| a.current_item.clone())
-                            .unwrap_or_default();
-                        match progress.status {
-                            ImportStatus::Running => {
-                                set_import_status.set(Some(if current.is_empty() {
-                                    "Сбор выполняется…".to_string()
-                                } else {
-                                    format!("Сбор: {}", current)
-                                }));
-                            }
-                            ImportStatus::Completed => {
-                                set_import_status.set(Some("Сбор завершён".to_string()));
-                                break;
-                            }
-                            _ => {
-                                let first_error = progress
-                                    .errors
-                                    .first()
-                                    .map(|e| e.message.clone())
-                                    .unwrap_or_else(|| "см. журнал импорта".to_string());
-                                set_import_status.set(None);
-                                set_error.set(Some(format!(
-                                    "Сбор завершился с ошибками: {}",
-                                    first_error
-                                )));
-                                break;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        set_import_status.set(None);
-                        set_error.set(Some(format!("Ошибка получения прогресса: {}", e)));
-                        break;
-                    }
+                    set_error.set(Some(format!("Сбор завершился с ошибками: {}", e)));
                 }
             }
 
-            set_import_session_id.set(None);
+            set_import_running.set(false);
             load_items();
         });
     };
@@ -501,11 +462,11 @@ pub fn WbProductSnapshotList() -> impl IntoView {
                             <Button
                                 appearance=ButtonAppearance::Secondary
                                 on_click=move |_| start_import()
-                                disabled=Signal::derive(move || import_session_id.get().is_some())
+                                disabled=Signal::derive(move || import_running.get())
                             >
                                 {icon("download")}
                                 {move || {
-                                    if import_session_id.get().is_some() {
+                                    if import_running.get() {
                                         "Сбор…"
                                     } else {
                                         "Собрать сейчас"

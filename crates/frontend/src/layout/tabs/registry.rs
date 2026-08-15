@@ -1384,6 +1384,7 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
             view! { <crate::system::roles::ui::matrix::RoleMatrixPage /> }.into_any()
         }
         "sys_audit" => view! { <crate::system::audit::AuditPage /> }.into_any(),
+        "sys_metrics" => view! { <crate::system::metrics::ProjectMetricsPage /> }.into_any(),
         "sys_s3_files" => view! { <S3FilesPage /> }.into_any(),
         "sys_datasets" => view! { <DatasetsPage /> }.into_any(),
         "sys_raw_storage" => view! { <RawStoragePage /> }.into_any(),

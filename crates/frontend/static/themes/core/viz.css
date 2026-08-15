@@ -1,0 +1,256 @@
+/* ════════════════════════════════════════════════════════════════════════
+   viz — примитивы отображения чисел: плитка, дельта, метр, спарклайн.
+
+   Отдельный файл, а не хвост components.css: это самостоятельное семейство,
+   которое будут переиспользовать дашборды, и в файле на 7 тысяч строк его
+   потом никто не найдёт.
+
+   Правила, по которым это нарисовано (методика визуализации данных):
+     · крупное число — пропорциональными цифрами, tabular только в колонках,
+       иначе «121» на большом кегле выглядит разреженным;
+     · статус никогда не работает одним цветом — рядом всегда значок и подпись;
+     · незалитая часть метра — светлый шаг того же тона, а не серый: состояние
+       должно читаться по всей длине шкалы;
+     · тренд приглушён, акцент только на текущей точке;
+     · метки-значения носят текстовые токены, а не цвет ряда.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ---- stat-tile ------------------------------------------------------- */
+
+.stat-tile {
+    --stat-tile-accent: var(--color-border);
+
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--card-border);
+    border-left: var(--spacing-xs) solid var(--stat-tile-accent);
+    border-radius: var(--radius-lg);
+    background: var(--card-bg);
+    min-width: 0;
+}
+
+.stat-tile--ok {
+    --stat-tile-accent: var(--color-success);
+}
+
+.stat-tile--warn {
+    --stat-tile-accent: var(--color-warning);
+}
+
+.stat-tile--bad {
+    --stat-tile-accent: var(--color-error);
+}
+
+/* Крупная плитка bento-раскладки: то же содержимое, больше воздуха. */
+.stat-tile--lead {
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.stat-tile__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+}
+
+.stat-tile__label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.stat-tile__value {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-xs);
+}
+
+/* Пропорциональные цифры: это отдельно стоящее число, а не колонка. */
+.stat-tile__number {
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.1;
+    font-variant-numeric: proportional-nums;
+}
+
+.stat-tile--lead .stat-tile__number {
+    font-size: var(--font-size-hero);
+}
+
+.stat-tile__unit {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.stat-tile__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.stat-tile__hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+}
+
+/* Подпись состояния — общий `.badge` из components.css с модификатором
+   success/warning/error; здесь только расстояние между значком и словом.
+   Своего блока под это заводить нельзя: бейджи в проекте одни. */
+.stat-tile__status {
+    gap: var(--spacing-xs);
+}
+
+/* ---- delta-chip ------------------------------------------------------
+   Цвет несёт «стало лучше/хуже», а не знак числа: рост числа тестов и рост
+   числа мёртвых классов — разные новости при одинаковом плюсе. */
+
+.delta-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.delta-chip__arrow {
+    font-size: var(--font-size-xs);
+    line-height: 1;
+}
+
+.delta-chip__since {
+    color: var(--color-text-tertiary);
+}
+
+.delta-chip--good {
+    color: var(--color-success);
+}
+
+.delta-chip--bad {
+    color: var(--color-error);
+}
+
+.delta-chip--flat {
+    color: var(--color-text-tertiary);
+}
+
+/* ---- meter -----------------------------------------------------------
+   Шкала «значение против порога». Показывает не «плохо ли», а насколько
+   далеко до порога — то, чего цветная рамка сказать не может. */
+
+.meter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    min-width: 0;
+}
+
+.meter__track {
+    position: relative;
+    height: var(--meter-track-height);
+    border-radius: var(--meter-track-radius);
+    /* Светлый шаг того же тона, а не нейтральный серый. */
+    background: var(--color-primary-50);
+    overflow: hidden;
+}
+
+.meter__fill {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    border-radius: var(--meter-track-radius);
+    background: var(--color-primary);
+    transition: width 0.25s ease;
+}
+
+.meter__fill--ok {
+    background: var(--color-success);
+}
+
+.meter__fill--warn {
+    background: var(--color-warning);
+}
+
+.meter__fill--bad {
+    background: var(--color-error);
+}
+
+/* Засечка порога. Ширина в px намеренно: это hairline-разделитель, у
+   которого нет и не должно быть шага в шкале отступов. */
+.meter__tick {
+    position: absolute;
+    inset-block: 0;
+    width: 2px;
+    background: var(--card-bg);
+    transform: translateX(-1px);
+}
+
+.meter__scale {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- sparkline -------------------------------------------------------
+   Тренд приглушён, текущая точка — акцентом с кольцом в цвет поверхности,
+   чтобы она читалась поверх линии. */
+
+.sparkline {
+    position: relative;
+    width: 100%;
+}
+
+.sparkline__svg {
+    display: block;
+    width: 100%;
+    height: var(--sparkline-height);
+    overflow: visible;
+}
+
+.sparkline__area {
+    fill: var(--color-primary-50);
+    stroke: none;
+}
+
+.sparkline__line {
+    fill: none;
+    stroke: var(--color-text-tertiary);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.sparkline__dot {
+    fill: var(--color-primary);
+    stroke: var(--card-bg);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+/* Прозрачные полосы-мишени: попасть в точку 8px мышью невозможно. */
+.sparkline__hit {
+    fill: transparent;
+    cursor: crosshair;
+}
+
+.sparkline__caption {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+    min-height: 1.2em;
+}
+
+/* Бар-в-ячейке (`table__cell--bar`) живёт в components.css рядом с остальным
+   семейством `table__`: у блока должен быть один владелец (UI-011). */

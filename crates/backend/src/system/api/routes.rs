@@ -111,6 +111,30 @@ pub fn configure_system_routes() -> Router {
                 .layer(middleware::from_fn(auth::middleware::require_auth)),
         )
         // ========================================
+        // PROJECT METRICS (admin only)
+        // Снимок состояния экземпляра и кодовой базы; собирается при старте.
+        // ========================================
+        .route(
+            "/api/system/metrics/latest",
+            get(handlers::metrics::latest)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/system/metrics/series",
+            get(handlers::metrics::series)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/system/metrics/snapshots",
+            get(handlers::metrics::snapshots)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        .route(
+            "/api/system/metrics/collect",
+            post(handlers::metrics::collect)
+                .layer(middleware::from_fn(auth::middleware::require_admin)),
+        )
+        // ========================================
         // SYSTEM FAVORITES
         // ========================================
         .route(

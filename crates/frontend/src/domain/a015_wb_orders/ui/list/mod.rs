@@ -3,7 +3,7 @@ pub mod state;
 use self::state::create_state;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::change_tokens::ChangeTokenContext;
-use crate::shared::components::date_range_picker::DateRangePicker;
+use crate::shared::components::date_range_picker_v3::DateRangePickerV3;
 use crate::shared::components::pagination_controls::PaginationControls;
 use crate::shared::components::table::{
     TableCellCheckbox, TableCellMoney, TableCrosshairHighlight, TableHeaderCheckbox,
@@ -785,7 +785,7 @@ pub fn WbOrdersList() -> impl IntoView {
                     <Show when=move || is_filter_expanded.get()>
                         <div class="filter-panel-content">
                             <Flex gap=FlexGap::Small align=FlexAlign::End>
-                                <DateRangePicker
+                                <DateRangePickerV3
                                     date_from=Signal::derive(move || state.with(|s| s.date_from.clone()))
                                     date_to=Signal::derive(move || state.with(|s| s.date_to.clone()))
                                     on_change=Callback::new(move |(from, to)| {

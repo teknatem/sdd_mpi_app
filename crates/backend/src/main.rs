@@ -249,6 +249,14 @@ async fn main() -> anyhow::Result<()> {
         if let Some(_database_activity) = system::maintenance::try_begin_database_activity() {
             shared::llm::kb_generated::regenerate_all().await;
         }
+
+        // Снимок метрик проекта — последним в этой же цепочке, а не отдельной
+        // задачей: он читает `sys_data_profile`, который обновляет именно
+        // `regenerate_all`. Собери раньше — и в снимок уйдут числа строк с
+        // прошлого запуска.
+        if let Err(error) = system::metrics::collect_and_store("startup").await {
+            tracing::warn!("[metrics] снимок при старте не собран: {error}");
+        }
     });
 
     // 5. Configure CORS

@@ -1,3 +1,6 @@
+use crate::shared::components::date_range_picker_exp::DateRangePickerExp;
+use crate::shared::components::date_range_picker_v2::DateRangePickerV2;
+use crate::shared::components::date_range_picker_v3::DateRangePickerV3;
 use crate::shared::page_frame::PageFrame;
 use leptos::prelude::*;
 use std::collections::HashSet;
@@ -13,6 +16,12 @@ pub fn ThawTestPage() -> impl IntoView {
     let checked = RwSignal::new(false);
     let checkbox_group = RwSignal::new(HashSet::new());
     let switch_value = RwSignal::new(false);
+    let exp_from = RwSignal::new(String::new());
+    let exp_to = RwSignal::new(String::new());
+    let v2_from = RwSignal::new(String::new());
+    let v2_to = RwSignal::new(String::new());
+    let v3_from = RwSignal::new(String::new());
+    let v3_to = RwSignal::new(String::new());
 
     view! {
         <PageFrame page_id="sys_thaw_test--system" category="system">
@@ -252,6 +261,81 @@ pub fn ThawTestPage() -> impl IntoView {
                 </div>
             </div>
 
+            // DateRangePickerExp
+            <div style="margin-bottom: 30px; padding: 20px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--card-bg);">
+                <h2 style="margin-bottom: 15px; font-size: 18px; font-weight: 600;">
+                    "8. DateRangePickerExp (экспериментальный)"
+                </h2>
+                <p style="margin-bottom: 12px; color: var(--color-text-secondary); font-size: 14px;">
+                    "Режимы Г/М/Н/Д, текстовый ввод dd.mm.yyyy (01022026), интервал кликом начало→конец в диалоге."
+                </p>
+                <DateRangePickerExp
+                    date_from=Signal::derive(move || exp_from.get())
+                    date_to=Signal::derive(move || exp_to.get())
+                    on_change=Callback::new(move |(from, to)| {
+                        exp_from.set(from);
+                        exp_to.set(to);
+                    })
+                    label="Период:".to_string()
+                />
+                <div style="margin-top: 12px; padding: 10px; background-color: var(--color-bg-secondary); border-radius: 4px;">
+                    <p>
+                        <strong>"ISO from → to: "</strong>
+                        {move || format!("{} → {}", exp_from.get(), exp_to.get())}
+                    </p>
+                </div>
+            </div>
+
+            // DateRangePickerV2
+            <div style="margin-bottom: 30px; padding: 20px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--card-bg);">
+                <h2 style="margin-bottom: 15px; font-size: 18px; font-weight: 600;">
+                    "9. DateRangePickerV2 (экспериментальный, поколение 2)"
+                </h2>
+                <p style="margin-bottom: 12px; color: var(--color-text-secondary); font-size: 14px;">
+                    "Ввод без масок: 01022026 / 1.2.26 / 0102 (год сам) / 5 (день). Enter или 8-я цифра — переход во второе поле, ↑↓ — ±день (с Shift ±месяц). Чип справа открывает пресеты и выбор интервала двумя кликами."
+                </p>
+                <DateRangePickerV2
+                    date_from=Signal::derive(move || v2_from.get())
+                    date_to=Signal::derive(move || v2_to.get())
+                    on_change=Callback::new(move |(from, to)| {
+                        v2_from.set(from);
+                        v2_to.set(to);
+                    })
+                    label="Период:".to_string()
+                />
+                <div style="margin-top: 12px; padding: 10px; background-color: var(--color-bg-secondary); border-radius: 4px;">
+                    <p>
+                        <strong>"ISO from → to: "</strong>
+                        {move || format!("{} → {}", v2_from.get(), v2_to.get())}
+                    </p>
+                </div>
+            </div>
+
+            // DateRangePickerV3
+            <div style="margin-bottom: 30px; padding: 20px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--card-bg);">
+                <h2 style="margin-bottom: 15px; font-size: 18px; font-weight: 600;">
+                    "10. DateRangePickerV3 (экспериментальный, поколение 3)"
+                </h2>
+                <p style="margin-bottom: 12px; color: var(--color-text-secondary); font-size: 14px;">
+                    "Явные режимы Год/Мес/Нед/День. Можно набрать 01022026 с автопереходом, короткую дату 0102 с автоматическим годом или вставить сразу диапазон 01.02.2026 — 28.02.2026. Выбор интервала — пресетом либо двумя кликами."
+                </p>
+                <DateRangePickerV3
+                    date_from=Signal::derive(move || v3_from.get())
+                    date_to=Signal::derive(move || v3_to.get())
+                    on_change=Callback::new(move |(from, to)| {
+                        v3_from.set(from);
+                        v3_to.set(to);
+                    })
+                    label="Период:".to_string()
+                />
+                <div style="margin-top: 12px; padding: 10px; background-color: var(--color-bg-secondary); border-radius: 4px;">
+                    <p>
+                        <strong>"ISO from → to: "</strong>
+                        {move || format!("{} → {}", v3_from.get(), v3_to.get())}
+                    </p>
+                </div>
+            </div>
+
             // Информация о совместимости
             <div style="margin-top: 30px; padding: 20px; background: var(--activity-success-bg); border: 1px solid var(--color-success); border-radius: 8px;">
                 <h2 style="margin-bottom: 10px; font-size: 18px; font-weight: 600; color: var(--color-success);">
@@ -276,6 +360,9 @@ pub fn ThawTestPage() -> impl IntoView {
                         <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"Badge"</Badge>
                         <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"Space"</Badge>
                         <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"Flex"</Badge>
+                        <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerExp"</Badge>
+                        <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerV2"</Badge>
+                        <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerV3"</Badge>
                     </Flex>
                 </div>
             </div>

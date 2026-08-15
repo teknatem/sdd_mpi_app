@@ -3,6 +3,7 @@
 use super::tabs::{GeneralTab, JsonTab, LineTab, LinksTab, ProjectionsTab, SalesTab};
 use super::view_model::WbOrdersDetailsVm;
 use crate::layout::global_context::AppGlobalContext;
+use crate::shared::components::page_tabs::{PageTabs, TabItem, TabsVariant};
 use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;
 use crate::system::favorites::ui::FavoriteButton;
@@ -229,112 +230,25 @@ fn TabBar(vm: WbOrdersDetailsVm) -> impl IntoView {
     let projections_count = vm.projections_count();
 
     view! {
-        <div class="page__tabs">
-            <button
-                class="page__tab"
-                class:page__tab--active=move || active_tab.get() == "general"
-                on:click={
-                    let vm = vm.clone();
-                    move |_| vm.set_tab("general")
-                }
-            >
-                {icon("file-text")} "Общие"
-            </button>
-
-            <button
-                class="page__tab"
-                class:page__tab--active=move || active_tab.get() == "line"
-                on:click={
-                    let vm = vm.clone();
-                    move |_| vm.set_tab("line")
-                }
-            >
-                {icon("list")} "Подробно"
-            </button>
-
-            <button
-                class="page__tab"
-                class:page__tab--active=move || active_tab.get() == "json"
-                on:click={
-                    let vm = vm.clone();
-                    move |_| vm.set_tab("json")
-                }
-            >
-                {icon("code")} "JSON"
-            </button>
-
-            <button
-                class="page__tab"
-                class:page__tab--active=move || active_tab.get() == "links"
-                on:click={
-                    let vm = vm.clone();
-                    move |_| vm.set_tab("links")
-                }
-            >
-                {icon("link")} "Связи"
-                <Badge
-                    appearance=BadgeAppearance::Tint
-                    color=Signal::derive({
-                        let active_tab = active_tab;
-                        move || if active_tab.get() == "links" {
-                            BadgeColor::Brand
-                        } else {
-                            BadgeColor::Informative
-                        }
-                    })
-                    attr:style="margin-left: 6px;"
-                >
-                    {move || finance_reports_count.get().to_string()}
-                </Badge>
-            </button>
-
-            <button
-                class="page__tab"
-                class:page__tab--active=move || active_tab.get() == "projections"
-                on:click={
-                    let vm = vm.clone();
-                    move |_| vm.set_tab("projections")
-                }
-            >
-                {icon("activity")} "Проекции"
-                <Badge
-                    appearance=BadgeAppearance::Tint
-                    color=Signal::derive({
-                        let active_tab = active_tab;
-                        move || if active_tab.get() == "projections" {
-                            BadgeColor::Brand
-                        } else {
-                            BadgeColor::Informative
-                        }
-                    })
-                    attr:style="margin-left: 6px;"
-                >
-                    {move || projections_count.get().to_string()}
-                </Badge>
-            </button>
-
-            <button
-                class="page__tab"
-                class:page__tab--active=move || active_tab.get() == "sales"
-                on:click=move |_| vm.set_tab("sales")
-            >
-                {icon("shopping-cart")} "Sales"
-                <Badge
-                    appearance=BadgeAppearance::Tint
-                    color=Signal::derive({
-                        let active_tab = active_tab;
-                        move || if active_tab.get() == "sales" {
-                            BadgeColor::Brand
-                        } else {
-                            BadgeColor::Informative
-                        }
-                    })
-                    attr:style="margin-left: 6px;"
-                >
-                    {move || wb_sales_count.get().to_string()}
-                </Badge>
-            </button>
-        </div>
+        <PageTabs
+            tabs=vec![
+                TabItem::new("general", "Общие").with_icon("file-text"),
+                TabItem::new("line", "Подробно").with_icon("list"),
+                TabItem::new("json", "JSON").with_icon("code"),
+                TabItem::new("links", "Связи")
+                    .with_icon("link")
+                    .with_badge(Signal::derive(move || finance_reports_count.get().to_string())),
+                TabItem::new("projections", "Проекции")
+                    .with_icon("activity")
+                    .with_badge(Signal::derive(move || projections_count.get().to_string())),
+                TabItem::new("sales", "Sales")
+                    .with_icon("shopping-cart")
+                    .with_badge(Signal::derive(move || wb_sales_count.get().to_string())),
+            ]
+            active=active_tab.into()
+            on_select=Callback::new(move |key: &'static str| vm.set_tab(key))
+            variant=TabsVariant::Heavy
+        />
     }
 }
 

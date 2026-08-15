@@ -4,8 +4,12 @@
 # Runs only if staged files touch the sources a generator reads, so most
 # commits pay no cost. Regenerated maps are staged into the commit.
 #
-#   ARCHITECTURE.md  <- domain/projections/usecases/routes/frontend layout
-#   UI_REGISTRY.md   <- crates/frontend/static/**.css + frontend .rs class usage
+#   ARCHITECTURE.md       <- domain/projections/usecases/routes/frontend layout
+#   UI_REGISTRY.md        <- crates/frontend/static/**.css + frontend .rs class usage
+#   codebase_metrics.json <- source tree + the two maps above
+#
+# Order matters: codebase_metrics.json parses its architecture and UI counters
+# out of the two maps, so it must run after both have been refreshed.
 #
 # Never blocks a commit: a failing generator or an unregistered CSS block is a
 # warning, not a gate.
@@ -31,16 +35,27 @@ if echo "$staged" | grep -Eq 'crates/frontend/static/|tools/gen_ui_registry\.ps1
 fi
 
 # ---- Architecture map --------------------------------------------------------
-echo "$staged" | grep -Eq \
-  'crates/contracts/src/domain/|crates/backend/src/domain/|crates/backend/src/projections/|crates/backend/src/usecases/|crates/backend/src/data_schemes/|crates/backend/src/data_view/|crates/backend/src/dashboards/|crates/backend/src/quality/checks/|crates/backend/src/system/tasks/managers/|crates/backend/src/system/access/scope_catalog\.rs|crates/backend/src/shared/analytics/(account|turnover)_registry\.rs|crates/backend/src/api/routes\.rs|crates/frontend/src/layout/(left/sidebar|tabs/)|tools/gen_architecture\.ps1' \
-  || exit 0
-
-echo "[pre-commit] Source map inputs changed — regenerating ARCHITECTURE.md..."
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/gen_architecture.ps1
-if [ $? -ne 0 ]; then
-  echo "[pre-commit] WARNING: generator failed; committing without refreshing ARCHITECTURE.md." >&2
-  exit 0
+if echo "$staged" | grep -Eq \
+  'crates/contracts/src/domain/|crates/backend/src/domain/|crates/backend/src/projections/|crates/backend/src/usecases/|crates/backend/src/data_schemes/|crates/backend/src/data_view/|crates/backend/src/dashboards/|crates/backend/src/quality/checks/|crates/backend/src/system/tasks/managers/|crates/backend/src/system/access/scope_catalog\.rs|crates/backend/src/shared/analytics/(account|turnover)_registry\.rs|crates/backend/src/api/routes\.rs|crates/frontend/src/layout/(left/sidebar|tabs/)|tools/gen_architecture\.ps1'; then
+  echo "[pre-commit] Source map inputs changed — regenerating ARCHITECTURE.md..."
+  if powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/gen_architecture.ps1; then
+    git add ARCHITECTURE.md
+  else
+    echo "[pre-commit] WARNING: generator failed; committing without refreshing ARCHITECTURE.md." >&2
+  fi
 fi
 
-git add ARCHITECTURE.md
+# ---- Project metrics ---------------------------------------------------------
+# Last, and gated the same way the other two are: a docs-only commit does not
+# need a fresh measurement, and an unconditional run would put a diff in every
+# single commit. ~1s when it does run.
+if echo "$staged" | grep -Eq 'crates/|migrations/|memory-bank/|tools/gen_code_metrics\.ps1'; then
+  echo "[pre-commit] Regenerating codebase_metrics.json..."
+  if powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/gen_code_metrics.ps1; then
+    git add codebase_metrics.json
+  else
+    echo "[pre-commit] WARNING: metrics generator failed; committing without refreshing codebase_metrics.json." >&2
+  fi
+fi
+
 exit 0

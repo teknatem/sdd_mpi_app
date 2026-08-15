@@ -7,6 +7,7 @@
 use crate::layout::global_context::{AppGlobalContext, Tab as TabData};
 use crate::layout::left::sidebar::Sidebar;
 use crate::layout::right::panel::RightPanel;
+use crate::layout::tabs::tab_labels::tab_label_for_key;
 use crate::layout::tabs::TabPage;
 use crate::layout::Shell;
 use crate::system::auth::context::use_auth;
@@ -25,6 +26,23 @@ fn MainLayout() -> impl IntoView {
 
     // Initialize router integration. This runs once when the component is created.
     tabs_store.init_router_integration();
+
+    // Стартовая вкладка администратора — «Метрики проекта».
+    //
+    // Проверка на пустоту обязательна: `init_router_integration` уже открыл
+    // вкладку из `?active=`, и перебивать явную ссылку пользователя нельзя.
+    // Не-админу вкладка не открывается — её роуты всё равно ответят 403.
+    let (auth_state, _) = use_auth();
+    let is_admin = auth_state.with_untracked(|state| {
+        state
+            .user_info
+            .as_ref()
+            .map(|user| user.is_admin)
+            .unwrap_or(false)
+    });
+    if is_admin && tabs_store.opened.get_untracked().is_empty() {
+        tabs_store.open_tab("sys_metrics", tab_label_for_key("sys_metrics"));
+    }
 
     view! {
         <Shell

@@ -5,6 +5,7 @@ pub mod datasets;
 pub mod favorites;
 pub mod history;
 pub mod maintenance;
+pub mod metrics;
 pub mod pages;
 pub mod raw_storage;
 pub mod roles;

@@ -1,0 +1,45 @@
+/* Страница загрузок с маркетплейса (u502/u503/u504).
+ *
+ * Список целиком построен на общих блоках (spec-list, table__data, badge,
+ * dpc-mode-tabs), здесь только то, чего в ядре нет: полоса прогресса,
+ * счётчики и ширины двух колонок.
+ */
+
+.import-ops .import-ops__connection {
+  min-width: 260px;
+  max-width: 420px;
+}
+
+/* Колонка периода не должна схлопываться: внутри DateRangePickerV2. */
+.import-ops .import-ops__period {
+  min-width: 340px;
+}
+
+.import-ops .import-ops__counters {
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.import-ops .import-ops__bar {
+  margin-top: var(--spacing-xs);
+  height: 6px;
+  min-width: 120px;
+  border-radius: var(--radius-sm);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+/* Ширина задаётся инлайном: это runtime-значение прогресса. */
+.import-ops .import-ops__bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.import-ops .import-ops__messages {
+  white-space: pre-wrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-error);
+}

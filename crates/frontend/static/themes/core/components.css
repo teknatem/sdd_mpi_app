@@ -605,6 +605,383 @@
   font-weight: 600;
 }
 
+/* Experimental DateRangePickerExp extensions (same BEM block) */
+.date-range-picker--exp {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  gap: 10px;
+}
+
+.date-range-picker__mode {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.date-range-picker__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-right: 1px solid var(--colorNeutralStroke2, rgba(0, 0, 0, 0.12));
+  background: transparent;
+  color: var(--colorNeutralForeground2, #616161);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.date-range-picker__mode-btn:last-child {
+  border-right: none;
+}
+
+.date-range-picker__mode-btn:hover {
+  background: var(--colorNeutralBackground1Hover, rgba(0, 0, 0, 0.06));
+  color: var(--colorNeutralForeground1, #242424);
+}
+
+.date-range-picker__mode-btn--active {
+  background: var(--colorBrandBackground2, rgba(59, 130, 246, 0.12));
+  color: var(--colorBrandForeground1, var(--color-primary, #3b82f6));
+}
+
+.date-range-picker__dates {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 12px;
+}
+
+.date-range-picker--exp .date-range-picker__input {
+  box-sizing: content-box;
+  flex: 0 0 auto;
+  width: 11ch;
+  min-width: 11ch;
+  max-width: 11ch;
+  margin: 0;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--colorNeutralForeground1, #242424);
+  font-size: var(--font-size-base, 14px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  outline: none;
+}
+
+.date-range-picker--exp .drp-nav-buttons {
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+}
+
+.date-range-picker--exp .drp-icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+/* DateRangePickerV2: та же строка 32px, но шире — режимы, даты, шаги, чип периода */
+.date-range-picker--v2 {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 4px 0 0;
+  gap: 8px;
+}
+
+.date-range-picker--v2 .date-range-picker__dates {
+  gap: 2px;
+}
+
+.date-range-picker--v2 .date-range-picker__input {
+  box-sizing: content-box;
+  flex: 0 0 auto;
+  width: 11ch;
+  min-width: 11ch;
+  max-width: 11ch;
+  margin: 0;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--borderRadiusSmall, 2px);
+  background: transparent;
+  color: var(--colorNeutralForeground1, #242424);
+  font-size: var(--font-size-base, 14px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-align: center;
+  outline: none;
+}
+
+.date-range-picker--v2 .date-range-picker__input:focus {
+  background: var(--colorNeutralBackground1Hover, rgba(0, 0, 0, 0.06));
+}
+
+/* Разделитель дат — точка, как внутри самой даты */
+.date-range-picker__sep {
+  flex: 0 0 auto;
+  padding: 0 1px;
+  color: var(--colorNeutralForeground3, #8a8a8a);
+  font-size: var(--font-size-base, 14px);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.date-range-picker--v2 .drp-nav-buttons {
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+}
+
+/* DateRangePickerV3: полные названия режимов и ввод/вставка без маски */
+.date-range-picker--v3 {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 4px 0 0;
+  gap: 8px;
+}
+
+.date-range-picker--v3 .date-range-picker__mode-btn {
+  width: auto;
+  min-width: 38px;
+  padding: 0 7px;
+}
+
+.date-range-picker--v3 .date-range-picker__dates {
+  gap: 2px;
+}
+
+.date-range-picker--v3 .date-range-picker__input {
+  box-sizing: content-box;
+  flex: 0 0 auto;
+  width: 11ch;
+  min-width: 11ch;
+  max-width: 11ch;
+  margin: 0;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--borderRadiusSmall, 2px);
+  background: transparent;
+  color: var(--colorNeutralForeground1, #242424);
+  font-size: var(--font-size-base, 14px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-align: center;
+  outline: none;
+}
+
+.date-range-picker--v3 .date-range-picker__input:focus {
+  background: var(--colorNeutralBackground1Hover, rgba(0, 0, 0, 0.06));
+}
+
+.date-range-picker--v3 .drp-nav-buttons {
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+}
+
+.date-range-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 24px;
+  max-width: 160px;
+  padding: 0 6px 0 8px;
+  border: 1px solid var(--colorNeutralStroke2, rgba(0, 0, 0, 0.12));
+  border-radius: var(--borderRadiusMedium, 4px);
+  background: transparent;
+  color: var(--colorNeutralForeground2, #616161);
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.date-range-picker__chip:hover {
+  background: var(--colorNeutralBackground1Hover, rgba(0, 0, 0, 0.06));
+  color: var(--colorNeutralForeground1, #242424);
+}
+
+.date-range-picker__chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-range-picker__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: var(--spacing-sm, 8px);
+  border-bottom: 1px solid var(--colorNeutralStroke2, rgba(0, 0, 0, 0.12));
+}
+
+.date-range-picker__preset {
+  padding: 3px 10px;
+  border: 1px solid var(--colorNeutralStroke2, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  background: transparent;
+  color: var(--colorNeutralForeground2, #616161);
+  font-size: var(--font-size-sm, 13px);
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.date-range-picker__preset:hover {
+  background: var(--colorBrandBackground2, rgba(59, 130, 246, 0.12));
+  color: var(--colorBrandForeground1, var(--color-primary, #3b82f6));
+}
+
+.date-range-picker__dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+  min-width: 280px;
+}
+
+.date-range-picker__dialog-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm, 8px);
+}
+
+.date-range-picker__dialog-title {
+  font-weight: 600;
+  font-size: var(--font-size-base, 14px);
+  color: var(--colorNeutralForeground1, #242424);
+}
+
+.date-range-picker__grid {
+  display: grid;
+  gap: 4px;
+}
+
+.date-range-picker__grid--years {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.date-range-picker__grid--months {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.date-range-picker__grid--days {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.date-range-picker__weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.date-range-picker__weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground3, #8a8a8a);
+  padding: 2px 0;
+}
+
+.date-range-picker__cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--borderRadiusMedium, 4px);
+  background: transparent;
+  color: var(--colorNeutralForeground1, #242424);
+  font-size: var(--font-size-sm, 13px);
+  cursor: pointer;
+}
+
+.date-range-picker__cell:hover {
+  background: var(--colorNeutralBackground1Hover, rgba(0, 0, 0, 0.06));
+}
+
+.date-range-picker__cell--in-range {
+  background: var(--colorBrandBackground2, rgba(59, 130, 246, 0.12));
+}
+
+.date-range-picker__cell--start,
+.date-range-picker__cell--end {
+  background: var(--colorBrandBackground, var(--color-primary, #3b82f6));
+  color: var(--colorNeutralForegroundOnBrand, #fff);
+}
+
+.date-range-picker__cell--start:hover,
+.date-range-picker__cell--end:hover {
+  background: var(--colorBrandBackgroundHover, var(--color-primary, #2563eb));
+  color: var(--colorNeutralForegroundOnBrand, #fff);
+}
+
+.date-range-picker__cell--muted {
+  opacity: 0.45;
+}
+
+/* Текущая единица периода — кольцо, чтобы не спорить с заливкой выбора */
+.date-range-picker__cell--today {
+  box-shadow: inset 0 0 0 1px var(--colorNeutralStrokeAccessible, var(--colorNeutralStroke1, #d1d1d1));
+}
+
+.date-range-picker__cell--week-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  padding: 2px 0;
+  min-height: 28px;
+}
+
+.date-range-picker__day {
+  text-align: center;
+  font-size: var(--font-size-sm, 13px);
+}
+
+.date-range-picker__day--muted {
+  opacity: 0.45;
+}
+
+.date-range-picker__hint {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: var(--font-size-sm, 13px);
+  line-height: 1.4;
+  color: var(--colorNeutralForeground2, #616161);
+}
+
+.date-range-picker__hint--hidden {
+  visibility: hidden;
+}
+
 /* ============================================
    Badges
    ============================================ */
@@ -1332,6 +1709,26 @@ th.resizable {
 /* BEM: Приглушенный текст (для пустых состояний) */
 .table__cell--muted {
   color: var(--color-text-tertiary);
+}
+
+/* BEM: Число с баром под ним — модификатор поверх обычной ячейки, а не своя
+   таблица. Колонка, задача которой сравнить величины, читается полосками
+   заметно быстрее, чем столбиком цифр. Ширину бара ставит Rust: она зависит
+   от максимума конкретной таблицы и в CSS её знать неоткуда.
+   Геометрия — `--cell-bar-height` в variables.css. */
+.table__cell--bar {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table__cell-bar {
+  display: block;
+  height: var(--cell-bar-height);
+  margin-top: var(--spacing-xs);
+  margin-left: auto;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
 }
 
 /* DEPRECATED: Headers should always align left. Use .table__header-cell only.

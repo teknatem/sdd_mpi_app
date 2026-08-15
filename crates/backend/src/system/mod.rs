@@ -8,6 +8,7 @@ pub mod favorites;
 pub mod history;
 pub mod initialization;
 pub mod maintenance;
+pub mod metrics;
 pub mod middleware;
 pub mod restart;
 pub mod roles;

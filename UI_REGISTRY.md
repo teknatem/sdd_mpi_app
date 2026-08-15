@@ -9,22 +9,22 @@
 
 | Metric | Value |
 |--------|-------|
-| CSS files | 45 |
-| CSS lines | 19948 |
-| Distinct classes | 2021 |
-| Block roots | 576 |
-| Classes with no Rust reference | 403 |
-| Inline `style=` in .rs | 4370 |
-| Hardcoded hex outside themes | 350 |
-| Raw px in spacing/size props | 1790 |
-| Tokens defined | 320 |
+| CSS files | 47 |
+| CSS lines | 21006 |
+| Distinct classes | 2125 |
+| Block roots | 582 |
+| Classes with no Rust reference | 399 |
+| Inline `style=` in .rs | 4270 |
+| Hardcoded hex outside themes | 368 |
+| Raw px in spacing/size props | 1841 |
+| Tokens defined | 338 |
 | Tokens undefined with NO fallback (broken) | 0 |
 | Tokens undefined but with a fallback (dormant) | 1 |
-| Tokens set by Rust at runtime | 5 |
-| Tokens used but undefined (Thaw runtime) | 53 |
-| Allowlist entries | 579 |
+| Tokens set by Rust at runtime | 6 |
+| Tokens used but undefined (Thaw runtime) | 55 |
+| Allowlist entries | 585 |
 
-## Block roots (576)
+## Block roots (582)
 
 One row per top-level BEM block. `Used` counts the block's classes that appear
 in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
@@ -34,7 +34,6 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `a007-link-card` | core | static/themes/core/layout.css | 12 | 9 | allowed |
 | `a007-mp-list` | core | static/themes/core/layout.css | 5 | 5 | allowed |
 | `a007-quick-access` | core | static/themes/core/layout.css | 2 | 2 | allowed |
-| `a016-tabs` | page | static/pages/a016_ym_returns.css | 6 | 1 | allowed |
 | `active` | core | static/themes/core/components.css | 1 | 1 | allowed |
 | `activity-item` | core | static/themes/core/components.css | 8 | 0 | allowed / dead |
 | `ai-chat-menu` | feature | static/ai_chat_menu.css | 7 | 7 | allowed |
@@ -210,8 +209,9 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `datasets` | page | static/pages/sys_datasets.css | 62 | 39 | allowed |
 | `data-table` | core,feature | static/plugin-sdk.css<br>static/themes/core/components.css | 6 | 6 | allowed |
 | `date-input` | core | static/themes/core/components.css | 1 | 0 | allowed / dead |
-| `date-range-picker` | core | static/themes/core/components.css | 6 | 6 | allowed |
+| `date-range-picker` | core | static/themes/core/components.css | 38 | 38 | allowed |
 | `delete-condition-btn` | feature | static/condition_editor.css | 1 | 1 | allowed |
+| `delta-chip` | core | static/themes/core/viz.css | 6 | 6 | allowed |
 | `detail-grid` | core,page | static/pages/sys_style_guide.css<br>static/themes/core/layout.css | 2 | 2 | allowed |
 | `details-flags` | core | static/themes/core/components.css | 1 | 1 | allowed |
 | `details-grid` | core | static/themes/core/components.css | 3 | 2 | allowed |
@@ -361,6 +361,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `help-text` | core,feature | static/condition_editor.css<br>static/themes/core/components.css | 2 | 2 | allowed |
 | `hidden` | core,page | static/pages/knowledge_base.css<br>static/themes/core/utilities.css | 1 | 1 | allowed |
 | `icon-cell-container` | core | static/themes/core/components.css | 1 | 1 | allowed |
+| `import-ops` | page | static/pages/import_ops.css | 7 | 7 | allowed |
 | `indicator-dashboard` | core | static/themes/core/components.css | 2 | 0 | allowed / dead |
 | `indicator-detail` | core | static/themes/core/components.css | 37 | 34 | allowed |
 | `indicator-detail-modal` | core | static/themes/core/components.css | 2 | 2 | allowed |
@@ -409,6 +410,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `maintenance` | page | static/pages/maintenance.css | 8 | 6 | allowed |
 | `maintenance-banner` | page | static/pages/maintenance.css | 1 | 0 | allowed / dead |
 | `maintenance-line` | page | static/pages/login.css<br>static/pages/maintenance.css | 4 | 4 | allowed |
+| `meter` | core | static/themes/core/viz.css | 8 | 8 | allowed |
 | `modal` | core,page | static/pages/sys_datasets.css<br>static/themes/core/components.css | 3 | 2 | allowed |
 | `modal-actions-top` | core | static/themes/core/components.css | 1 | 0 | allowed / dead |
 | `modal-body` | core | static/themes/core/components.css | 1 | 1 | allowed |
@@ -438,7 +440,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `p907-ref-repr` | page | static/pages/p907_ym_payment_report.css | 1 | 1 | allowed |
 | `p907-ref-value` | page | static/pages/p907_ym_payment_report.css | 1 | 1 | allowed |
 | `p907-sort-header` | page | static/pages/p907_ym_payment_report.css | 1 | 1 | allowed |
-| `page` | core,page | static/pages/a016_ym_returns.css<br>+8 more | 21 | 20 | allowed |
+| `page` | core,page | static/pages/llm_skills.css<br>+7 more | 24 | 22 | allowed |
 | `page-action-button` | core,page | static/pages/sys_raw_storage.css<br>static/themes/core/layout.css | 6 | 6 | allowed |
 | `page-size-select` | core | static/themes/core/layout.css | 1 | 1 | allowed |
 | `pagination-btn` | core | static/themes/core/layout.css | 1 | 1 | allowed |
@@ -517,6 +519,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `sg-type-sans` | page | static/pages/sys_style_guide.css | 1 | 0 | allowed / dead |
 | `skills-matrix` | page | static/pages/llm_skills.css | 19 | 19 | allowed |
 | `sort-icon` | core | static/themes/core/components.css | 1 | 1 | allowed |
+| `sparkline` | core | static/themes/core/viz.css | 7 | 7 | allowed |
 | `spec-list` | core | static/themes/core/components.css | 15 | 14 | allowed |
 | `spinner` | feature | static/universal_dashboard.css | 1 | 1 | allowed |
 | `sql-code` | core | static/themes/core/components.css | 1 | 0 | allowed / dead |
@@ -540,19 +543,22 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `stat` | feature | static/plugin-sdk.css | 5 | 0 | allowed / dead |
 | `stat-card` | core,page | static/pages/sys_raw_storage.css<br>static/themes/core/components.css | 13 | 6 | allowed |
 | `stats` | feature | static/plugin-sdk.css | 1 | 1 | allowed |
+| `stat-tile` | core | static/themes/core/viz.css | 13 | 13 | allowed |
 | `status` | feature | static/plugin-sdk.css | 3 | 1 | allowed |
 | `status-invalid` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
 | `status-valid` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
 | `summary-box` | core | static/themes/core/utilities.css | 1 | 0 | allowed / dead |
 | `summary-item` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
+| `sys-metrics` | page | static/pages/sys_metrics.css | 24 | 24 | allowed |
 | `sys-ticket-details` | page | static/pages/sys_tickets.css | 39 | 32 | allowed |
 | `sys-ticket-details-page` | page | static/pages/sys_tickets.css | 1 | 1 | allowed |
 | `sys-tickets` | page | static/pages/sys_tickets.css | 3 | 3 | allowed |
 | `tab-content` | feature | static/condition_editor.css | 1 | 1 | allowed |
 | `tab-icon` | core | static/themes/core/components.css | 1 | 1 | allowed |
-| `table` | core,page | static/pages/quality_check_details.css<br>+5 more | 31 | 19 | allowed |
+| `table` | core,page | static/pages/quality_check_details.css<br>+5 more | 33 | 21 | allowed |
 | `table-wrap` | feature | static/plugin-sdk.css | 1 | 1 | allowed |
 | `table-wrapper` | core,page | static/pages/sys_task_type_registry.css<br>static/themes/core/layout.css | 1 | 1 | allowed |
+| `tabs-art` | core | static/themes/core/layout.css | 8 | 7 | allowed |
 | `task-filter` | page | static/pages/sys_tasks.css | 4 | 4 | allowed |
 | `task-type-registry` | page | static/pages/sys_task_type_registry.css | 14 | 13 | allowed |
 | `td-w-10p` | core | static/themes/core/utilities.css | 1 | 0 | allowed / dead |
@@ -597,7 +603,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `u505-match` | core | static/themes/core/layout.css | 28 | 28 | allowed |
 | `universal-dashboard` | feature | static/universal_dashboard.css | 1 | 1 | allowed |
 | `u-tech-label` | core | static/themes/core/utilities.css | 1 | 1 | allowed |
-| `valid` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
+| `valid` | feature | static/universal_dashboard.css | 1 | 1 | allowed |
 | `validation-card` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
 | `validation-empty` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
 | `validation-panel` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
@@ -615,7 +621,7 @@ concept that must collapse onto a single definition, or a name collision.
 
 | Block | Files | Defined in |
 |-------|-------|------------|
-| `page` | 9 | static/pages/a016_ym_returns.css<br>static/pages/llm_skills.css<br>static/pages/quality_check_details.css<br>static/pages/sys_datasets.css<br>static/pages/sys_raw_storage.css<br>static/pages/sys_tickets.css<br>static/themes/core/components.css<br>static/themes/core/layout.css<br>static/themes/core/utilities.css |
+| `page` | 8 | static/pages/llm_skills.css<br>static/pages/quality_check_details.css<br>static/pages/sys_datasets.css<br>static/pages/sys_raw_storage.css<br>static/pages/sys_tickets.css<br>static/themes/core/components.css<br>static/themes/core/layout.css<br>static/themes/core/utilities.css |
 | `table` | 6 | static/pages/quality_check_details.css<br>static/pages/sys_datasets.css<br>static/pages/sys_style_guide.css<br>static/themes/core/components.css<br>static/themes/core/layout.css<br>static/themes/core/thaw-patches.css |
 | `badge` | 4 | static/pages/sys_style_guide.css<br>static/plugin-sdk.css<br>static/themes/core/components.css<br>static/themes/core/layout.css |
 | `text-muted` | 4 | static/pages/sys_datasets.css<br>static/themes/core/components.css<br>static/themes/core/utilities.css<br>static/universal_dashboard.css |
@@ -663,18 +669,18 @@ someone to set the variable and nobody does.
 |-------|-----------------|
 | `--nav-i` | static/themes/core/navigator.css |
 
-### Set by Rust at runtime (5)
+### Set by Rust at runtime (6)
 
 Written onto the element from a signal (`style:--x=..`), so they are absent from
 the CSS by design. Not bugs.
 
-`--drill-cols`, `--from-x`, `--from-y`, `--mp-color`, `--spec-cat`
+`--drill-cols`, `--from-x`, `--from-y`, `--mp-color`, `--spec-cat`, `--tabs-z`
 
-### Thaw runtime tokens (53)
+### Thaw runtime tokens (55)
 
 Injected by the Thaw component library at runtime - undefined in our CSS by design.
 
-`--borderRadiusMedium`, `--colorBrandBackground`, `--colorBrandBackgroundHover`, `--colorBrandBackgroundPressed`, `--colorBrandForeground1`, `--colorBrandForeground2`, `--colorBrandStroke1`, `--colorBrandStroke2`, `--colorNeutralBackground1Hover`, `--colorNeutralBackground1Pressed`, `--colorNeutralBackground2`, `--colorNeutralBackground3`, `--colorNeutralBackground6`, `--colorNeutralForeground1`, `--colorNeutralForeground2`, `--colorNeutralForeground3`, `--colorNeutralForegroundOnBrand`, `--colorNeutralStroke1`, `--colorNeutralStroke1Hover`, `--colorNeutralStroke2`, `--colorNeutralStroke3`, `--colorNeutralStrokeAccessible`, `--colorNeutralStrokeAccessibleHover`, `--colorPaletteRedForeground1`, `--fontFamilyMonospace`, `--fontWeightSemibold`, `--spacingHorizontalMNudge`, `--spacingHorizontalXS`, `--spacingHorizontalXXS`, `--spacingVerticalS`, `--thaw-color-brand-background-2`, `--thaw-color-brand-foreground-1`, `--thaw-color-brand-foreground-2`, `--thaw-color-brand-stroke-1`, `--thaw-color-danger-background-1`, `--thaw-color-danger-border-1`, `--thaw-color-danger-foreground-1`, `--thaw-color-neutral-background-1`, `--thaw-color-neutral-background-2`, `--thaw-color-neutral-background-3`, `--thaw-color-neutral-foreground-1`, `--thaw-color-neutral-foreground-2`, `--thaw-color-neutral-foreground-3`, `--thaw-color-neutral-stroke-1`, `--thaw-color-palette-red-background-2`, `--thaw-color-palette-red-background-3`, `--thaw-color-palette-red-border-1`, `--thaw-color-palette-red-border-2`, `--thaw-color-palette-red-foreground-1`, `--thaw-color-palette-red-foreground-2`, `--thaw-color-success-border-1`, `--thaw-color-success-foreground-1`, `--thaw-color-warning-foreground-1`
+`--borderRadiusMedium`, `--borderRadiusSmall`, `--colorBrandBackground`, `--colorBrandBackground2`, `--colorBrandBackgroundHover`, `--colorBrandBackgroundPressed`, `--colorBrandForeground1`, `--colorBrandForeground2`, `--colorBrandStroke1`, `--colorBrandStroke2`, `--colorNeutralBackground1Hover`, `--colorNeutralBackground1Pressed`, `--colorNeutralBackground2`, `--colorNeutralBackground3`, `--colorNeutralBackground6`, `--colorNeutralForeground1`, `--colorNeutralForeground2`, `--colorNeutralForeground3`, `--colorNeutralForegroundOnBrand`, `--colorNeutralStroke1`, `--colorNeutralStroke1Hover`, `--colorNeutralStroke2`, `--colorNeutralStroke3`, `--colorNeutralStrokeAccessible`, `--colorNeutralStrokeAccessibleHover`, `--colorPaletteRedForeground1`, `--fontFamilyMonospace`, `--fontWeightSemibold`, `--spacingHorizontalMNudge`, `--spacingHorizontalXS`, `--spacingHorizontalXXS`, `--spacingVerticalS`, `--thaw-color-brand-background-2`, `--thaw-color-brand-foreground-1`, `--thaw-color-brand-foreground-2`, `--thaw-color-brand-stroke-1`, `--thaw-color-danger-background-1`, `--thaw-color-danger-border-1`, `--thaw-color-danger-foreground-1`, `--thaw-color-neutral-background-1`, `--thaw-color-neutral-background-2`, `--thaw-color-neutral-background-3`, `--thaw-color-neutral-foreground-1`, `--thaw-color-neutral-foreground-2`, `--thaw-color-neutral-foreground-3`, `--thaw-color-neutral-stroke-1`, `--thaw-color-palette-red-background-2`, `--thaw-color-palette-red-background-3`, `--thaw-color-palette-red-border-1`, `--thaw-color-palette-red-border-2`, `--thaw-color-palette-red-foreground-1`, `--thaw-color-palette-red-foreground-2`, `--thaw-color-success-border-1`, `--thaw-color-success-foreground-1`, `--thaw-color-warning-foreground-1`
 
 ### Theme drift
 
@@ -697,8 +703,8 @@ Theme files are excluded from the hex count - defining colours is their job.
 
 | File | Layer | Lines | Classes | Hex | Raw px |
 |------|-------|-------|---------|-----|--------|
-| static/themes/core/components.css | core | 7317 | 816 | 157 | 656 |
-| static/themes/core/layout.css | core | 1827 | 203 | 30 | 160 |
+| static/themes/core/components.css | core | 7714 | 850 | 177 | 702 |
+| static/themes/core/layout.css | core | 2127 | 214 | 30 | 165 |
 | static/pages/plugins.css | page | 1094 | 123 | 28 | 160 |
 | static/pages/d406_wb_sales_funnel.css | page | 380 | 50 | 31 | 61 |
 | static/themes/core/general_ledger_dimensions.css | core | 632 | 56 | 3 | 84 |
@@ -715,23 +721,22 @@ Theme files are excluded from the hex count - defining colours is their job.
 | static/pages/general_ledger_matrix.css | page | 167 | 24 | 5 | 23 |
 | static/pages/sys_tickets.css | page | 694 | 48 | 6 | 20 |
 | static/pages/sys_style_guide.css | page | 274 | 37 | 1 | 21 |
+| static/ai_chat_menu.css | feature | 80 | 7 | 0 | 19 |
 | static/pages/knowledge_base.css | page | 113 | 17 | 1 | 18 |
 | static/plugin-sdk.css | feature | 315 | 28 | 0 | 19 |
-| static/ai_chat_menu.css | feature | 80 | 7 | 0 | 19 |
-| static/pages/sys_raw_storage.css | page | 173 | 22 | 0 | 17 |
 | static/condition_editor.css | feature | 137 | 17 | 3 | 14 |
+| static/pages/sys_raw_storage.css | page | 173 | 22 | 0 | 17 |
 | static/pages/maintenance.css | page | 118 | 13 | 1 | 12 |
 | static/themes/core/dashboards/d405_metadata_dashboard.css | core | 154 | 26 | 0 | 13 |
-| static/pages/sys_roles_matrix.css | page | 122 | 16 | 0 | 9 |
 | static/themes/core/fields.css | core | 80 | 11 | 3 | 6 |
+| static/pages/sys_roles_matrix.css | page | 122 | 16 | 0 | 9 |
+| static/pages/sys_task_type_registry.css | page | 110 | 15 | 0 | 7 |
 | static/themes/core/thaw-patches.css | core | 225 | 23 | 2 | 5 |
 | static/pages/login.css | page | 286 | 19 | 0 | 7 |
-| static/pages/sys_task_type_registry.css | page | 110 | 15 | 0 | 7 |
 | static/themes/core/general_ledger_details.css | core | 61 | 5 | 2 | 1 |
-| static/pages/a016_ym_returns.css | page | 147 | 9 | 2 | 0 |
-| static/pages/p907_ym_payment_report.css | page | 29 | 4 | 0 | 2 |
-| static/themes/core/utilities.css | core | 369 | 58 | 0 | 2 |
 | static/pages/a037_wb_product_snapshot.css | page | 27 | 2 | 0 | 2 |
+| static/themes/core/utilities.css | core | 369 | 58 | 0 | 2 |
+| static/pages/p907_ym_payment_report.css | page | 29 | 4 | 0 | 2 |
 | static/pages/quality_check_details.css | page | 19 | 2 | 0 | 1 |
 
 ## Dead candidates
@@ -743,7 +748,7 @@ appears in no `.rs` or asset `.html`. Nothing loads these.
 
 None.
 
-### Classes with no Rust reference (403)
+### Classes with no Rust reference (399)
 
 Conservative: a class counts as used if it appears as a whole token in any Rust
 string literal, or if some `format!` stem is a prefix of it. Still verify before
@@ -759,189 +764,188 @@ deleting - a class may be referenced from an asset `.html` or a plugin bundle.
 | `table` | `table__cell--highlight` `table__cell--highlight-alt` `table__cell--sticky` `table__row--cancelled` `table__row--selected` `table__row--warning` `table__sort-icon` `table__sort-icon--active` `table__totals-header` `table__tree-label` `table__tree-placeholder` `table__tree-toggle` |
 | `mp-ms` | `mp-ms` `mp-ms__badge` `mp-ms__badge--all` `mp-ms__badges` `mp-ms__badge--selected` `mp-ms__clear` `mp-ms__state` `mp-ms__state--error` `mp-ms__summary` `mp-ms__toolbar` |
 | `activity-item` | `activity-item` `activity-item__details` `activity-item__icon` `activity-item__icon--error` `activity-item__icon--success` `activity-item__icon--warning` `activity-item__text` `activity-item__time` |
-| `stat-card` | `stat-card__change` `stat-card__change--down` `stat-card__change--flat` `stat-card__change--up` `stat-card__subtitle` `stat-card--error` `stat-card--success` |
+| `proj-list-source` | `proj-list-source` `proj-list-source__empty` `proj-list-source__main` `proj-list-source__meta` `proj-list-source__role` `proj-list-source__row` `proj-list-source__title` |
 | `sys-ticket-details` | `sys-ticket-details__attachment-item--linked` `sys-ticket-details__attachment-item--selected` `sys-ticket-details__attachment-name--image` `sys-ticket-details__attachments-list--dragover` `sys-ticket-details__comment-attachments` `sys-ticket-details__comment--linked` `sys-ticket-details__comment--selected` |
 | `app-panel-activity` | `app-panel-activity` `app-panel-activity__content` `app-panel-activity__header` `app-panel-activity__section` `app-panel-activity__section-body` `app-panel-activity__section-header` `app-panel-activity__title` |
-| `proj-list-source` | `proj-list-source` `proj-list-source__empty` `proj-list-source__main` `proj-list-source__meta` `proj-list-source__role` `proj-list-source__row` `proj-list-source__title` |
 | `schema-test-result` | `schema-test-result` `schema-test-result__content` `schema-test-result__rows` `schema-test-result__status` `schema-test-result__time` `schema-test-result--error` `schema-test-result--success` |
+| `stat-card` | `stat-card__change` `stat-card__change--down` `stat-card__change--flat` `stat-card__change--up` `stat-card__subtitle` `stat-card--error` `stat-card--success` |
 | `dom-tree-node` | `dom-tree-node__class--special` `dom-tree-node__data-attr--hidden` `dom-tree-node__header--clickable` `dom-tree-node__tag--page` `dom-tree-node__tag--panel-left` `dom-tree-node__tag--right-panel` `dom-tree-node__tag--table` |
 | `dashboard-filter` | `dashboard-filter` `dashboard-filter__checkboxes` `dashboard-filter__checkbox-label` `dashboard-filter__checkbox-row` `dashboard-filter__label` `dashboard-filter--daterange` `dashboard-filter--multiselect` |
 | `indicator-set` | `indicator-set` `indicator-set__grid` `indicator-set__grid--cols-2` `indicator-set__grid--cols-3` `indicator-set__grid--cols-4` `indicator-set__title` |
 | `app-sidebar` | `app-sidebar__chevron--expanded` `app-sidebar__collapse--open` `app-sidebar__header` `app-sidebar__item--active` `app-sidebar__title` |
-| `a016-tabs` | `a016-tabs__art` `a016-tabs__fill` `a016-tabs__fill--active` `a016-tabs__line` `a016-tabs__shadow` |
 | `app-panel` | `app-panel__info-item` `app-panel__info-label` `app-panel__info-value` `app-panel--hidden` `app-panel--resizing` |
 | `stat` | `stat` `stat__label` `stat__value` `stat--bad` `stat--ok` |
 | `doc-list` | `doc-list__progress` `doc-list__summary` `doc-list__title` `doc-list__toolbar` |
 | `bi-style-option` | `bi-style-option` `bi-style-option__desc` `bi-style-option__label` `bi-style-option--selected` |
 | `json-viewer` | `json-viewer` `json-viewer__body` `json-viewer__content` `json-viewer__footer` |
+| `d401-tree` | `d401-tree` `d401-tree__btn--active` `d401-tree__toggle--disabled` |
 | `checkbox-list` | `checkbox-list` `checkbox-list__item` `checkbox-list__item--mono` |
-| `bi-indicator-general` | `bi-indicator-general__group--checkbox` `bi-indicator-general__group--full` `bi-indicator-general__group--wide` |
-| `a007-link-card` | `a007-link-card__status` `a007-link-card__status--empty` `a007-link-card__status--linked` |
-| `windows-dropdown` | `windows-dropdown__close` `windows-dropdown__count` `windows-dropdown__item--active` |
-| `field-flag` | `field-flag` `field-flag--no` `field-flag--yes` |
 | `proj-detail` | `proj-detail__section--full` `proj-detail__source-item--muted` `proj-detail__value--muted` |
+| `a007-link-card` | `a007-link-card__status` `a007-link-card__status--empty` `a007-link-card__status--linked` |
+| `field-flag` | `field-flag` `field-flag--no` `field-flag--yes` |
 | `plugins-dot` | `plugins-dot` `plugins-dot--off` `plugins-dot--on` |
 | `indicator-detail` | `indicator-detail__about` `indicator-detail__value` `indicator-detail__value-row` |
-| `d401-tree` | `d401-tree` `d401-tree__btn--active` `d401-tree__toggle--disabled` |
+| `windows-dropdown` | `windows-dropdown__close` `windows-dropdown__count` `windows-dropdown__item--active` |
+| `bi-indicator-general` | `bi-indicator-general__group--checkbox` `bi-indicator-general__group--full` `bi-indicator-general__group--wide` |
+| `drilldown-drawer` | `drilldown-drawer__filters` `drilldown-drawer__footer` |
+| `input-actions` | `input-actions` `input-actions--single` |
 | `login` | `login__footer-text` `login--maintenance` |
-| `badge` | `badge__icon` `badge__text` |
 | `bi-viewspec` | `bi-viewspec__preview-frame` `bi-viewspec__style-grid` |
 | `chat-tree` | `chat-tree__dir--active` `chat-tree__row--open` |
-| `input-actions` | `input-actions` `input-actions--single` |
+| `badge` | `badge__icon` `badge__text` |
 | `favorite-list` | `favorite-list__editor` `favorite-list__editor-actions` |
-| `app-header` | `app-header__center` `app-header__icon-btn` |
-| `drilldown-drawer` | `drilldown-drawer__filters` `drilldown-drawer__footer` |
-| `dsc-dim-toggle` | `dsc-dim-toggle` `dsc-dim-toggle--active` |
-| `picker` | `picker__item--selected` `picker__row--selected` |
+| `page` | `page__tab--active` `page--narrow` |
 | `schema-chip` | `schema-chip` `schema-chip--active` |
+| `thaw-table-header-cell` | `thaw-table-header-cell` `thaw-table-header-cell__button` |
+| `dsc-dim-toggle` | `dsc-dim-toggle` `dsc-dim-toggle--active` |
 | `thaw-table-cell-layout` | `thaw-table-cell-layout` `thaw-table-cell-layout__content` |
+| `picker` | `picker__item--selected` `picker__row--selected` |
+| `maintenance` | `maintenance__actions` `maintenance__since` |
+| `app-header` | `app-header__center` `app-header__icon-btn` |
 | `data-matrix-wrapper` | `data-matrix-wrapper--framed` `data-matrix-wrapper--tall` |
 | `status` | `status--error` `status--ok` |
-| `maintenance` | `maintenance__actions` `maintenance__since` |
-| `thaw-table-header-cell` | `thaw-table-header-cell` `thaw-table-header-cell__button` |
 | `indicator-dashboard` | `indicator-dashboard__filters` `indicator-dashboard__sets` |
-| `bi-llm-panel` | `bi-llm-panel--open` |
-| `cm-editor` | `cm-editor` |
-| `task-type-registry` | `task-type-registry__chevron--expanded` |
-| `schema-fields-tab` | `schema-fields-tab` |
-| `bg-secondary` | `bg-secondary` |
-| `card-header` | `card-header` |
 | `form-grid` | `form-grid--simple` |
-| `chat-workspace` | `chat-workspace__plan-step--done` |
-| `field-id` | `field-id` |
-| `gap-md` | `gap-md` |
-| `valid` | `valid` |
-| `json-preview` | `json-preview` |
-| `th-w-15p` | `th-w-15p` |
-| `num` | `num` |
-| `schema-table-name` | `schema-table-name` |
-| `function-select` | `function-select` |
-| `thaw-config-provider` | `thaw-config-provider` |
-| `cm-scroller` | `cm-scroller` |
 | `ind-picker` | `ind-picker__row--already` |
+| `bi-llm-panel` | `bi-llm-panel--open` |
+| `cm-scroller` | `cm-scroller` |
+| `card-header` | `card-header` |
+| `bg-secondary` | `bg-secondary` |
+| `field-id` | `field-id` |
+| `chat-workspace` | `chat-workspace__plan-step--done` |
+| `schema-fields-tab` | `schema-fields-tab` |
 | `summary-item` | `summary-item` |
-| `schema-browser-main` | `schema-browser-main` |
+| `gap-md` | `gap-md` |
+| `th-w-15p` | `th-w-15p` |
+| `schema-table-name` | `schema-table-name` |
+| `json-preview` | `json-preview` |
+| `function-select` | `function-select` |
+| `task-type-registry` | `task-type-registry__chevron--expanded` |
 | `th-w-14p` | `th-w-14p` |
-| `validation-card` | `validation-card` |
-| `thaw-table-header` | `thaw-table-header` |
+| `cm-editor` | `cm-editor` |
+| `schema-browser-main` | `schema-browser-main` |
+| `num` | `num` |
+| `thaw-config-provider` | `thaw-config-provider` |
+| `bi-indicator-dataspec` | `bi-indicator-dataspec__stats` |
 | `schema-browser-side` | `schema-browser-side` |
+| `validation-card` | `validation-card` |
 | `schema-browser-content` | `schema-browser-content` |
 | `input-with-actions` | `input-with-actions` |
-| `drill-th` | `drill-th--sortable` |
-| `field-name` | `field-name` |
+| `thaw-table-header` | `thaw-table-header` |
 | `raw-json-content` | `raw-json-content` |
+| `drill-th` | `drill-th--sortable` |
 | `schema-browser` | `schema-browser` |
 | `d406-field` | `d406-field--grow` |
-| `col-mp` | `col-mp` |
-| `thaw-button` | `thaw-button` |
+| `validation-summary` | `validation-summary` |
 | `th-w-46p` | `th-w-46p` |
+| `col-mp` | `col-mp` |
 | `raw-json-header` | `raw-json-header` |
 | `td-w-14p` | `td-w-14p` |
-| `card-title` | `card-title` |
-| `validation-summary` | `validation-summary` |
+| `thaw-button` | `thaw-button` |
 | `schema-id` | `schema-id` |
+| `card-title` | `card-title` |
 | `thaw-table-row` | `thaw-table-row` |
 | `error-banner` | `error-banner` |
-| `header-left` | `header-left` |
-| `field-row` | `field-row` |
+| `field-name` | `field-name` |
 | `schema-sql-tab` | `schema-sql-tab` |
+| `header-left` | `header-left` |
 | `badge-group` | `badge-group` |
 | `error-item` | `error-item` |
-| `validation-panel` | `validation-panel` |
-| `bi-indicator-dataspec` | `bi-indicator-dataspec__stats` |
+| `field-row` | `field-row` |
 | `field` | `field__label` |
+| `validation-panel` | `validation-panel` |
 | `schema-browser-header` | `schema-browser-header` |
 | `placeholder` | `placeholder__title` |
-| `config-created` | `config-created` |
-| `thaw-table` | `thaw-table` |
+| `llm-tools` | `llm-tools__row--active` |
 | `card-errors` | `card-errors` |
+| `config-created` | `config-created` |
 | `badge-auto` | `badge-auto` |
 | `text-warning` | `text-warning` |
-| `bi-timeline` | `bi-timeline__panel` |
-| `llm-tools` | `llm-tools__row--active` |
+| `thaw-table` | `thaw-table` |
 | `validation-empty` | `validation-empty` |
+| `bi-timeline` | `bi-timeline__panel` |
 | `card-body` | `card-body` |
 | `spec-list` | `spec-list--compact` |
-| `badge-custom` | `badge-custom` |
 | `thaw-card` | `thaw-card` |
-| `gap-lg` | `gap-lg` |
-| `schema-picker-select` | `schema-picker-select` |
-| `raw-storage` | `raw-storage__list-value--warn` |
-| `card-warnings` | `card-warnings` |
-| `thaw-input` | `thaw-input__input` |
-| `date-input` | `date-input` |
 | `doc-filters` | `doc-filters` |
-| `text-negative` | `text-negative` |
-| `filters-row` | `filters-row` |
-| `schema-test-tab` | `schema-test-tab` |
-| `modal-actions-top` | `modal-actions-top` |
-| `td-w-10p` | `td-w-10p` |
-| `sg-type-sans` | `sg-type-sans` |
-| `totals-row` | `totals-row` |
-| `config-updated` | `config-updated` |
-| `sql-header-actions` | `sql-header-actions` |
-| `bg-surface` | `bg-surface` |
-| `thaw-tab` | `thaw-tab` |
+| `badge-custom` | `badge-custom` |
+| `raw-storage` | `raw-storage__list-value--warn` |
+| `gap-lg` | `gap-lg` |
+| `thaw-input` | `thaw-input__input` |
 | `header-right` | `header-right` |
-| `td-w-35p` | `td-w-35p` |
+| `card-warnings` | `card-warnings` |
+| `text-negative` | `text-negative` |
+| `date-input` | `date-input` |
+| `schema-test-tab` | `schema-test-tab` |
+| `bg-surface` | `bg-surface` |
+| `filters-row` | `filters-row` |
+| `sg-type-sans` | `sg-type-sans` |
+| `modal-actions-top` | `modal-actions-top` |
+| `config-updated` | `config-updated` |
+| `schema-picker-select` | `schema-picker-select` |
+| `totals-row` | `totals-row` |
+| `thaw-tab` | `thaw-tab` |
+| `sql-header-actions` | `sql-header-actions` |
+| `form-actions-center` | `form-actions-center` |
 | `noise-pattern` | `noise-pattern` |
-| `status-invalid` | `status-invalid` |
-| `dv-drawer` | `dv-drawer__list` |
+| `windows-list` | `windows-list__item--active` |
+| `td-w-35p` | `td-w-35p` |
 | `field-type` | `field-type` |
+| `status-invalid` | `status-invalid` |
 | `modal-header` | `modal-header__left` |
 | `card-meta` | `card-meta` |
-| `excel-importer` | `excel-importer__import-btn` |
-| `windows-list` | `windows-list__item--active` |
+| `tabs-art` | `tabs-art__tab--hover` |
 | `schema-name-link` | `schema-name-link` |
-| `thaw-textarea` | `thaw-textarea__textarea` |
+| `excel-importer` | `excel-importer__import-btn` |
 | `warning-item` | `warning-item` |
-| `details-grid` | `details-grid--2col` |
-| `form-actions-center` | `form-actions-center` |
-| `td-w-15p` | `td-w-15p` |
-| `thaw-badge` | `thaw-badge` |
-| `toolbar` | `toolbar` |
-| `config-name` | `config-name` |
 | `text-error` | `text-error` |
+| `thaw-textarea` | `thaw-textarea__textarea` |
+| `td-w-15p` | `td-w-15p` |
+| `details-grid` | `details-grid--2col` |
+| `toolbar` | `toolbar` |
+| `dv-drawer` | `dv-drawer__list` |
+| `thaw-badge` | `thaw-badge` |
 | `button` | `button--info` |
-| `bi-viewspec-editor` | `bi-viewspec-editor` |
+| `config-name` | `config-name` |
 | `header-center` | `header-center` |
-| `font-semibold` | `font-semibold` |
-| `schema-settings-tab` | `schema-settings-tab` |
-| `sql-code` | `sql-code` |
-| `loading-placeholder` | `loading-placeholder` |
-| `status-valid` | `status-valid` |
-| `btn` | `btn--ghost` |
 | `plugins-link` | `plugins-link--muted` |
+| `bi-viewspec-editor` | `bi-viewspec-editor` |
+| `sql-code` | `sql-code` |
+| `font-semibold` | `font-semibold` |
+| `status-valid` | `status-valid` |
+| `sql-display` | `sql-display` |
+| `loading-placeholder` | `loading-placeholder` |
 | `td-w-46p` | `td-w-46p` |
-| `font-bold` | `font-bold` |
+| `btn` | `btn--ghost` |
 | `nomenclature-picker` | `nomenclature-picker__row--selected` |
-| `page` | `page--narrow` |
+| `summary-box` | `summary-box` |
+| `font-bold` | `font-bold` |
 | `schema-list-header` | `schema-list-header` |
 | `text-link` | `text-link` |
-| `th-w-35p` | `th-w-35p` |
 | `navigator` | `navigator__view-btn--active` |
-| `input-action-btn` | `input-action-btn` |
+| `schema-settings-tab` | `schema-settings-tab` |
+| `th-w-35p` | `th-w-35p` |
 | `th-w-10p` | `th-w-10p` |
-| `summary-box` | `summary-box` |
-| `sql-display` | `sql-display` |
-| `general-info` | `general-info__grid` |
-| `maintenance-banner` | `maintenance-banner` |
-| `config-description` | `config-description` |
-| `text-success` | `text-success` |
-| `role-select` | `role-select` |
-| `gap-sm` | `gap-sm` |
-| `td-w-20p` | `td-w-20p` |
-| `month-selector` | `month-selector` |
-| `thaw-table-cell` | `thaw-table-cell` |
-| `gldim-tree` | `gldim-tree__btn--active` |
-| `cm-focused` | `cm-focused` |
-| `data-matrix` | `data-matrix__num` |
-| `dashboard-filters` | `dashboard-filters` |
+| `input-action-btn` | `input-action-btn` |
 | `card-status` | `card-status` |
-| `bi-preview` | `bi-preview__empty-hint` |
-| `plugin-data-mode` | `plugin-data-mode__button--active` |
-| `info-message` | `info-message` |
-| `field-db-column` | `field-db-column` |
+| `maintenance-banner` | `maintenance-banner` |
+| `thaw-table-cell` | `thaw-table-cell` |
+| `general-info` | `general-info__grid` |
+| `role-select` | `role-select` |
+| `config-description` | `config-description` |
+| `td-w-20p` | `td-w-20p` |
+| `td-w-10p` | `td-w-10p` |
+| `gap-sm` | `gap-sm` |
+| `gldim-tree` | `gldim-tree__btn--active` |
+| `month-selector` | `month-selector` |
+| `data-matrix` | `data-matrix__num` |
 | `d406-na` | `d406-na` |
+| `cm-focused` | `cm-focused` |
+| `bi-preview` | `bi-preview__empty-hint` |
+| `dashboard-filters` | `dashboard-filters` |
+| `info-message` | `info-message` |
+| `text-success` | `text-success` |
+| `plugin-data-mode` | `plugin-data-mode__button--active` |
 | `modal` | `modal__actions` |
+| `field-db-column` | `field-db-column` |
 

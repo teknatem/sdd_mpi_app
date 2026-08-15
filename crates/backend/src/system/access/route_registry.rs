@@ -310,6 +310,32 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
         scope_id: None,
         mode: PolicyMode::AdminOnly,
     },
+    // Project metrics: снимок состояния экземпляра и кодовой базы.
+    // Без scope — это не бизнес-область, а системный паспорт, как и аудит выше.
+    RoutePolicy {
+        method: "GET",
+        path: "/api/system/metrics/latest",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/system/metrics/series",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/system/metrics/snapshots",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/system/metrics/collect",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
     // Utility routes without explicit scope (logs, form-settings — low sensitivity)
     RoutePolicy {
         method: "*",

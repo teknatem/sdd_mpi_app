@@ -1,5 +1,6 @@
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::components::card_animated::CardAnimated;
+use crate::shared::components::page_tabs::{PageTabs, TabItem};
 use crate::shared::date_utils::{format_duration_ms, format_http_traffic, format_utc_local};
 use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;
@@ -216,7 +217,7 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
     let (runs, set_runs) = signal(Vec::<TaskRun>::new());
     let (runs_loading, set_runs_loading) = signal(false);
     let (metadata, set_metadata) = signal(None::<TaskMetadataDto>);
-    let (active_tab, set_active_tab) = signal("settings".to_string());
+    let (active_tab, set_active_tab) = signal::<&'static str>("settings");
     let (task_types, set_task_types) = signal(Vec::<TaskMetadataDto>::new());
     let task_types_error = RwSignal::new(None::<String>);
 
@@ -639,30 +640,16 @@ pub fn ScheduledTaskDetails(id: String) -> impl IntoView {
             }}
 
             // ---- Tab bar ----
-            <div class="page__tabs">
-                {["settings", "logs", "history", "metadata"].into_iter().map(|tab| {
-                    let tab_s = tab.to_string();
-                    let label = match tab {
-                        "settings" => "Настройки",
-                        "logs"     => "Логи",
-                        "history"  => "История запусков",
-                        "metadata" => "Описание задачи",
-                        _          => tab,
-                    };
-                    view! {
-                        <button
-                            class="page__tab"
-                            class:page__tab--active=move || active_tab.get() == tab_s
-                            on:click={
-                                let tab_s2 = tab.to_string();
-                                move |_| set_active_tab.set(tab_s2.clone())
-                            }
-                        >
-                            {label}
-                        </button>
-                    }
-                }).collect_view()}
-            </div>
+            <PageTabs
+                tabs=vec![
+                    TabItem::new("settings", "Настройки"),
+                    TabItem::new("logs", "Логи"),
+                    TabItem::new("history", "История запусков"),
+                    TabItem::new("metadata", "Описание задачи"),
+                ]
+                active=active_tab.into()
+                on_select=Callback::new(move |key: &'static str| set_active_tab.set(key))
+            />
 
             // ---- Settings tab ----
             // Always mounted (display:none when inactive) so that Thaw <Select> is never
