@@ -25,7 +25,11 @@ if echo "$staged" | grep -Eq 'crates/frontend/static/|tools/gen_ui_registry\.ps1
     git add UI_REGISTRY.md
     # The allowlist gate is advisory. It only speaks once
     # crates/frontend/static/ui-registry.allow.json exists.
-    unreg=$(grep -c 'unregistered' UI_REGISTRY.md 2>/dev/null || echo 0)
+    # `grep -c` prints 0 AND exits non-zero when there are no matches, so the
+    # old `|| echo 0` appended a SECOND zero and `[ "0\n0" -gt 0 ]` errored out
+    # with "integer expression expected" on every clean commit.
+    unreg=$(grep -c 'unregistered' UI_REGISTRY.md 2>/dev/null | head -n 1)
+    [ -n "$unreg" ] || unreg=0
     if [ "$unreg" -gt 0 ]; then
       echo "[pre-commit] WARN: $unreg CSS block root(s) are not in ui-registry.allow.json." >&2
       echo "[pre-commit]       See the 'Block roots' table in UI_REGISTRY.md." >&2

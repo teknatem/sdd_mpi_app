@@ -499,12 +499,6 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/connection_mp/testdata",
-        scope_id: Some("a006_connection_mp"),
-        mode: PolicyMode::Auto,
-    },
-    RoutePolicy {
-        method: "*",
         path: "/api/marketplace_product",
         scope_id: Some("a007_marketplace_product"),
         mode: PolicyMode::Auto,
@@ -547,49 +541,49 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ozon_fbs_posting",
+        path: "/api/a010/ozon-fbs-posting",
         scope_id: Some("a010_ozon_fbs_posting"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ozon_fbs_posting/:id",
+        path: "/api/a010/ozon-fbs-posting/:id",
         scope_id: Some("a010_ozon_fbs_posting"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ozon_fbo_posting",
+        path: "/api/a011/ozon-fbo-posting",
         scope_id: Some("a011_ozon_fbo_posting"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ozon_fbo_posting/:id",
+        path: "/api/a011/ozon-fbo-posting/:id",
         scope_id: Some("a011_ozon_fbo_posting"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/wb_sales",
+        path: "/api/a012/wb-sales",
         scope_id: Some("a012_wb_sales"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/wb_sales/:id",
+        path: "/api/a012/wb-sales/:id",
         scope_id: Some("a012_wb_sales"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ym_order",
+        path: "/api/a013/ym-order",
         scope_id: Some("a013_ym_order"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ym_order/:id",
+        path: "/api/a013/ym-order/:id",
         scope_id: Some("a013_ym_order"),
         mode: PolicyMode::Auto,
     },
@@ -619,25 +613,25 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ym_returns",
+        path: "/api/a016/ym-returns",
         scope_id: Some("a016_ym_returns"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/ym_returns/:id",
+        path: "/api/a016/ym-returns/:id",
         scope_id: Some("a016_ym_returns"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-agent",
+        path: "/api/a017-llm-agent",
         scope_id: Some("a017_llm_agent"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-agent/:id",
+        path: "/api/a017-llm-agent/:id",
         scope_id: Some("a017_llm_agent"),
         mode: PolicyMode::Auto,
     },
@@ -685,25 +679,19 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-chat",
+        path: "/api/a018-llm-chat",
         scope_id: Some("a018_llm_chat"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-chat/:id",
+        path: "/api/a018-llm-chat/:id",
         scope_id: Some("a018_llm_chat"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-chat/:id/messages",
-        scope_id: Some("a018_llm_chat"),
-        mode: PolicyMode::Auto,
-    },
-    RoutePolicy {
-        method: "*",
-        path: "/api/llm-chat/:id/run",
+        path: "/api/a018-llm-chat/:id/messages",
         scope_id: Some("a018_llm_chat"),
         mode: PolicyMode::Auto,
     },
@@ -736,61 +724,61 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-artifact",
+        path: "/api/a019-llm-artifact",
         scope_id: Some("a019_llm_artifact"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/llm-artifact/:id",
+        path: "/api/a019-llm-artifact/:id",
         scope_id: Some("a019_llm_artifact"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/wb-promotion",
+        path: "/api/a020/wb-promotions",
         scope_id: Some("a020_wb_promotion"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/wb-promotion/:id",
+        path: "/api/a020/wb-promotions/:id",
         scope_id: Some("a020_wb_promotion"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/production_output",
+        path: "/api/a021/production-output/list",
         scope_id: Some("a021_production_output"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/production_output/:id",
+        path: "/api/a021/production-output/:id",
         scope_id: Some("a021_production_output"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/kit_variant",
+        path: "/api/a022/kit-variant/list",
         scope_id: Some("a022_kit_variant"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/kit_variant/:id",
+        path: "/api/a022/kit-variant/:id",
         scope_id: Some("a022_kit_variant"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/purchase_of_goods",
+        path: "/api/a023/purchase-of-goods/list",
         scope_id: Some("a023_purchase_of_goods"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/purchase_of_goods/:id",
+        path: "/api/a023/purchase-of-goods/:id",
         scope_id: Some("a023_purchase_of_goods"),
         mode: PolicyMode::Auto,
     },
@@ -965,13 +953,13 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/a026/wb-advert-daily",
+        path: "/api/a026/wb-advert-daily/list",
         scope_id: Some("a026_wb_advert_daily"),
         mode: PolicyMode::Auto,
     },
     RoutePolicy {
         method: "*",
-        path: "/api/a034/ym-realization",
+        path: "/api/a034/ym-realization/list",
         scope_id: Some("a034_ym_realization"),
         mode: PolicyMode::Auto,
     },
@@ -995,7 +983,7 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/a036/wb-sales-funnel",
+        path: "/api/a036/wb-sales-funnel/list",
         scope_id: Some("a036_wb_sales_funnel_daily"),
         mode: PolicyMode::Auto,
     },
@@ -1007,7 +995,7 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
     },
     RoutePolicy {
         method: "*",
-        path: "/api/a037/wb-product-snapshot",
+        path: "/api/a037/wb-product-snapshot/list",
         scope_id: Some("a037_wb_product_snapshot"),
         mode: PolicyMode::Auto,
     },
@@ -1929,7 +1917,7 @@ mod tests {
     ///
     /// Уменьшили долг — уменьшите и константу: тест этого требует, иначе
     /// планка тихо перестанет держать.
-    const ROUTES_WITHOUT_POLICY_BASELINE: usize = 250;
+    const ROUTES_WITHOUT_POLICY_BASELINE: usize = 221;
 
     /// Пути всех `.route("…")` из обоих файлов маршрутов.
     ///
@@ -1997,18 +1985,24 @@ mod tests {
         );
     }
 
-    /// Записи о политике для маршрутов, которых больше нет.
+    /// Записи о политике для маршрутов, которых больше нет. **Долг закрыт.**
     ///
-    /// Все 31 — следы переименования путей на префиксы `aXXX`:
-    /// `/api/wb_sales/:id` вместо нынешнего `/api/a012/wb-sales/:id`,
-    /// `/api/llm-chat/:id` вместо `/api/a018-llm-chat/:id` и так далее.
-    /// То есть решение о политике никуда не делось — у него разъехался адрес.
+    /// Было 31 — следы переименования путей на префиксы `aXXX`
+    /// (`/api/wb_sales/:id` вместо нынешнего `/api/a012/wb-sales/:id`,
+    /// `/api/llm-chat/:id` вместо `/api/a018-llm-chat/:id`). Решение о политике
+    /// никуда не девалось — у него разъехался адрес, поэтому 29 записей
+    /// **переуказаны** с сохранением `scope_id` и `PolicyMode`, а не заведены
+    /// заново. Тем же движением долг в [`ROUTES_WITHOUT_POLICY_BASELINE`]
+    /// сократился с 250 до 221.
     ///
-    /// Поэтому чинится это не удалением, а переуказанием пути: каждая такая
-    /// правка убирает фантом здесь и одновременно уменьшает долг в
-    /// [`ROUTES_WITHOUT_POLICY_BASELINE`]. Работа осмысленная и парная, делать
-    /// её вслепую нельзя — отсюда снова храповик, а не `is_empty()`.
-    const ORPHAN_POLICY_BASELINE: usize = 31;
+    /// Две записи удалены, потому что эндпоинтов действительно больше нет:
+    /// `/api/connection_mp/testdata` (у a006 её не осталось, `testdata` есть
+    /// только у a001) и `/api/llm-chat/:id/run` (синхронный запуск заменён
+    /// очередью `/api/a018-llm-chat/jobs/:job_id`).
+    ///
+    /// Ноль означает, что фантом теперь запрещён: переименовали путь — перенесите
+    /// запись, а не заводите вторую.
+    const ORPHAN_POLICY_BASELINE: usize = 0;
 
     /// Обратная сторона реестра: запись создаёт впечатление, что эндпоинт
     /// существует и проверен, и переживает переименование кода незамеченной.
