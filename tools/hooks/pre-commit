@@ -11,8 +11,10 @@
 # Order matters: codebase_metrics.json parses its architecture and UI counters
 # out of the two maps, so it must run after both have been refreshed.
 #
-# Never blocks a commit: a failing generator or an unregistered CSS block is a
-# warning, not a gate.
+# Generators never block: a failing generator or an unregistered CSS block is a
+# warning, not a gate. The ratchet at the end DOES block — that is the one thing
+# here with teeth, and the point of it. See tools/check_health.ps1 for the
+# escape hatch when a regression is a deliberate trade.
 
 staged=$(git diff --cached --name-only)
 
@@ -55,6 +57,20 @@ if echo "$staged" | grep -Eq 'crates/|migrations/|memory-bank/|tools/gen_code_me
     git add codebase_metrics.json
   else
     echo "[pre-commit] WARNING: metrics generator failed; committing without refreshing codebase_metrics.json." >&2
+  fi
+
+  # ---- ratchet -------------------------------------------------------------
+  # The only blocking step in this hook. Compares the metrics just regenerated
+  # against the ones committed at HEAD and refuses a commit that makes a tracked
+  # number worse. This is what turns codebase_metrics.json from a report into a
+  # control — see goal 9 of memory-bank/architecture/ARCHITECTURE_EVOLUTION_PROGRAM.md.
+  #
+  # A regression that IS the intent (a phase that trades one metric for another)
+  # is landed with SKIP_HEALTH=1, which records the choice rather than hiding it.
+  if ! powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/check_health.ps1; then
+    echo "[pre-commit] Commit blocked by the metrics ratchet (see above)." >&2
+    echo "[pre-commit] Deliberate trade?  SKIP_HEALTH=1 git commit ..." >&2
+    exit 1
   fi
 fi
 

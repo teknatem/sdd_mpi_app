@@ -288,12 +288,16 @@ pub fn init_column_resize(table_id: &str, storage_key: &str) {
             };
             state.did_resize = true;
             let new_width = (state.start_width + e.client_x() - state.start_x).max(40);
-            let _ = th.style().set_property("width", &format!("{}px", new_width));
-            let _ = th.style().set_property("min-width", &format!("{}px", new_width));
+            let _ = th
+                .style()
+                .set_property("width", &format!("{}px", new_width));
+            let _ = th
+                .style()
+                .set_property("min-width", &format!("{}px", new_width));
         }) as Box<dyn FnMut(WebMouseEvent)>);
 
-        let _ =
-            document.add_event_listener_with_callback("mousemove", mousemove.as_ref().unchecked_ref());
+        let _ = document
+            .add_event_listener_with_callback("mousemove", mousemove.as_ref().unchecked_ref());
         mousemove.forget();
 
         let state_mu = state.clone();
@@ -326,7 +330,8 @@ pub fn init_column_resize(table_id: &str, storage_key: &str) {
             }
         }) as Box<dyn FnMut(WebMouseEvent)>);
 
-        let _ = document.add_event_listener_with_callback("mouseup", mouseup.as_ref().unchecked_ref());
+        let _ =
+            document.add_event_listener_with_callback("mouseup", mouseup.as_ref().unchecked_ref());
         mouseup.forget();
     }
 

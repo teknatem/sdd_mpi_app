@@ -1060,7 +1060,10 @@ fn app_doc_source_path(doc_id: &str) -> Option<&'static str> {
 /// «состоит в `EMBEDDED_LLM_DOCS`». Автор нового файла не сможет забыть поле,
 /// и никакой техдок не утечёт в базу под видом бизнес-статьи.
 fn ensure_app_kind(raw: &str) -> String {
-    let Some(rest) = raw.strip_prefix("---\n").or_else(|| raw.strip_prefix("---\r\n")) else {
+    let Some(rest) = raw
+        .strip_prefix("---\n")
+        .or_else(|| raw.strip_prefix("---\r\n"))
+    else {
         return format!("---\nkind: {APP_DOCS_SUBDIR}\n---\n\n{}", raw.trim_start());
     };
     let Some(end) = rest.find("\n---") else {
@@ -1770,8 +1773,14 @@ author: llm
                 ..Default::default()
             },
         ]);
-        assert_eq!(kb.get("general-ledger").map(|d| d.id.as_str()), Some("app__general-ledger"));
-        assert_eq!(kb.get("fina-layer").map(|d| d.id.as_str()), Some("fina-layer"));
+        assert_eq!(
+            kb.get("general-ledger").map(|d| d.id.as_str()),
+            Some("app__general-ledger")
+        );
+        assert_eq!(
+            kb.get("fina-layer").map(|d| d.id.as_str()),
+            Some("fina-layer")
+        );
         assert!(kb.get("нет-такой").is_none());
     }
 
@@ -1862,8 +1871,7 @@ author: llm
         // `knowledge_base_path` — отклонение и потому побеждает.
         let dir = match scalar("knowledge_base_path") {
             Some(explicit) => PathBuf::from(explicit),
-            None => PathBuf::from(scalar("root")?)
-                .join(crate::shared::config::SUBDIR_KNOWLEDGE),
+            None => PathBuf::from(scalar("root")?).join(crate::shared::config::SUBDIR_KNOWLEDGE),
         };
         dir.join(VOCABULARY_FILE).exists().then_some(dir)
     }

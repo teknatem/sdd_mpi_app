@@ -209,38 +209,38 @@ pub fn PageTabs(
     };
 
     let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
-            if count == 0 {
-                return;
-            }
-            let is_disabled = |i: usize| {
-                disabled_flags
-                    .get(i)
-                    .copied()
-                    .flatten()
-                    .map(|s| s.get_untracked())
-                    .unwrap_or(false)
-            };
-            let cur = active_idx.get_untracked();
-            let next = match ev.key().as_str() {
-                "ArrowLeft" => (1..=count).find_map(|step| {
-                    let i = (cur + count - step) % count;
-                    (!is_disabled(i)).then_some(i)
-                }),
-                "ArrowRight" => (1..=count).find_map(|step| {
-                    let i = (cur + step) % count;
-                    (!is_disabled(i)).then_some(i)
-                }),
-                "Home" => (0..count).find(|&i| !is_disabled(i)),
-                "End" => (0..count).rev().find(|&i| !is_disabled(i)),
-                _ => return,
-            };
-            let Some(next) = next else {
-                return;
-            };
-            ev.prevent_default();
-            keys.with_value(|k| on_select.run(k[next]));
-            focus_tab(next);
+        if count == 0 {
+            return;
+        }
+        let is_disabled = |i: usize| {
+            disabled_flags
+                .get(i)
+                .copied()
+                .flatten()
+                .map(|s| s.get_untracked())
+                .unwrap_or(false)
         };
+        let cur = active_idx.get_untracked();
+        let next = match ev.key().as_str() {
+            "ArrowLeft" => (1..=count).find_map(|step| {
+                let i = (cur + count - step) % count;
+                (!is_disabled(i)).then_some(i)
+            }),
+            "ArrowRight" => (1..=count).find_map(|step| {
+                let i = (cur + step) % count;
+                (!is_disabled(i)).then_some(i)
+            }),
+            "Home" => (0..count).find(|&i| !is_disabled(i)),
+            "End" => (0..count).rev().find(|&i| !is_disabled(i)),
+            _ => return,
+        };
+        let Some(next) = next else {
+            return;
+        };
+        ev.prevent_default();
+        keys.with_value(|k| on_select.run(k[next]));
+        focus_tab(next);
+    };
 
     let wants_heavy = variant == TabsVariant::Heavy;
     let display_heavy = RwSignal::new(wants_heavy);

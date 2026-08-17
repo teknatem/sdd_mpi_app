@@ -10,6 +10,20 @@ members = [
 version = "0.1.0"
 edition = "2021"
 
+# Only lints the codebase is ALREADY clean of (verified: zero occurrences of all
+# three across crates/*/src). Denying them costs nothing today and keeps them
+# from ever creeping in — which is the only kind of gate worth adding to a
+# 419k-line project up front.
+#
+# Deliberately NOT here: clippy::unwrap_used. There are 572 existing calls, so
+# even at "warn" it would bury every other diagnostic under noise. That number is
+# tracked as the `smells.unwrap` metric and held down by tools/check_health.ps1
+# instead — a ratchet suits a large backlog, a lint does not.
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

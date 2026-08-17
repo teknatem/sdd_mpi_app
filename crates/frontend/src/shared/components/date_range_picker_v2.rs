@@ -118,7 +118,11 @@ fn parse_loose(raw: &str, anchor: NaiveDate) -> Option<NaiveDate> {
                 _ => return None,
             }
         }
-        2 => (groups[0].parse().ok()?, groups[1].parse().ok()?, anchor.year()),
+        2 => (
+            groups[0].parse().ok()?,
+            groups[1].parse().ok()?,
+            anchor.year(),
+        ),
         _ => (
             groups[0].parse().ok()?,
             groups[1].parse().ok()?,
@@ -607,9 +611,8 @@ pub fn DateRangePickerV2(
         };
         let current = pair();
         let anchor = current.map(|(a, _)| a).unwrap_or_else(today);
-        let base = parse_loose(&el.value(), anchor).or_else(|| {
-            current.map(|(a, b)| if is_from { a } else { b })
-        });
+        let base = parse_loose(&el.value(), anchor)
+            .or_else(|| current.map(|(a, b)| if is_from { a } else { b }));
         let Some(base) = base else {
             return;
         };

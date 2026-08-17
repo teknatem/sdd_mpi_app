@@ -38,7 +38,11 @@ fn category_meta(category: &str) -> (String, &'static str, &'static str) {
             "badge badge--error",
             "var(--color-error)",
         ),
-        other => (other.to_string(), "badge badge--neutral", "var(--color-border)"),
+        other => (
+            other.to_string(),
+            "badge badge--neutral",
+            "var(--color-border)",
+        ),
     }
 }
 

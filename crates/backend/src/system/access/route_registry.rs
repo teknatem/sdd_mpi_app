@@ -1912,6 +1912,136 @@ mod tests {
     use super::*;
     use crate::system::access::scope_catalog::SCOPE_CATALOG;
 
+    /// Сколько объявленных маршрутов сейчас живут без записи в реестре.
+    ///
+    /// Заголовок этого модуля обещает «every endpoint … must have exactly one
+    /// entry here» и «tests in this module will catch gaps». Ни то, ни другое
+    /// не выполнялось: три существовавших теста проверяли только обратное
+    /// направление — что у записи валидный scope и что каждый scope кем-то
+    /// покрыт. Забытый маршрут проходил молча, и так набралось 250 штук из 523.
+    ///
+    /// Почему число, а не ноль. Запись в реестре — это не формальность, а
+    /// решение: какой `scope_id` и какой `PolicyMode` у эндпоинта. Проставить
+    /// 250 таких решений «оптом» значит проставить их наугад, а неверная запись
+    /// о политике доступа хуже отсутствующей — она выглядит как проверенная.
+    /// Поэтому здесь храповик: новый маршрут без записи валит сборку сразу,
+    /// а накопленный долг разбирается порциями, с осознанным выбором политики.
+    ///
+    /// Уменьшили долг — уменьшите и константу: тест этого требует, иначе
+    /// планка тихо перестанет держать.
+    const ROUTES_WITHOUT_POLICY_BASELINE: usize = 250;
+
+    /// Пути всех `.route("…")` из обоих файлов маршрутов.
+    ///
+    /// Разбор строкой, а не по AST — тем же приёмом, что и
+    /// `openapi_spec_covers_every_ext_route` в `api/routes.rs`: форма объявления
+    /// в проекте одна и та же (`.route(` и следом строковый литерал), никаких
+    /// `.nest()` нет, и городить ради этого парсер незачем.
+    fn declared_route_paths() -> std::collections::BTreeSet<String> {
+        const SOURCES: [&str; 2] = [
+            include_str!("../../api/routes.rs"),
+            include_str!("../api/routes.rs"),
+        ];
+
+        let mut paths = std::collections::BTreeSet::new();
+        for src in SOURCES {
+            for (index, _) in src.match_indices(".route(") {
+                let rest = &src[index + ".route(".len()..];
+                // Между `.route(` и литералом бывает перенос строки — rustfmt
+                // разносит длинные вызовы. Всё до кавычки должно быть пробелами:
+                // иначе это не объявление маршрута, а совпадение в комментарии.
+                let Some(quote) = rest.find('"') else {
+                    continue;
+                };
+                if !rest[..quote].chars().all(char::is_whitespace) {
+                    continue;
+                }
+                let after = &rest[quote + 1..];
+                let Some(end) = after.find('"') else { continue };
+                let path = &after[..end];
+                if path.starts_with('/') {
+                    paths.insert(path.to_string());
+                }
+            }
+        }
+        paths
+    }
+
+    #[test]
+    fn every_declared_route_has_a_policy_entry() {
+        let registered: std::collections::HashSet<&str> =
+            ROUTE_REGISTRY.iter().map(|p| p.path).collect();
+
+        let missing: Vec<String> = declared_route_paths()
+            .into_iter()
+            .filter(|path| !registered.contains(path.as_str()))
+            .collect();
+
+        if missing.len() > ROUTES_WITHOUT_POLICY_BASELINE {
+            let added = missing.len() - ROUTES_WITHOUT_POLICY_BASELINE;
+            panic!(
+                "Маршрутов без записи в ROUTE_REGISTRY стало больше: {} вместо {ROUTES_WITHOUT_POLICY_BASELINE} (+{added}).\n\
+                 Добавьте RoutePolicy для нового эндпоинта — со scope_id и PolicyMode, а не по образцу соседа.\n\
+                 Сейчас без политики:\n{}",
+                missing.len(),
+                missing.join("\n")
+            );
+        }
+
+        assert!(
+            missing.len() >= ROUTES_WITHOUT_POLICY_BASELINE,
+            "Маршрутов без политики стало меньше: {} вместо {ROUTES_WITHOUT_POLICY_BASELINE}. \
+             Опустите ROUTES_WITHOUT_POLICY_BASELINE до {}, иначе храповик перестанет держать достигнутое.",
+            missing.len(),
+            missing.len()
+        );
+    }
+
+    /// Записи о политике для маршрутов, которых больше нет.
+    ///
+    /// Все 31 — следы переименования путей на префиксы `aXXX`:
+    /// `/api/wb_sales/:id` вместо нынешнего `/api/a012/wb-sales/:id`,
+    /// `/api/llm-chat/:id` вместо `/api/a018-llm-chat/:id` и так далее.
+    /// То есть решение о политике никуда не делось — у него разъехался адрес.
+    ///
+    /// Поэтому чинится это не удалением, а переуказанием пути: каждая такая
+    /// правка убирает фантом здесь и одновременно уменьшает долг в
+    /// [`ROUTES_WITHOUT_POLICY_BASELINE`]. Работа осмысленная и парная, делать
+    /// её вслепую нельзя — отсюда снова храповик, а не `is_empty()`.
+    const ORPHAN_POLICY_BASELINE: usize = 31;
+
+    /// Обратная сторона реестра: запись создаёт впечатление, что эндпоинт
+    /// существует и проверен, и переживает переименование кода незамеченной.
+    /// Страница аудита доступа считает такие записи наравне с настоящими.
+    #[test]
+    fn every_policy_entry_points_at_a_declared_route() {
+        let declared = declared_route_paths();
+        let orphans: Vec<&str> = ROUTE_REGISTRY
+            .iter()
+            .map(|p| p.path)
+            .filter(|path| !declared.contains(*path))
+            .collect();
+
+        if orphans.len() > ORPHAN_POLICY_BASELINE {
+            let added = orphans.len() - ORPHAN_POLICY_BASELINE;
+            panic!(
+                "В ROUTE_REGISTRY стало больше записей без маршрута: {} вместо {ORPHAN_POLICY_BASELINE} (+{added}).\n\
+                 Переименовали путь — перенесите и запись, а не заводите вторую.\n\
+                 Сейчас без маршрута:\n{}",
+                orphans.len(),
+                orphans.join("\n")
+            );
+        }
+
+        assert!(
+            orphans.len() >= ORPHAN_POLICY_BASELINE,
+            "Фантомных записей стало меньше: {} вместо {ORPHAN_POLICY_BASELINE}. \
+             Опустите ORPHAN_POLICY_BASELINE до {}, иначе храповик перестанет держать достигнутое.",
+            orphans.len(),
+            orphans.len()
+        );
+    }
+
     #[test]
     fn all_scoped_routes_have_known_scope_id() {
         let catalog_ids: std::collections::HashSet<&str> =

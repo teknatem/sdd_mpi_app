@@ -99,9 +99,11 @@ fn unit_count(from: NaiveDate, to: NaiveDate, mode: DateRangeMode) -> i32 {
 
 fn shift_by_units(date: NaiveDate, mode: DateRangeMode, delta: i32) -> NaiveDate {
     match mode {
-        DateRangeMode::Year => NaiveDate::from_ymd_opt(date.year() + delta, date.month(), date.day())
-            .or_else(|| NaiveDate::from_ymd_opt(date.year() + delta, date.month(), 28))
-            .unwrap_or(date),
+        DateRangeMode::Year => {
+            NaiveDate::from_ymd_opt(date.year() + delta, date.month(), date.day())
+                .or_else(|| NaiveDate::from_ymd_opt(date.year() + delta, date.month(), 28))
+                .unwrap_or(date)
+        }
         DateRangeMode::Month => {
             let total = date.year() * 12 + (date.month() as i32 - 1) + delta;
             let y = total.div_euclid(12);
@@ -137,7 +139,11 @@ fn current_range(mode: DateRangeMode, span: i32) -> (NaiveDate, NaiveDate) {
 }
 
 fn mask_dmy_digits(digits: &str) -> String {
-    let d: String = digits.chars().filter(|c| c.is_ascii_digit()).take(8).collect();
+    let d: String = digits
+        .chars()
+        .filter(|c| c.is_ascii_digit())
+        .take(8)
+        .collect();
     match d.len() {
         0 => String::new(),
         1..=2 => d,
@@ -274,11 +280,7 @@ fn cell_class(cell: CellKind, sel_from: NaiveDate, sel_to: NaiveDate) -> &'stati
 fn apply_mask_to_input(el: &HtmlInputElement) -> (String, usize) {
     let raw = el.value();
     let sel = el.selection_start().ok().flatten().unwrap_or(0) as usize;
-    let digit_before = raw
-        .chars()
-        .take(sel)
-        .filter(|c| c.is_ascii_digit())
-        .count();
+    let digit_before = raw.chars().take(sel).filter(|c| c.is_ascii_digit()).count();
     let digits: String = raw.chars().filter(|c| c.is_ascii_digit()).take(8).collect();
     let masked = mask_dmy_digits(&digits);
     let caret = caret_after_digits(&masked, digit_before.min(digits.len()));
@@ -398,9 +400,7 @@ pub fn DateRangePickerExp(
         let emit_snapped = emit_snapped.clone();
         move |_| {
             let m = mode.get_untracked();
-            let span = parsed_pair()
-                .map(|(a, b)| unit_count(a, b, m))
-                .unwrap_or(1);
+            let span = parsed_pair().map(|(a, b)| unit_count(a, b, m)).unwrap_or(1);
             let (na, nb) = current_range(m, span);
             emit_snapped(na, nb, m);
         }
@@ -487,9 +487,7 @@ pub fn DateRangePickerExp(
     let open_dialog = move |_| {
         let from = parse_iso(&date_from.get_untracked());
         let to = parse_iso(&date_to.get_untracked());
-        let anchor = to
-            .or(from)
-            .unwrap_or_else(|| Utc::now().date_naive());
+        let anchor = to.or(from).unwrap_or_else(|| Utc::now().date_naive());
         dialog_anchor.set(anchor);
         if let (Some(a), Some(b)) = (from, to) {
             dialog_sel.set(Some((a.min(b), a.max(b))));

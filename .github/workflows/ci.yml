@@ -1,0 +1,122 @@
+# The project's first executing gate.
+#
+# Until now the only automation was tools/hooks/pre-commit, which states outright
+# that it "never blocks a commit". codebase_metrics.json tracked 40+ numbers with
+# nobody to compare them to yesterday's. This workflow is the missing half of
+# goal 9 of the architecture evolution program: not more measurement, a place
+# where measurement has consequences.
+#
+# Runs on ubuntu even though development is on Windows: every check here is
+# platform-neutral, and the Linux runners are markedly faster. The parts that are
+# genuinely Windows-shaped (the live database under F:/data, restart_backend.ps1)
+# are not exercised by CI at all — the tests that touch live data skip themselves
+# when the directory is absent.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # CI never reuses an incremental cache across runs, so producing one is pure
+  # cost — both in time and in artifact size handed to the cache action.
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  check:
+    name: check / test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # frontend only ever builds for wasm — see CLAUDE.md.
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # cargo fmt, then drop the generated files from its report — rather than
+      # feeding rustfmt an explicit file list.
+      #
+      # Two things make the obvious alternatives wrong:
+      #   * plain `cargo fmt --all --check` always fails. contracts/build.rs
+      #     emits 61 metadata_gen.rs files plus registry_gen.rs straight into
+      #     src/ (not OUT_DIR); they are committed with the generator's own
+      #     formatting, and write_if_changed rewrites them unformatted on the
+      #     next build. Formatting them is futile, so the check would flap.
+      #   * `git ls-files | xargs rustfmt` reaches FILES CARGO NEVER COMPILES.
+      #     Six .rs files under crates/*/src are not declared by any `mod`, so
+      #     they are dead code; demanding formatting of files that are not part
+      #     of any crate makes the gate disagree with what `cargo fmt` does
+      #     locally, which is the fastest way to make a gate untrustworthy.
+      #
+      # Filtering cargo's own output keeps CI and local `cargo fmt` in agreement.
+      - name: Format
+        run: |
+          cargo fmt --all -- --check > fmt.log 2>&1 || true
+          if grep '^Diff in ' fmt.log | grep -v '_gen\.rs'; then
+            echo "::error::Unformatted sources above. Run: cargo fmt --all"
+            exit 1
+          fi
+          echo "formatting OK (generated *_gen.rs excluded)"
+
+      # Split per crate rather than --workspace: frontend cannot be checked for
+      # the host target, and a single failing crate should name itself.
+      - name: Check contracts
+        run: cargo check -p contracts
+
+      - name: Check backend
+        run: cargo check -p backend
+
+      - name: Check frontend (wasm)
+        run: cargo check -p frontend --target wasm32-unknown-unknown
+
+      - name: Test backend
+        # Includes router_builds, which is the only place an axum path conflict
+        # surfaces without starting the server.
+        run: cargo test -p backend
+
+      # Report-only, deliberately. A codebase that has never run clippy will
+      # produce a large first wave of warnings, and turning that into a gate on
+      # day one would only teach us to ignore the gate. The deny-level lints that
+      # ARE enforced live in [workspace.lints] in Cargo.toml, chosen because the
+      # codebase is already clean of them. Tighten this once the backlog is triaged.
+      - name: Clippy (advisory)
+        continue-on-error: true
+        run: cargo clippy -p contracts -p backend --all-targets
+
+  health:
+    name: metrics ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only on PRs: the ratchet compares against a base branch, and on a direct
+    # push to main there is no meaningful "before" to compare with.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # check_health.ps1 reads the baseline with `git show <ref>:file`, which
+          # needs the base branch present, not just this commit.
+          fetch-depth: 0
+
+      # Recomputed rather than trusted: codebase_metrics.json is produced by a
+      # local pre-commit hook, and a hook that was never enabled
+      # (`git config core.hooksPath tools/hooks`) leaves it stale. Measuring here
+      # means the comparison describes the code in the PR, not the code the
+      # author happened to have hooked.
+      - name: Recompute metrics
+        run: pwsh -File tools/gen_code_metrics.ps1
+
+      - name: Ratchet against base branch
+        run: pwsh -File tools/check_health.ps1 -Baseline origin/${{ github.base_ref }}

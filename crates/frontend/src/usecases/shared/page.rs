@@ -271,7 +271,9 @@ pub fn ImportPage(
         let state = state_of(op.row_id);
         let connection_id = selected_connection.get_untracked();
         if connection_id.is_empty() {
-            state.error.set(Some("Сначала выберите подключение".to_string()));
+            state
+                .error
+                .set(Some("Сначала выберите подключение".to_string()));
             return;
         }
 

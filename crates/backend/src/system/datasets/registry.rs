@@ -336,12 +336,20 @@ mod tests {
         assert!(!is_excluded(skills, "finance/SKILL.md"));
     }
 
+    /// Набор `database` был заглушкой «фазы 2», и тест закреплял именно это.
+    /// Перенос БД реализован, дескриптор давно `available` — проверять снова
+    /// стало нечего, а несоответствие держало сборку красной.
+    ///
+    /// Осталась настоящая инвариантa: базу нельзя накладывать частично. Файл
+    /// либо целостен, либо нет, поэтому `REPLACE_ONLY` — не настройка, а
+    /// свойство набора, и слететь оно не должно молча.
     #[test]
-    fn database_set_is_visible_but_not_available() {
+    fn database_set_can_only_be_replaced_whole() {
         let db = lookup("database").unwrap();
         assert_eq!(db.kind, DatasetKind::Database);
-        assert!(!db.available);
-        assert!(db.unavailable_reason.is_some());
+        assert!(db.available);
         assert_eq!(db.supported_modes, REPLACE_ONLY);
+        // Доступный набор не объясняется причиной недоступности.
+        assert!(db.unavailable_reason.is_none());
     }
 }

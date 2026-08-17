@@ -63,3 +63,6 @@ mail-parser = "0.9"
 # `ServiceExt::oneshot` — прогнать запрос через собранный Router прямо в тесте,
 # без поднятия сервера. Версия совпадает с той, что уже тянет axum.
 tower = { version = "0.5", features = ["util"] }
+
+[lints]
+workspace = true
