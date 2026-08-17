@@ -272,6 +272,31 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
         ),
         "cargo test -p backend --no-run после правки одного файла агрегата: кодогенерация и линковка без запуска тестов",
     ),
+    // Полный конвейер trunk, а не только cargo: wasm-bindgen работает над уже
+    // слинкованным .wasm и пропорционален его размеру, поэтому профиль решает
+    // больше, чем что-либо в коде. dev даёт 197 МБ и 36 с, wasm-dev — 66 МБ и 25 с.
+    with_hint(
+        def(
+            "build.trunk_dev_edit_sec",
+            "Цикл фронта, профиль dev",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "trunk build после правки одного файла агрегата на профиле dev",
+    ),
+    with_hint(
+        def(
+            "build.trunk_wasmdev_edit_sec",
+            "Цикл фронта, профиль wasm-dev",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "то же на профиле wasm-dev — рабочий режим, см. команду запуска в CLAUDE.md",
+    ),
     with_hint(
         def(
             "build.wasm_frontend_sec",
