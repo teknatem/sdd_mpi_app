@@ -101,22 +101,18 @@ pub async fn post_document_with_cache(
         document.before_write();
     }
 
-    let p900_entry = crate::projections::p900_mp_sales_register::projection_builder::from_wb_sales(
-        &document, &id_str,
-    )
-    .await?;
+    let p900_entry =
+        crate::projections::p900_mp_sales_register::builder::from_wb_sales(&document, &id_str)
+            .await?;
     let p904_entries =
-        crate::projections::p904_sales_data::projection_builder::from_wb_sales_lines(
-            &document, &id_str,
-        )
-        .await?;
-    let p909_result =
-        crate::projections::p909_mp_order_line_turnovers::projection_builder::from_wb_sales(
-            &document,
-            &id_str,
-            &registrator_ref,
-            prod_item_cost_total,
-        )?;
+        crate::projections::p904_sales_data::builder::from_wb_sales_lines(&document, &id_str)
+            .await?;
+    let p909_result = crate::projections::p909_mp_order_line_turnovers::builder::from_wb_sales(
+        &document,
+        &id_str,
+        &registrator_ref,
+        prod_item_cost_total,
+    )?;
 
     // Дата заказа по srid (a015) для когортной привязки выкупа/возврата в p916 — чтение вне
     // транзакции. None → воронка фолбэком возьмёт дату продажи (заказ не найден в a015).

@@ -1,4 +1,4 @@
-use super::ops::OPS;
+use super::api::OPS;
 use crate::usecases::shared::{ImportPage, ImportUseCase};
 use leptos::prelude::*;
 

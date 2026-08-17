@@ -1,4 +1,4 @@
-use super::{projection_builder, repository};
+use super::{builder, repository};
 use anyhow::Result;
 use contracts::domain::a009_ozon_returns::aggregate::OzonReturns;
 use contracts::domain::a010_ozon_fbs_posting::aggregate::OzonFbsPosting;
@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 /// Проецировать OZON FBS Posting в Sales Register
 pub async fn project_ozon_fbs(document: &OzonFbsPosting, document_id: Uuid) -> Result<()> {
-    let entries = projection_builder::from_ozon_fbs(document, &document_id.to_string()).await?;
+    let entries = builder::from_ozon_fbs(document, &document_id.to_string()).await?;
 
     for entry in entries {
         repository::upsert_entry(&entry).await?;
@@ -27,7 +27,7 @@ pub async fn project_ozon_fbs(document: &OzonFbsPosting, document_id: Uuid) -> R
 
 /// Проецировать OZON FBO Posting в Sales Register
 pub async fn project_ozon_fbo(document: &OzonFboPosting, document_id: Uuid) -> Result<()> {
-    let entries = projection_builder::from_ozon_fbo(document, &document_id.to_string()).await?;
+    let entries = builder::from_ozon_fbo(document, &document_id.to_string()).await?;
 
     for entry in entries {
         repository::upsert_entry(&entry).await?;
@@ -44,7 +44,7 @@ pub async fn project_ozon_fbo(document: &OzonFboPosting, document_id: Uuid) -> R
 
 /// Проецировать YM Order в Sales Register
 pub async fn project_ym_order(document: &YmOrder, document_id: Uuid) -> Result<()> {
-    let entries = projection_builder::from_ym_order(document, &document_id.to_string()).await?;
+    let entries = builder::from_ym_order(document, &document_id.to_string()).await?;
 
     for entry in entries {
         repository::upsert_entry(&entry).await?;
@@ -62,7 +62,7 @@ pub async fn project_ym_order(document: &YmOrder, document_id: Uuid) -> Result<(
 /// Проецировать OZON Returns (возвраты) в Sales Register
 /// ВАЖНО: Создает запись с отрицательными значениями qty и amount
 pub async fn project_ozon_returns(document: &OzonReturns, document_id: Uuid) -> Result<()> {
-    let entry = projection_builder::from_ozon_returns(document, &document_id.to_string()).await?;
+    let entry = builder::from_ozon_returns(document, &document_id.to_string()).await?;
     repository::upsert_entry(&entry).await?;
 
     tracing::info!(

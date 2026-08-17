@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::NaiveDate;
 use uuid::Uuid;
 
-use super::{projection_builder, repository};
+use super::{builder, repository};
 
 pub async fn get_by_id(id: &str) -> Result<Option<repository::Model>> {
     repository::get_by_id(id).await
@@ -69,7 +69,7 @@ pub async fn project_wb_order(
     document_id: Uuid,
 ) -> Result<()> {
     let document_id_str = document_id.to_string();
-    for entry in projection_builder::from_wb_order(document, &document_id_str)? {
+    for entry in builder::from_wb_order(document, &document_id_str)? {
         repository::upsert_entry(&entry).await?;
     }
 
@@ -79,7 +79,7 @@ pub async fn project_wb_order(
     )
     .await?;
     for mut entry in related {
-        projection_builder::attach_order_context(&mut entry, document, &document_id_str);
+        builder::attach_order_context(&mut entry, document, &document_id_str);
         repository::save_entry(&entry).await?;
     }
 
@@ -93,12 +93,8 @@ pub async fn project_wb_sales(
     prod_item_cost_total: Option<f64>,
 ) -> Result<()> {
     let document_id_str = document_id.to_string();
-    let result = projection_builder::from_wb_sales(
-        document,
-        &document_id_str,
-        posting_id,
-        prod_item_cost_total,
-    )?;
+    let result =
+        builder::from_wb_sales(document, &document_id_str, posting_id, prod_item_cost_total)?;
     for entry in result.turnovers {
         repository::upsert_entry(&entry).await?;
     }
@@ -110,11 +106,11 @@ pub async fn project_wb_finance_entry(
     entry: &crate::projections::p903_wb_finance_report::repository::Model,
     posting_id: &str,
 ) -> Result<()> {
-    if !projection_builder::is_finance_row_linked(entry) {
+    if !builder::is_finance_row_linked(entry) {
         return Ok(());
     }
 
-    let result = projection_builder::from_wb_finance_row(entry, posting_id)?;
+    let result = builder::from_wb_finance_row(entry, posting_id)?;
     for model in result.turnovers {
         repository::upsert_entry(&model).await?;
     }

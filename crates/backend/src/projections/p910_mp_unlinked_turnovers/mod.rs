@@ -1,3 +1,3 @@
-pub mod projection_builder;
+pub mod builder;
 pub mod repository;
 pub mod service;

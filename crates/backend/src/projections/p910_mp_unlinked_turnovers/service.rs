@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use super::{projection_builder, repository};
+use super::{builder, repository};
 
 pub async fn get_by_id(id: &str) -> Result<Option<repository::Model>> {
     repository::get_by_id(id).await
@@ -58,7 +58,7 @@ pub async fn project_wb_finance_entry(
     entry: &crate::projections::p903_wb_finance_report::repository::Model,
     posting_id: &str,
 ) -> Result<()> {
-    let result = projection_builder::from_wb_finance_row(entry, posting_id)?;
+    let result = builder::from_wb_finance_row(entry, posting_id)?;
     for model in result.turnovers {
         repository::upsert_entry(&model).await?;
     }
@@ -78,7 +78,7 @@ pub async fn rebuild_wb_range(date_from: &str, date_to: &str) -> Result<()> {
     )
     .await?
     {
-        let source_ref = projection_builder::source_ref_from_model(&finance_row);
+        let source_ref = builder::source_ref_from_model(&finance_row);
         crate::general_ledger::service::remove_by_registrator_ref(&source_ref).await?;
         remove_by_registrator_ref(&source_ref).await?;
         let posting_id = uuid::Uuid::new_v4().to_string();
