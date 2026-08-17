@@ -150,12 +150,124 @@ async fn repair_known_legacy_checksums(
     Ok(())
 }
 
+/// Правки схемы, которые боевая база получила **мимо миграций**.
+///
+/// **Это починка, а не украшение: установка с нуля была сломана.**
+/// `0001_baseline_schema.sql` подписан «used for fresh installations», но
+/// цепочка местами обращается к таблицам и колонкам, которых ни одна миграция
+/// не создаёт — они достались боевой базе из времён до миграций и правились
+/// руками. На пустой базе цепочка падала на `0026` (`ALTER TABLE
+/// general_ledger_entries RENAME TO sys_general_ledger` — такой таблицы нет).
+/// Никто этого не замечал: боевая база существует непрерывно с дореформенных
+/// времён, а нового инстанса с нуля никто не поднимал. Нашёл первый
+/// интеграционный тест, поднявший базу в памяти.
+///
+/// **Почему кодом, а не новыми миграциями.** Исправить `0026` нельзя: правка
+/// файла меняет контрольную сумму давно применённой миграции, и sqlx откажется
+/// работать с боевой базой. Дописать новую миграцию тоже нельзя — она встанет
+/// в конец, а дыры находятся в середине цепочки. Поэтому заплатки
+/// **вклиниваются между миграциями** и только на полностью пустой базе.
+///
+/// **Как проверено.** Схема, полученная прогоном цепочки с этими заплатками,
+/// сверена с боевой: 108 таблиц против 108, расхождение — 4 колонки,
+/// добавленные мимо миграций уже после (`p904_sales_data.cost`,
+/// `dealer_price_ut` у a012/a015 — её ставит `ensure_a015_dealer_price_ut_column`
+/// ниже) и мёртвая `sys_journal_entries`.
+///
+/// Формат: `(версия, SQL)` — SQL выполняется **сразу после** миграции с этим
+/// номером; `0` означает «до всех миграций».
+const PRE_BASELINE_PATCHES: &[(i64, &str)] = &[
+    // Главная книга до переименования в sys_general_ledger (0026/0027/0032
+    // работают с этой формой, 0033 пересобирает таблицу начисто).
+    (
+        0,
+        "CREATE TABLE IF NOT EXISTS general_ledger_entries (
+            id TEXT PRIMARY KEY NOT NULL,
+            entry_date TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            registrator_type TEXT NOT NULL,
+            registrator_ref TEXT NOT NULL,
+            debit_account TEXT NOT NULL,
+            credit_account TEXT NOT NULL,
+            amount REAL NOT NULL,
+            qty REAL,
+            turnover_code TEXT,
+            detail_kind TEXT,
+            detail_id TEXT,
+            created_at TEXT NOT NULL
+        );",
+    ),
+    // 0022 пересобирает p909/p910, но в боевой базе они называются иначе:
+    // event_date/turnover_date → entry_date, journal_entry_id → general_ledger_ref.
+    // Без этого падают 0027 (p.general_ledger_ref), 0030 (entry_date), 0037.
+    (
+        22,
+        "ALTER TABLE p909_mp_order_line_turnovers RENAME COLUMN event_date TO entry_date;
+         ALTER TABLE p909_mp_order_line_turnovers RENAME COLUMN journal_entry_id TO general_ledger_ref;
+         ALTER TABLE p910_mp_unlinked_turnovers RENAME COLUMN turnover_date TO entry_date;
+         ALTER TABLE p910_mp_unlinked_turnovers ADD COLUMN general_ledger_ref TEXT;",
+    ),
+    // 0025 заводит p911_wb_advert_nomenclature_turnovers, а 0043 и дальше
+    // обращаются к p911_wb_advert_by_items: таблицу переименовали мимо миграций.
+    (
+        25,
+        "ALTER TABLE p911_wb_advert_nomenclature_turnovers RENAME TO p911_wb_advert_by_items;
+         ALTER TABLE p911_wb_advert_by_items RENAME COLUMN turnover_date TO entry_date;
+         ALTER TABLE p911_wb_advert_by_items RENAME COLUMN journal_entry_id TO general_ledger_ref;",
+    ),
+    // 0036 переносит p903 в новую таблицу и читает srid, которого в цепочке нет.
+    (35, "ALTER TABLE p903_wb_finance_report ADD COLUMN srid TEXT;"),
+];
+
+/// Прогон цепочки на пустой базе: миграции идут ступенями, между ступенями
+/// встают заплатки из [`PRE_BASELINE_PATCHES`].
+///
+/// `Migrator.migrations` — публичное поле sqlx, помеченное semver-exempt;
+/// собрать из него подмножество дешевле, чем тащить свой раннер миграций.
+async fn run_migrations_staged(
+    pool: &SqlitePool,
+    migrator: &sqlx::migrate::Migrator,
+) -> anyhow::Result<()> {
+    tracing::info!("Empty database detected: applying the chain with pre-baseline patches");
+
+    for (version, patch) in PRE_BASELINE_PATCHES {
+        if *version > 0 {
+            let stage = sqlx::migrate::Migrator {
+                migrations: std::borrow::Cow::Owned(
+                    migrator
+                        .iter()
+                        .filter(|migration| migration.version <= *version)
+                        .cloned()
+                        .collect(),
+                ),
+                ignore_missing: migrator.ignore_missing,
+                locking: migrator.locking,
+            };
+            stage.run(pool).await?;
+        }
+        pool.execute(*patch).await?;
+    }
+
+    migrator.run(pool).await?;
+    Ok(())
+}
+
 pub async fn run_migrations() -> anyhow::Result<()> {
     let cfg = config::load_config()?;
     let db_path = config::get_database_path(&cfg)?;
     let db_url = build_sqlite_url(&db_path);
 
     let pool = SqlitePool::connect(&db_url).await?;
+    run_migrations_on(&pool).await
+}
+
+/// Тот же прогон, но на уже открытом пуле.
+///
+/// Отделено от [`run_migrations`] ради тестовой базы в памяти: пул для неё
+/// нельзя построить из конфига (файла нет), а прогонять миграции надо тем же
+/// кодом — иначе тест проверяет схему, которой в бою не существует.
+pub async fn run_migrations_on(pool: &SqlitePool) -> anyhow::Result<()> {
+    let pool = pool.clone();
 
     let has_migrations_table = has_table(&pool, "_sqlx_migrations").await?;
     let has_core_table = has_table(&pool, "a001_connection_1c_database").await?;
@@ -164,6 +276,7 @@ pub async fn run_migrations() -> anyhow::Result<()> {
             "Legacy database detected (business tables exist, _sqlx_migrations absent). Running baseline migration in idempotent mode."
         );
     }
+    let is_empty_database = !has_migrations_table && !has_core_table;
 
     let migrations_dir = candidate_migrations_dirs()
         .into_iter()
@@ -172,11 +285,19 @@ pub async fn run_migrations() -> anyhow::Result<()> {
 
     tracing::info!("Using migrations directory: {}", migrations_dir.display());
 
-    repair_line_ending_checksums(&pool, &migrations_dir).await?;
-    repair_known_legacy_checksums(&pool, &migrations_dir).await?;
+    // Обе починки читают `_sqlx_migrations`. На боевой базе она есть всегда, на
+    // пустой (тестовой) её ещё не создал мигратор — чинить там нечего.
+    if has_migrations_table {
+        repair_line_ending_checksums(&pool, &migrations_dir).await?;
+        repair_known_legacy_checksums(&pool, &migrations_dir).await?;
+    }
 
     let migrator = sqlx::migrate::Migrator::new(migrations_dir.as_path()).await?;
-    migrator.run(&pool).await?;
+    if is_empty_database {
+        run_migrations_staged(&pool, &migrator).await?;
+    } else {
+        migrator.run(&pool).await?;
+    }
 
     ensure_a015_dealer_price_ut_column(&pool).await?;
     ensure_llm_agent_fk_dropped(&pool).await?;

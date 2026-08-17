@@ -1,5 +1,6 @@
 //! HTTP-обработчики подсистемы Plugins (admin-only).
 
+use crate::shared::error::ApiError;
 use axum::body::Bytes;
 use axum::http::header;
 use axum::response::IntoResponse;
@@ -26,29 +27,27 @@ pub struct DaysQuery {
 use contracts::shared::drilldown::DrilldownResponse;
 
 /// GET /api/plugin — список включённых плагинов (для меню/навигатора).
-pub async fn list() -> Result<Json<Vec<PluginListItem>>, axum::http::StatusCode> {
+pub async fn list() -> Result<Json<Vec<PluginListItem>>, ApiError> {
     match service::list_enabled().await {
         Ok(defs) => Ok(Json(defs.iter().map(PluginListItem::from).collect())),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/plugin/all — все плагины (страница управления).
-pub async fn list_all() -> Result<Json<Vec<PluginListItem>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<PluginListItem>>, ApiError> {
     match service::list_all().await {
         Ok(defs) => Ok(Json(defs.iter().map(PluginListItem::from).collect())),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/plugin/:id — полное определение/бандл (включая исходники).
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<PluginDefinition>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<PluginDefinition>, ApiError> {
     match service::get_by_id(&id).await {
         Ok(Some(def)) => Ok(Json(def)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
@@ -66,10 +65,10 @@ pub async fn upsert(
 }
 
 /// DELETE /api/plugin/:id — мягкое удаление.
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match service::delete(&id).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
@@ -83,12 +82,12 @@ pub struct SetRatingRequest {
 pub async fn set_rating(
     Path(id): Path<String>,
     Json(payload): Json<SetRatingRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     match service::set_rating(&id, payload.rating).await {
         Ok(()) => Ok(Json(json!({ "success": true }))),
         Err(e) => {
             tracing::warn!("set_rating failed for plugin {}: {}", id, e);
-            Err(axum::http::StatusCode::BAD_REQUEST)
+            Err(axum::http::StatusCode::BAD_REQUEST.into())
         }
     }
 }
@@ -113,10 +112,10 @@ pub async fn smoke_test(
 }
 
 /// POST /api/plugin/testdata — вставить демонстрационный плагин.
-pub async fn testdata() -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn testdata() -> Result<Json<serde_json::Value>, ApiError> {
     match service::insert_test_data().await {
         Ok(()) => Ok(Json(json!({ "ok": true }))),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
@@ -138,27 +137,27 @@ pub async fn run_data(
 pub async fn stats(
     Path(id): Path<String>,
     Query(q): Query<DaysQuery>,
-) -> Result<Json<PluginStats>, axum::http::StatusCode> {
+) -> Result<Json<PluginStats>, ApiError> {
     let days = q.days.unwrap_or(7).clamp(1, 365);
     match service::stats(&id, days).await {
         Ok(stats) => Ok(Json(stats)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/plugin/runs/summary?days=N — краткие сводки по всем плагинам (для реестра).
 pub async fn runs_summary(
     Query(q): Query<DaysQuery>,
-) -> Result<Json<Vec<PluginRunBrief>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<PluginRunBrief>>, ApiError> {
     let days = q.days.unwrap_or(7).clamp(1, 365);
     match service::runs_summary(days).await {
         Ok(items) => Ok(Json(items)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/plugin/:id/export — скачать плагин как zip-архив переносимого бандла.
-pub async fn export(Path(id): Path<String>) -> Result<impl IntoResponse, axum::http::StatusCode> {
+pub async fn export(Path(id): Path<String>) -> Result<impl IntoResponse, ApiError> {
     match service::export(&id).await {
         Ok((filename, bytes)) => Ok((
             [
@@ -170,7 +169,7 @@ pub async fn export(Path(id): Path<String>) -> Result<impl IntoResponse, axum::h
             ],
             bytes,
         )),
-        Err(_) => Err(axum::http::StatusCode::NOT_FOUND),
+        Err(_) => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 

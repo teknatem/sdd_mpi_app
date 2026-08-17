@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -27,18 +28,18 @@ pub struct Connection1CPaginatedResponse {
 /// GET /api/connection_1c
 pub async fn list_all() -> Result<
     Json<Vec<contracts::domain::a001_connection_1c::aggregate::Connection1CDatabase>>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     match a001_connection_1c::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/connection_1c/list
 pub async fn list_paginated(
     Query(params): Query<Connection1CListParams>,
-) -> Result<Json<Connection1CPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<Connection1CPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let sort_by = params.sort_by.as_deref().unwrap_or("description");
@@ -58,46 +59,44 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/connection_1c/:id
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<
-    Json<contracts::domain::a001_connection_1c::aggregate::Connection1CDatabase>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::domain::a001_connection_1c::aggregate::Connection1CDatabase>, ApiError>
+{
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a001_connection_1c::service::get_by_id(uuid).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// DELETE /api/connection_1c/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
 
     match a001_connection_1c::service::delete(uuid).await {
         Ok(true) => Ok(()),
-        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/connection_1c
 pub async fn upsert(
     Json(dto): Json<contracts::domain::a001_connection_1c::aggregate::Connection1CDatabaseDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     // Определяем операцию: create или update
     let result = if dto.id.is_some() {
         a001_connection_1c::service::update(dto)
@@ -111,20 +110,18 @@ pub async fn upsert(
 
     match result {
         Ok(id) => Ok(Json(json!({"id": id}))),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/connection_1c/test
 pub async fn test_connection(
     Json(dto): Json<contracts::domain::a001_connection_1c::aggregate::Connection1CDatabaseDto>,
-) -> Result<
-    Json<contracts::domain::a001_connection_1c::aggregate::ConnectionTestResult>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::domain::a001_connection_1c::aggregate::ConnectionTestResult>, ApiError>
+{
     match a001_connection_1c::service::test_connection(dto).await {
         Ok(result) => Ok(Json(result)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 

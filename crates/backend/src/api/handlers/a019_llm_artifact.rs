@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -24,17 +25,17 @@ pub struct LlmArtifactPaginatedResponse {
 }
 
 /// GET /api/a019-llm-artifact
-pub async fn list_all() -> Result<Json<Vec<LlmArtifactListItem>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<LlmArtifactListItem>>, ApiError> {
     match a019_llm_artifact::service::list_all().await {
         Ok(v) => Ok(Json(v.into_iter().map(LlmArtifactListItem::from).collect())),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a019-llm-artifact/list
 pub async fn list_paginated(
     Query(params): Query<LlmArtifactListParams>,
-) -> Result<Json<LlmArtifactPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<LlmArtifactPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let page = (offset / limit) as u64;
@@ -53,50 +54,46 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a019-llm-artifact/chat/:chat_id
-pub async fn list_by_chat(
-    Path(chat_id): Path<String>,
-) -> Result<Json<Vec<LlmArtifact>>, axum::http::StatusCode> {
+pub async fn list_by_chat(Path(chat_id): Path<String>) -> Result<Json<Vec<LlmArtifact>>, ApiError> {
     match a019_llm_artifact::service::list_by_chat_id(&chat_id).await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a019-llm-artifact/:id
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<LlmArtifact>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<LlmArtifact>, ApiError> {
     match a019_llm_artifact::service::get_by_id(&id).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// DELETE /api/a019-llm-artifact/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a019_llm_artifact::service::delete(&id).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/a019-llm-artifact
 pub async fn upsert(
     Json(dto): Json<a019_llm_artifact::service::LlmArtifactDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if dto.id.is_some() {
         // Update
         match a019_llm_artifact::service::update(dto).await {
             Ok(_) => Ok(Json(json!({"success": true}))),
             Err(e) => {
                 tracing::error!("Failed to update LLM artifact: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     } else {
@@ -105,7 +102,7 @@ pub async fn upsert(
             Ok(id) => Ok(Json(json!({"success": true, "id": id.to_string()}))),
             Err(e) => {
                 tracing::error!("Failed to create LLM artifact: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     }

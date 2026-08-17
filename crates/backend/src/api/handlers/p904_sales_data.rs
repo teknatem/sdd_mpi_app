@@ -1,4 +1,5 @@
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use contracts::projections::p904_sales_data::dto::{SalesDataDto, SalesDataListResponse};
 use serde::Deserialize;
 
@@ -15,7 +16,7 @@ pub struct ListParams {
 
 pub async fn list(
     Query(params): Query<ListParams>,
-) -> Result<Json<SalesDataListResponse>, StatusCode> {
+) -> Result<Json<SalesDataListResponse>, ApiError> {
     // Валидация лимита: минимум 100, максимум 100000, по умолчанию 1000
     let limit = match params.limit {
         Some(lim) if lim < 100 => {
@@ -66,7 +67,7 @@ pub async fn list(
         }
         Err(e) => {
             tracing::error!("Failed to list sales data: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

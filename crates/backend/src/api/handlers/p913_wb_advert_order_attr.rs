@@ -1,4 +1,5 @@
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use contracts::projections::p913_wb_advert_order_attr::dto::{
     WbAdvertOrderAttrDto, WbAdvertOrderAttrListResponse,
 };
@@ -20,7 +21,7 @@ pub struct ListParams {
 
 pub async fn list(
     Query(params): Query<ListParams>,
-) -> Result<Json<WbAdvertOrderAttrListResponse>, StatusCode> {
+) -> Result<Json<WbAdvertOrderAttrListResponse>, ApiError> {
     let limit = params.limit.or(Some(500));
     let offset = params.offset.or(Some(0));
     let sort_desc = params.sort_desc.unwrap_or(true);
@@ -37,7 +38,7 @@ pub async fn list(
         .await
         .map_err(|e| {
             tracing::error!("Failed to count p913 rows: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let items = crate::projections::p913_wb_advert_order_attr::repository::list_with_filters(
@@ -55,7 +56,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list p913 rows: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos = items.into_iter().map(model_to_dto).collect::<Vec<_>>();

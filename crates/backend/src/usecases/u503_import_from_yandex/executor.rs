@@ -465,7 +465,12 @@ impl ImportExecutor {
 
         // 1. Resolve organization by UUID reference from connection
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let msg = format!(
@@ -613,7 +618,12 @@ impl ImportExecutor {
 
         // 1. Resolve organization by UUID reference from connection
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let msg = format!(
@@ -889,7 +899,12 @@ impl ImportExecutor {
 
         // Resolve organization
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let msg = format!(
@@ -1248,7 +1263,12 @@ impl ImportExecutor {
         let aggregate_index = "a034_ym_realization";
 
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => anyhow::bail!(
                     "Organization UUID '{}' not found",

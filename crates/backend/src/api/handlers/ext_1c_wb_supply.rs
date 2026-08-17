@@ -1,6 +1,7 @@
 //! External API handlers for WB Supply — used by 1C and other external integrations.
 //! Authentication is handled by `check_api_key` middleware (X-Api-Key header).
 
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -121,7 +122,7 @@ fn default_true() -> bool {
 ///   &show_done=true            (optional, default true)
 pub async fn list_supplies(
     Query(q): Query<ListSuppliesQuery>,
-) -> Result<Json<ExtSupplyListResponse>, axum::http::StatusCode> {
+) -> Result<Json<ExtSupplyListResponse>, ApiError> {
     use a029_wb_supply::repository::{list_sql, WbSupplyListQuery};
 
     let list_query = WbSupplyListQuery {
@@ -139,7 +140,7 @@ pub async fn list_supplies(
 
     let result = list_sql(list_query).await.map_err(|e| {
         tracing::error!("[ext-api] list_supplies error: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = result
@@ -171,24 +172,24 @@ pub async fn list_supplies(
 ///   :id may be an internal UUID or the WB supply ID string (e.g. "WB-GI-32319994")
 pub async fn get_supply_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<ExtSupplyDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<ExtSupplyDetailResponse>, ApiError> {
     let supply = if id.starts_with("WB-") {
         a029_wb_supply::service::get_by_supply_id(&id)
             .await
             .map_err(|e| {
                 tracing::error!("[ext-api] get_supply_detail by supply_id {}: {}", id, e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?
-            .ok_or(axum::http::StatusCode::NOT_FOUND)?
+            .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?
     } else {
         let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
         a029_wb_supply::service::get_by_id(uuid)
             .await
             .map_err(|e| {
                 tracing::error!("[ext-api] get_supply_detail by uuid {}: {}", id, e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?
-            .ok_or(axum::http::StatusCode::NOT_FOUND)?
+            .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?
     };
 
     let orders = supply

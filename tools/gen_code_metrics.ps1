@@ -205,10 +205,25 @@ if (Test-Path $handlersDir) {
         $untyped += ([regex]::Matches($text, '->\s*(?:Result<\s*)?Json<serde_json::Value>')).Count
         # Any Err type that is just a status code. `[^;{]` bounds the match to a
         # signature — a declaration cannot span a `;` or the opening brace.
-        $statusOnly += ([regex]::Matches($text, '->\s*Result<[^;{]*?,\s*(?:axum::http::)?StatusCode\s*>')).Count
+        # `,?` covers the rustfmt'ed multi-line form, where the error type ends
+        # with a trailing comma before `>`; without it those slip past the gate.
+        $statusOnly += ([regex]::Matches($text, '->\s*Result<[^;{]*?,\s*(?:axum::http::)?StatusCode\s*,?\s*>')).Count
     }
     Set-Metric 'api.untyped_handlers' $untyped
     Set-Metric 'api.status_only_errors' $statusOnly
+}
+
+# Files still taking the database from the global singleton instead of AppState.
+# Counted per file for the same reason as raw_fetch_files: the cost is one more
+# place that cannot be pointed at a different database — which is what kept the
+# project untestable. Phase 3 opened the alternative; this counts the remainder.
+$backendSrc = Join-Path $root 'crates/backend/src'
+if (Test-Path $backendSrc) {
+    $globalDb = 0
+    foreach ($file in [System.IO.Directory]::EnumerateFiles($backendSrc, '*.rs', 'AllDirectories')) {
+        if ([System.IO.File]::ReadAllText($file) -match 'get_connection\(\)') { $globalDb++ }
+    }
+    Set-Metric 'api.global_db_files' $globalDb
 }
 
 # Files that build their own HTTP call instead of going through shared/api_utils.

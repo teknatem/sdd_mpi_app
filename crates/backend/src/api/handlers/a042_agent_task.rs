@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -30,7 +31,7 @@ pub struct AgentTaskPaginatedResponse {
 
 pub async fn list_paginated(
     Query(params): Query<AgentTaskListParams>,
-) -> Result<Json<AgentTaskPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<AgentTaskPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 1000);
     let offset = params.offset.unwrap_or(0);
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
@@ -61,28 +62,28 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list agent tasks: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<AgentTask>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<AgentTask>, ApiError> {
     match a042_agent_task::service::get_by_id(&id).await {
         Ok(Some(item)) => Ok(Json(item)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get agent task {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a042_agent_task::service::delete(&id).await {
         Ok(()) => Ok(()),
         Err(e) => {
             tracing::error!("Failed to delete agent task {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

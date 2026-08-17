@@ -1,10 +1,12 @@
 pub mod analytics;
+pub mod app_state;
 pub mod bi_timeline;
 pub mod change_token;
 pub mod config;
 pub mod data;
 pub mod data_access;
 pub mod drilldown;
+pub mod error;
 pub mod format;
 pub mod llm;
 pub mod logger;

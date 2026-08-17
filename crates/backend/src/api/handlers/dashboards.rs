@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use contracts::dashboards::d402_wb_order_flow::{
     AdvertFlowItem, ClaimFlowItem, OrderFlowItem, P903FlowItem, SaleFlowItem, SupplyFlowItem,
@@ -458,18 +459,18 @@ fn to_report_node(
 /// GET /api/dashboards/wb-advert-report
 pub async fn wb_advert_report(
     Query(filters): Query<WbAdvertReportRequest>,
-) -> Result<Json<WbAdvertReportResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbAdvertReportResponse>, ApiError> {
     let p913_rows = fetch_p913_advert_report_rows(&filters)
         .await
         .map_err(|error| {
             tracing::error!("wb_advert_report p913 aggregation failed: {}", error);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     let p911_rows = fetch_p911_advert_report_rows(&filters)
         .await
         .map_err(|error| {
             tracing::error!("wb_advert_report p911 aggregation failed: {}", error);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mut root = BTreeMap::<String, AdvertReportAccum>::new();
@@ -575,7 +576,7 @@ pub async fn wb_advert_report(
 /// GET /api/dashboards/wb-order-flow?srid={srid}
 pub async fn wb_order_flow(
     Query(query): Query<WbOrderFlowQuery>,
-) -> Result<Json<WbOrderFlowResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbOrderFlowResponse>, ApiError> {
     let srid = query.srid.trim().to_string();
 
     // 1. a015: заказ
@@ -583,7 +584,7 @@ pub async fn wb_order_flow(
         .await
         .map_err(|e| {
             tracing::error!("wb_order_flow a015 {}: {}", srid, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let order_item = order_opt.as_ref().map(|o| OrderFlowItem {
@@ -823,7 +824,7 @@ pub async fn wb_order_flow(
 /// собранные по номеру заказа.
 pub async fn ym_order_flow(
     Query(query): Query<YmOrderFlowQuery>,
-) -> Result<Json<YmOrderFlowResponse>, axum::http::StatusCode> {
+) -> Result<Json<YmOrderFlowResponse>, ApiError> {
     let order_no = query.order_id.trim().to_string();
 
     // 0. a013: сам заказ (первое событие ленты, как в d402).
@@ -997,7 +998,7 @@ async fn resolve_nomenclature_descriptions(
 /// (когорта/событие) с именами товаров (джойн a004) и производными конверсиями.
 pub async fn wb_sales_funnel(
     Query(filters): Query<WbSalesFunnelRequest>,
-) -> Result<Json<WbSalesFunnelResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbSalesFunnelResponse>, ApiError> {
     let request = MpFunnelListRequest {
         date_from: filters.date_from.clone(),
         date_to: filters.date_to.clone(),
@@ -1015,7 +1016,7 @@ pub async fn wb_sales_funnel(
         .await
         .map_err(|error| {
             tracing::error!("wb_sales_funnel p916 aggregation failed: {}", error);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     // Имена товаров: джойн a004 по nomenclature_ref (одним запросом на весь набор).
@@ -1196,7 +1197,7 @@ pub struct WbSalesFunnelOrdersQuery {
 /// Счётчики `paid_count`/`free_count` считаются по всей ячейке (до фильтра `channel`).
 pub async fn wb_sales_funnel_orders(
     Query(query): Query<WbSalesFunnelOrdersQuery>,
-) -> Result<Json<WbSalesFunnelOrdersResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbSalesFunnelOrdersResponse>, ApiError> {
     let channel = match query.channel.as_deref() {
         Some("paid") => FunnelOrderChannel::Paid,
         Some("free") => FunnelOrderChannel::Free,
@@ -1211,7 +1212,7 @@ pub async fn wb_sales_funnel_orders(
     .await
     .map_err(|error| {
         tracing::error!("wb_sales_funnel_orders a015 lookup failed: {}", error);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let srids: Vec<String> = orders

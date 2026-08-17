@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -84,7 +85,7 @@ pub struct DetailsDto {
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -117,19 +118,19 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list WB search analytics: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<DetailsDto>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<DetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a040_wb_search_analytics_daily::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get WB search analytics {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 

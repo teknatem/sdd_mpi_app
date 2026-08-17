@@ -8,8 +8,6 @@ use sea_orm::entity::prelude::*;
 
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
-use crate::shared::data::db::get_connection;
-
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "a002_organization")]
 pub struct Model {
@@ -63,14 +61,13 @@ impl From<Model> for Organization {
     }
 }
 
-fn conn() -> &'static DatabaseConnection {
-    get_connection()
-}
-
-pub async fn list_all() -> anyhow::Result<Vec<Organization>> {
+// Соединение приходит параметром: слой не должен знать, откуда берётся база.
+// Пока часть вызывающих передаёт сюда глобальный мост `db::get_connection()` —
+// это и есть граница, по которой миграция идёт дальше.
+pub async fn list_all(db: &DatabaseConnection) -> anyhow::Result<Vec<Organization>> {
     let mut items: Vec<Organization> = Entity::find()
         .filter(Column::IsDeleted.eq(false))
-        .all(conn())
+        .all(db)
         .await?
         .into_iter()
         .map(Into::into)
@@ -84,12 +81,12 @@ pub async fn list_all() -> anyhow::Result<Vec<Organization>> {
     Ok(items)
 }
 
-pub async fn get_by_id(id: Uuid) -> anyhow::Result<Option<Organization>> {
-    let result = Entity::find_by_id(id.to_string()).one(conn()).await?;
+pub async fn get_by_id(db: &DatabaseConnection, id: Uuid) -> anyhow::Result<Option<Organization>> {
+    let result = Entity::find_by_id(id.to_string()).one(db).await?;
     Ok(result.map(Into::into))
 }
 
-pub async fn insert(aggregate: &Organization) -> anyhow::Result<Uuid> {
+pub async fn insert(db: &DatabaseConnection, aggregate: &Organization) -> anyhow::Result<Uuid> {
     let uuid = aggregate.base.id.value();
     let active = ActiveModel {
         id: Set(uuid.to_string()),
@@ -106,11 +103,11 @@ pub async fn insert(aggregate: &Organization) -> anyhow::Result<Uuid> {
         updated_at: Set(Some(aggregate.base.metadata.updated_at)),
         version: Set(aggregate.base.metadata.version),
     };
-    active.insert(conn()).await?;
+    active.insert(db).await?;
     Ok(uuid)
 }
 
-pub async fn update(aggregate: &Organization) -> anyhow::Result<()> {
+pub async fn update(db: &DatabaseConnection, aggregate: &Organization) -> anyhow::Result<()> {
     let id = aggregate.base.id.value().to_string();
     let active = ActiveModel {
         id: Set(id),
@@ -127,35 +124,41 @@ pub async fn update(aggregate: &Organization) -> anyhow::Result<()> {
         version: Set(aggregate.base.metadata.version),
         created_at: sea_orm::ActiveValue::NotSet,
     };
-    active.update(conn()).await?;
+    active.update(db).await?;
     Ok(())
 }
 
-pub async fn soft_delete(id: Uuid) -> anyhow::Result<bool> {
+pub async fn soft_delete(db: &DatabaseConnection, id: Uuid) -> anyhow::Result<bool> {
     use sea_orm::sea_query::Expr;
     let result = Entity::update_many()
         .col_expr(Column::IsDeleted, Expr::value(true))
         .col_expr(Column::UpdatedAt, Expr::value(Utc::now()))
         .filter(Column::Id.eq(id.to_string()))
-        .exec(conn())
+        .exec(db)
         .await?;
     Ok(result.rows_affected > 0)
 }
 
-pub async fn get_by_code(code: &str) -> anyhow::Result<Option<Organization>> {
+pub async fn get_by_code(
+    db: &DatabaseConnection,
+    code: &str,
+) -> anyhow::Result<Option<Organization>> {
     let result = Entity::find()
         .filter(Column::Code.eq(code))
         .filter(Column::IsDeleted.eq(false))
-        .one(conn())
+        .one(db)
         .await?;
     Ok(result.map(Into::into))
 }
 
-pub async fn get_by_description(description: &str) -> anyhow::Result<Option<Organization>> {
+pub async fn get_by_description(
+    db: &DatabaseConnection,
+    description: &str,
+) -> anyhow::Result<Option<Organization>> {
     let result = Entity::find()
         .filter(Column::Description.eq(description))
         .filter(Column::IsDeleted.eq(false))
-        .one(conn())
+        .one(db)
         .await?;
     Ok(result.map(Into::into))
 }

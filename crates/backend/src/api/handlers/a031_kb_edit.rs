@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -29,7 +30,7 @@ pub struct KbEditPaginatedResponse {
 
 pub async fn list_paginated(
     Query(params): Query<KbEditListParams>,
-) -> Result<Json<KbEditPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<KbEditPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 1000);
     let offset = params.offset.unwrap_or(0);
     let page = offset / limit;
@@ -60,31 +61,31 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list KB edits: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<KbEdit>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<KbEdit>, ApiError> {
     match a031_kb_edit::service::get_by_id(&id).await {
         Ok(Some(item)) => Ok(Json(item)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get KB edit {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 pub async fn upsert(
     Json(dto): Json<a031_kb_edit::service::KbEditDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if dto.id.is_some() {
         match a031_kb_edit::service::update(dto).await {
             Ok(()) => Ok(Json(json!({"success": true}))),
             Err(e) => {
                 tracing::error!("Failed to update KB edit: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     } else {
@@ -92,42 +93,38 @@ pub async fn upsert(
             Ok(id) => Ok(Json(json!({"success": true, "id": id.to_string()}))),
             Err(e) => {
                 tracing::error!("Failed to create KB edit: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     }
 }
 
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a031_kb_edit::service::delete(&id).await {
         Ok(()) => Ok(()),
         Err(e) => {
             tracing::error!("Failed to delete KB edit {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn approve(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn approve(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     match a031_kb_edit::service::approve(&id).await {
         Ok(()) => Ok(Json(json!({"success": true}))),
         Err(e) => {
             tracing::error!("Failed to approve KB edit {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn cancel(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn cancel(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     match a031_kb_edit::service::cancel(&id).await {
         Ok(()) => Ok(Json(json!({"success": true}))),
         Err(e) => {
             tracing::error!("Failed to cancel KB edit {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

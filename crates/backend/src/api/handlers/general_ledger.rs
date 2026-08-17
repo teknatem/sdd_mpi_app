@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +58,7 @@ pub struct GeneralLedgerTurnoverListResponse {
 
 pub async fn list(
     Query(q): Query<GeneralLedgerQuery>,
-) -> Result<Json<GeneralLedgerListResponse>, axum::http::StatusCode> {
+) -> Result<Json<GeneralLedgerListResponse>, ApiError> {
     let page_size = q.limit.unwrap_or(100) as usize;
     let offset = q.offset.unwrap_or(0) as usize;
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -78,7 +79,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!("general_ledger count error: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let rows = crate::general_ledger::repository::list_with_filters(
@@ -100,7 +101,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!("general_ledger list error: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let entries: Vec<GeneralLedgerEntryDto> = rows.into_iter().map(to_dto).collect();
@@ -123,39 +124,40 @@ pub async fn list(
 
 pub async fn get_by_id(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<GeneralLedgerEntryDto>, axum::http::StatusCode> {
+) -> Result<Json<GeneralLedgerEntryDto>, ApiError> {
     let item = crate::general_ledger::repository::get_by_id(&id)
         .await
         .map_err(|e| {
             tracing::error!("general_ledger get_by_id error: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(to_dto(item)))
 }
 
 pub async fn get_resource_details(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<GlResourceDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<GlResourceDetailResponse>, ApiError> {
     resource_detail::get_resource_details(&id)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("general_ledger resource_details error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
 pub async fn get_turnover_by_code(
     axum::extract::Path(code): axum::extract::Path<String>,
-) -> Result<Json<GeneralLedgerTurnoverDto>, axum::http::StatusCode> {
-    let item = get_turnover_class(&code).ok_or(axum::http::StatusCode::NOT_FOUND)?;
+) -> Result<Json<GeneralLedgerTurnoverDto>, ApiError> {
+    let item =
+        get_turnover_class(&code).ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
     let counts = crate::general_ledger::repository::count_grouped_by_turnover_code()
         .await
         .map_err(|e| {
             tracing::error!("general_ledger turnover counts error: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(GeneralLedgerTurnoverDto {
@@ -187,13 +189,12 @@ pub async fn get_turnover_by_code(
     }))
 }
 
-pub async fn list_turnovers(
-) -> Result<Json<GeneralLedgerTurnoverListResponse>, axum::http::StatusCode> {
+pub async fn list_turnovers() -> Result<Json<GeneralLedgerTurnoverListResponse>, ApiError> {
     let counts = crate::general_ledger::repository::count_grouped_by_turnover_code()
         .await
         .map_err(|e| {
             tracing::error!("general_ledger turnover counts error: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mut items = TURNOVER_CLASSES
@@ -275,13 +276,12 @@ fn matrix_projection(resource_table: &str) -> GlMatrixProjection {
 /// (`TURNOVER_CLASSES` × `GL_LAYER_CLASSES` + `dimensions_for_turnover_at_layer`);
 /// проекции — из реестра слоёв (`projections_for_cell`); счётчик проводок —
 /// overlay из данных GL. Естественная деривация без хардкода.
-pub async fn layer_turnover_matrix(
-) -> Result<Json<GlLayerTurnoverMatrixResponse>, axum::http::StatusCode> {
+pub async fn layer_turnover_matrix() -> Result<Json<GlLayerTurnoverMatrixResponse>, ApiError> {
     let counts = crate::general_ledger::repository::count_grouped_by_turnover_and_layer()
         .await
         .map_err(|e| {
             tracing::error!("layer/turnover matrix counts error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mut layers = GL_LAYER_CLASSES
@@ -377,12 +377,12 @@ pub async fn layer_turnover_matrix(
     }))
 }
 
-pub async fn list_layers() -> Result<Json<GlLayersResponse>, axum::http::StatusCode> {
+pub async fn list_layers() -> Result<Json<GlLayersResponse>, ApiError> {
     let counts = crate::general_ledger::repository::count_grouped_by_layer()
         .await
         .map_err(|e| {
             tracing::error!("general_ledger layer counts error: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mut items = GL_LAYER_CLASSES
@@ -404,12 +404,12 @@ pub async fn list_layers() -> Result<Json<GlLayersResponse>, axum::http::StatusC
     Ok(Json(GlLayersResponse { items, total }))
 }
 
-pub async fn list_entities() -> Result<Json<GlEntitiesResponse>, axum::http::StatusCode> {
+pub async fn list_entities() -> Result<Json<GlEntitiesResponse>, ApiError> {
     let counts = crate::general_ledger::repository::count_grouped_by_entity()
         .await
         .map_err(|e| {
             tracing::error!("general_ledger entity counts error: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mut items = GL_ENTITY_CLASSES
@@ -435,13 +435,13 @@ pub async fn list_entities() -> Result<Json<GlEntitiesResponse>, axum::http::Sta
 /// Баланс к перечислению поставщику (контур ym): сальдо 7609 + кошелёк баллов 76YB.
 pub async fn supplier_balance(
     Json(query): Json<SupplierBalanceQuery>,
-) -> Result<Json<SupplierBalanceResponse>, axum::http::StatusCode> {
+) -> Result<Json<SupplierBalanceResponse>, ApiError> {
     report_repository::get_supplier_balance(&query)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("supplier_balance error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -449,27 +449,25 @@ pub async fn supplier_balance(
 // GL Report endpoints
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub async fn report(
-    Json(query): Json<GlReportQuery>,
-) -> Result<Json<GlReportResponse>, axum::http::StatusCode> {
+pub async fn report(Json(query): Json<GlReportQuery>) -> Result<Json<GlReportResponse>, ApiError> {
     report_repository::get_report(&query)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("GL report error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
 pub async fn ym_revenue_reconciliation(
     Query(query): Query<contracts::general_ledger::YmRevenueReconQuery>,
-) -> Result<Json<contracts::general_ledger::YmRevenueReconResponse>, axum::http::StatusCode> {
+) -> Result<Json<contracts::general_ledger::YmRevenueReconResponse>, ApiError> {
     report_repository::get_ym_revenue_reconciliation(&query)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("YM revenue reconciliation error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -490,44 +488,44 @@ pub async fn report_dimensions(
 
 pub async fn report_drilldown(
     Json(query): Json<GlDrilldownQuery>,
-) -> Result<Json<GlDrilldownResponse>, axum::http::StatusCode> {
+) -> Result<Json<GlDrilldownResponse>, ApiError> {
     report_repository::get_drilldown(&query)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("GL drilldown error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
 pub async fn create_drilldown_session(
     Json(body): Json<GlDrilldownSessionCreate>,
-) -> Result<Json<GlDrilldownSessionCreateResponse>, axum::http::StatusCode> {
+) -> Result<Json<GlDrilldownSessionCreateResponse>, ApiError> {
     drilldown_session_repository::create_session(&body)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("GL drilldown session create error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
 pub async fn get_drilldown_session(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<GlDrilldownSessionRecord>, axum::http::StatusCode> {
+) -> Result<Json<GlDrilldownSessionRecord>, ApiError> {
     let session = drilldown_session_repository::get_session(&id)
         .await
         .map_err(|e| {
             tracing::error!("GL drilldown session get error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     drilldown_session_repository::touch_session(&id)
         .await
         .map_err(|e| {
             tracing::error!("GL drilldown session touch error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(session))
@@ -535,20 +533,20 @@ pub async fn get_drilldown_session(
 
 pub async fn get_drilldown_session_data(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<GlDrilldownResponse>, axum::http::StatusCode> {
+) -> Result<Json<GlDrilldownResponse>, ApiError> {
     let session = drilldown_session_repository::get_session(&id)
         .await
         .map_err(|e| {
             tracing::error!("GL drilldown session data get error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     drilldown_session_repository::touch_session(&id)
         .await
         .map_err(|e| {
             tracing::error!("GL drilldown session data touch error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     report_repository::get_drilldown(&session.query)
@@ -556,7 +554,7 @@ pub async fn get_drilldown_session_data(
         .map(Json)
         .map_err(|e| {
             tracing::error!("GL drilldown session data error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -566,25 +564,25 @@ pub async fn get_drilldown_session_data(
 
 pub async fn account_view(
     Json(query): Json<GlAccountViewQuery>,
-) -> Result<Json<GlAccountViewResponse>, axum::http::StatusCode> {
+) -> Result<Json<GlAccountViewResponse>, ApiError> {
     crate::general_ledger::account_view::repository::get_view(&query)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("GL account view error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
 pub async fn wb_weekly_reconciliation(
     Query(query): Query<WbWeeklyReconciliationQuery>,
-) -> Result<Json<WbWeeklyReconciliationResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbWeeklyReconciliationResponse>, ApiError> {
     crate::general_ledger::weekly_reconciliation::get_report(&query)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("WB weekly reconciliation report error: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 

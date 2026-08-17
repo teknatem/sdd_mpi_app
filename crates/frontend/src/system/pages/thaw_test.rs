@@ -1,6 +1,7 @@
 use crate::shared::components::date_range_picker_exp::DateRangePickerExp;
 use crate::shared::components::date_range_picker_v2::DateRangePickerV2;
 use crate::shared::components::date_range_picker_v3::DateRangePickerV3;
+use crate::shared::components::date_range_picker_v4::DateRangePickerV4;
 use crate::shared::page_frame::PageFrame;
 use leptos::prelude::*;
 use std::collections::HashSet;
@@ -22,6 +23,8 @@ pub fn ThawTestPage() -> impl IntoView {
     let v2_to = RwSignal::new(String::new());
     let v3_from = RwSignal::new(String::new());
     let v3_to = RwSignal::new(String::new());
+    let v4_from = RwSignal::new(String::new());
+    let v4_to = RwSignal::new(String::new());
 
     view! {
         <PageFrame page_id="sys_thaw_test--system" category="system">
@@ -336,7 +339,30 @@ pub fn ThawTestPage() -> impl IntoView {
                 </div>
             </div>
 
-            // Информация о совместимости
+            // DateRangePickerV4
+            <div style="margin-bottom: 30px; padding: 20px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--card-bg);">
+                <h2 style="margin-bottom: 15px; font-size: 18px; font-weight: 600;">
+                    "11. DateRangePickerV4 (компактная полоса + большой поповер)"
+                </h2>
+                <p style="margin-bottom: 12px; color: var(--color-text-secondary); font-size: 14px;">
+                    "На полосе только период и ←/→. Пиктограмма линейки открывает большой поповер: единица, пресеты в один клик, интервал двумя кликами."
+                </p>
+                <DateRangePickerV4
+                    date_from=Signal::derive(move || v4_from.get())
+                    date_to=Signal::derive(move || v4_to.get())
+                    on_change=Callback::new(move |(from, to)| {
+                        v4_from.set(from);
+                        v4_to.set(to);
+                    })
+                    label="Период:".to_string()
+                />
+                <div style="margin-top: 12px; padding: 10px; background-color: var(--color-bg-secondary); border-radius: 4px;">
+                    <p>
+                        <strong>"ISO from → to: "</strong>
+                        {move || format!("{} → {}", v4_from.get(), v4_to.get())}
+                    </p>
+                </div>
+            </div>
             <div style="margin-top: 30px; padding: 20px; background: var(--activity-success-bg); border: 1px solid var(--color-success); border-radius: 8px;">
                 <h2 style="margin-bottom: 10px; font-size: 18px; font-weight: 600; color: var(--color-success);">
                     "✅ Статус совместимости"
@@ -363,6 +389,7 @@ pub fn ThawTestPage() -> impl IntoView {
                         <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerExp"</Badge>
                         <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerV2"</Badge>
                         <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerV3"</Badge>
+                        <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Success>"DateRangePickerV4"</Badge>
                     </Flex>
                 </div>
             </div>

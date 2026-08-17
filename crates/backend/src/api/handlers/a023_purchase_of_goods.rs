@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -62,7 +63,7 @@ pub struct PaginatedResponse {
 /// GET /api/a023/purchase-of-goods/list
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -94,7 +95,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list purchase of goods: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -102,17 +103,14 @@ pub async fn list_paginated(
 /// GET /api/a023/purchase-of-goods/:id
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<
-    Json<contracts::domain::a023_purchase_of_goods::aggregate::PurchaseOfGoods>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::domain::a023_purchase_of_goods::aggregate::PurchaseOfGoods>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     match a023_purchase_of_goods::service::get_by_id(uuid).await {
         Ok(Some(doc)) => Ok(Json(doc)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get purchase of goods {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -120,13 +118,13 @@ pub async fn get_by_id(
 /// POST /api/a023/purchase-of-goods/:id/post
 pub async fn post_purchase_of_goods(
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a023_purchase_of_goods::service::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post purchase of goods {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(
         serde_json::json!({"success": true, "message": "Document posted"}),
@@ -136,13 +134,13 @@ pub async fn post_purchase_of_goods(
 /// POST /api/a023/purchase-of-goods/:id/unpost
 pub async fn unpost_purchase_of_goods(
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a023_purchase_of_goods::service::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost purchase of goods {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(
         serde_json::json!({"success": true, "message": "Document unposted"}),

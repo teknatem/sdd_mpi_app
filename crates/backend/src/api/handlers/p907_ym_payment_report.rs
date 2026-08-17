@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -15,7 +16,7 @@ use crate::usecases::u503_import_from_yandex::processors::payment_report as paym
 /// Handler для получения списка записей отчёта по платежам YM
 pub async fn list_reports(
     Query(req): Query<YmPaymentReportListRequest>,
-) -> Result<Json<YmPaymentReportListResponse>, axum::http::StatusCode> {
+) -> Result<Json<YmPaymentReportListResponse>, ApiError> {
     let (items, total) = repository::list_with_filters(
         &req.date_from,
         &req.date_to,
@@ -35,7 +36,7 @@ pub async fn list_reports(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list YM payment report: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let gl_counts = crate::general_ledger::repository::count_by_registrator_refs(
@@ -44,7 +45,7 @@ pub async fn list_reports(
     .await
     .map_err(|e| {
         tracing::error!("Failed to count p907 general ledger rows: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos: Vec<YmPaymentReportDto> = items
@@ -75,7 +76,7 @@ pub struct FilterOptionsQuery {
 
 pub async fn filter_options(
     Query(req): Query<FilterOptionsQuery>,
-) -> Result<Json<YmPaymentReportFilterOptionsResponse>, axum::http::StatusCode> {
+) -> Result<Json<YmPaymentReportFilterOptionsResponse>, ApiError> {
     let (transaction_types, payment_statuses, transaction_sources) =
         repository::list_filter_options(
             &req.date_from,
@@ -86,7 +87,7 @@ pub async fn filter_options(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list YM payment report filter options: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(YmPaymentReportFilterOptionsResponse {
@@ -99,18 +100,18 @@ pub async fn filter_options(
 /// Handler для получения одной записи отчёта по платежам YM по UUID (`id` поле).
 pub async fn get_report(
     Path(id): Path<String>,
-) -> Result<Json<YmPaymentReportDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<YmPaymentReportDetailResponse>, ApiError> {
     load_report_detail_by_id(&id).await.map(Json)
 }
 
 pub async fn post_report(
     Path(id): Path<String>,
-) -> Result<Json<YmPaymentReportDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<YmPaymentReportDetailResponse>, ApiError> {
     crate::projections::p907_ym_payment_report::service::rebuild_entry_from_existing(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to rebuild p907 general ledger for id {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     load_report_detail_by_id(&id).await.map(Json)
@@ -119,12 +120,12 @@ pub async fn post_report(
 /// Массовое перепроведение всех записей p907: перестраивает GL/p914 для каждой
 /// строки. Используется после изменения маппинга оборотов, чтобы провести ранее
 /// не отражавшиеся операции YM.
-pub async fn repost_all() -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn repost_all() -> Result<Json<serde_json::Value>, ApiError> {
     let (rows, gl_entries) = crate::projections::p907_ym_payment_report::service::repost_all()
         .await
         .map_err(|e| {
             tracing::error!("Failed to repost all p907 rows: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({
@@ -141,7 +142,7 @@ pub async fn get_finance_turnovers(
     Path(id): Path<String>,
 ) -> Result<
     Json<Vec<contracts::projections::p914_mp_finance_turnovers::dto::MpFinanceTurnoverDto>>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     let rows = crate::projections::p914_mp_finance_turnovers::repository::list_by_registrator(
         "p907_ym_payment_report",
@@ -154,7 +155,7 @@ pub async fn get_finance_turnovers(
             id,
             e
         );
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos = rows
@@ -167,7 +168,7 @@ pub async fn get_finance_turnovers(
 
 /// Migrate all SYNTH_... record keys to ymid_... format.
 /// Safe to call multiple times — already-migrated rows are skipped.
-pub async fn migrate_keys() -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn migrate_keys() -> Result<Json<serde_json::Value>, ApiError> {
     let (migrated, _already_ymid, errors) = repository::migrate_synth_keys(|record| {
         payment_report_processor::build_ymid_key(
             record.order_id,
@@ -180,7 +181,7 @@ pub async fn migrate_keys() -> Result<Json<serde_json::Value>, axum::http::Statu
     .await
     .map_err(|e| {
         tracing::error!("migrate_keys: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     Ok(Json(serde_json::json!({
@@ -191,16 +192,14 @@ pub async fn migrate_keys() -> Result<Json<serde_json::Value>, axum::http::Statu
     })))
 }
 
-async fn load_report_detail_by_id(
-    id: &str,
-) -> Result<YmPaymentReportDetailResponse, axum::http::StatusCode> {
+async fn load_report_detail_by_id(id: &str) -> Result<YmPaymentReportDetailResponse, ApiError> {
     let item = repository::get_by_uuid(id).await.map_err(|e| {
         tracing::error!("Failed to get YM payment report detail: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let Some(item) = item else {
-        return Err(axum::http::StatusCode::NOT_FOUND);
+        return Err(axum::http::StatusCode::NOT_FOUND.into());
     };
 
     let general_ledger_entries =
@@ -208,7 +207,7 @@ async fn load_report_detail_by_id(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to load p907 general ledger rows by id: {}", e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?
             .into_iter()
             .map(to_general_ledger_dto)

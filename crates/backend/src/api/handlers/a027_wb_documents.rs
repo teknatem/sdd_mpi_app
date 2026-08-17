@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     body::Body,
     extract::{Path, Query},
@@ -237,7 +238,7 @@ pub struct UpdateManualFieldsRequest {
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -298,39 +299,39 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list WB documents: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<WbDocumentDetailsDto>, StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<WbDocumentDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let doc = match a027_wb_documents::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get WB document {}: {}", id, e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
     build_details_dto(doc).await.map(Json).map_err(|e| {
         tracing::error!("Failed to build WB document dto {}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })
 }
 
 pub async fn download_document(
     Path((id, extension)): Path<(String, String)>,
-) -> Result<Response<Body>, StatusCode> {
+) -> Result<Response<Body>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let document = a027_wb_documents::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to load WB document {} for download: {}", id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     if !document
         .header
@@ -338,7 +339,7 @@ pub async fn download_document(
         .iter()
         .any(|item| item.eq_ignore_ascii_case(&extension))
     {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(axum::http::StatusCode::BAD_REQUEST.into());
     }
 
     let connection_id = Uuid::parse_str(&document.header.connection_id)
@@ -347,9 +348,9 @@ pub async fn download_document(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load connection for WB document {}: {}", id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let api_client = WildberriesApiClient::new();
     let file = api_client
@@ -357,14 +358,14 @@ pub async fn download_document(
         .await
         .map_err(|e| {
             tracing::error!("Failed to download WB document {}: {}", id, e);
-            StatusCode::BAD_GATEWAY
+            ApiError::from(axum::http::StatusCode::BAD_GATEWAY)
         })?;
 
     let bytes = general_purpose::STANDARD
         .decode(&file.document)
         .map_err(|e| {
             tracing::error!("Failed to decode WB document base64 {}: {}", id, e);
-            StatusCode::BAD_GATEWAY
+            ApiError::from(axum::http::StatusCode::BAD_GATEWAY)
         })?;
 
     let mut response = Response::new(Body::from(bytes));
@@ -387,17 +388,18 @@ pub async fn download_document(
 
 pub async fn extract_weekly_report(
     Path(id): Path<String>,
-) -> Result<Json<WbDocumentDetailsDto>, StatusCode> {
+) -> Result<Json<WbDocumentDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let document = a027_wb_documents::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to load WB document {} for extraction: {}", id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
-    let extension = preferred_report_extension(&document).ok_or(StatusCode::BAD_REQUEST)?;
+    let extension = preferred_report_extension(&document)
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
     let connection_id = Uuid::parse_str(&document.header.connection_id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let connection = crate::domain::a006_connection_mp::service::get_by_id(connection_id)
@@ -408,9 +410,9 @@ pub async fn extract_weekly_report(
                 id,
                 e
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let api_client = WildberriesApiClient::new();
     let file = api_client
@@ -422,14 +424,14 @@ pub async fn extract_weekly_report(
                 id,
                 e
             );
-            StatusCode::BAD_GATEWAY
+            ApiError::from(axum::http::StatusCode::BAD_GATEWAY)
         })?;
 
     let bytes = general_purpose::STANDARD
         .decode(&file.document)
         .map_err(|e| {
             tracing::error!("Failed to decode WB document {} for extraction: {}", id, e);
-            StatusCode::BAD_GATEWAY
+            ApiError::from(axum::http::StatusCode::BAD_GATEWAY)
         })?;
 
     // Имя документа ("Отчет № … от DD.MM.YYYY") — надёжный источник даты отчёта,
@@ -442,7 +444,7 @@ pub async fn extract_weekly_report(
     )
     .map_err(|e| {
         tracing::error!("Failed to extract WB weekly report {}: {}", id, e);
-        StatusCode::UNPROCESSABLE_ENTITY
+        ApiError::from(axum::http::StatusCode::UNPROCESSABLE_ENTITY)
     })?;
 
     // TODO(debug): временный лог распарсенных строк отчёта для отладки 2.6/2.10/8.
@@ -496,20 +498,20 @@ pub async fn extract_weekly_report(
     .await
     .map_err(|e| {
         tracing::error!("Failed to store extracted WB report data {}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     build_details_dto(updated).await.map(Json).map_err(|e| {
         tracing::error!("Failed to build extracted WB document dto {}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })
 }
 
 pub async fn update_manual_fields(
     Path(id): Path<String>,
     Json(req): Json<UpdateManualFieldsRequest>,
-) -> Result<Json<WbDocumentDetailsDto>, StatusCode> {
+) -> Result<Json<WbDocumentDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let document = a027_wb_documents::service::update_manual_fields(
         uuid,
@@ -529,26 +531,24 @@ pub async fn update_manual_fields(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update WB document manual fields {}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     build_details_dto(document).await.map(Json).map_err(|e| {
         tracing::error!("Failed to build updated WB document dto {}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })
 }
 
-pub async fn post_document(
-    Path(id): Path<String>,
-) -> Result<Json<WbDocumentDetailsDto>, StatusCode> {
+pub async fn post_document(Path(id): Path<String>) -> Result<Json<WbDocumentDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let doc = match a027_wb_documents::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to load WB document {} for posting: {}", id, e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -558,7 +558,7 @@ pub async fn post_document(
             id,
             e
         );
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     let max_deviation = compute_max_deviation(&reconciliation);
 
@@ -570,13 +570,13 @@ pub async fn post_document(
                 id,
                 e
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     build_details_dto(doc).await.map(Json).map_err(|e| {
         tracing::error!("Failed to post WB document {}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })
 }
 
@@ -998,7 +998,11 @@ async fn resolve_organization_name(organization_id: &str) -> anyhow::Result<Opti
     let Some(uuid) = parse_uuid(organization_id) else {
         return Ok(None);
     };
-    let organization = crate::domain::a002_organization::service::get_by_id(uuid).await?;
+    let organization = crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        uuid,
+    )
+    .await?;
     Ok(organization.map(|item| item.base.description))
 }
 

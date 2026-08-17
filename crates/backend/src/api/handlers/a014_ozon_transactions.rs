@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::Json;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -16,7 +17,7 @@ pub struct ListFilters {
 /// Handler для получения списка всех транзакций с фильтрами
 pub async fn list_all(
     axum::extract::Query(filters): axum::extract::Query<ListFilters>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let transactions = a014_ozon_transactions::service::list_with_filters_as_dto(
         filters.date_from,
         filters.date_to,
@@ -27,7 +28,7 @@ pub async fn list_all(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list OZON transactions: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     Ok(Json(serde_json::json!(transactions)))
@@ -36,16 +37,16 @@ pub async fn list_all(
 /// Handler для получения транзакции по ID
 pub async fn get_by_id(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     let transaction = a014_ozon_transactions::service::get_by_id_as_dto(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get OZON transaction by ID: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(serde_json::json!(transaction)))
 }
@@ -53,18 +54,18 @@ pub async fn get_by_id(
 /// Handler для удаления транзакции
 pub async fn delete(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     let deleted = a014_ozon_transactions::service::delete(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to delete OZON transaction: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     if !deleted {
-        return Err(axum::http::StatusCode::NOT_FOUND);
+        return Err(axum::http::StatusCode::NOT_FOUND.into());
     }
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -73,7 +74,7 @@ pub async fn delete(
 /// Handler для получения транзакций по posting_number
 pub async fn get_by_posting_number(
     axum::extract::Path(posting_number): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     // Декодируем URL-кодированный posting_number
     let decoded_posting_number =
         urlencoding::decode(&posting_number).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
@@ -89,7 +90,7 @@ pub async fn get_by_posting_number(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get OZON transactions by posting_number: {}", e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?;
 
     tracing::info!(
@@ -103,14 +104,14 @@ pub async fn get_by_posting_number(
 /// Handler для проведения документа
 pub async fn post_document(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a014_ozon_transactions::posting::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post document: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -119,14 +120,14 @@ pub async fn post_document(
 /// Handler для отмены проведения документа
 pub async fn unpost_document(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a014_ozon_transactions::posting::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost document: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -135,13 +136,13 @@ pub async fn unpost_document(
 /// Handler для получения проекций по registrator_ref
 pub async fn get_projections(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     // Получаем данные из всех проекций
     let p900_items = crate::projections::p900_mp_sales_register::service::get_by_registrator(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p900 projections: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let p902_items =
@@ -149,14 +150,14 @@ pub async fn get_projections(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get p902 projections: {}", e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?;
 
     let p904_items = crate::projections::p904_sales_data::repository::get_by_registrator(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p904 projections: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     // Объединяем результаты

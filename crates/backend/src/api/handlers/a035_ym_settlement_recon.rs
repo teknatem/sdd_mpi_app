@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -108,7 +109,7 @@ pub struct ReconOrderDto {
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(500);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -144,21 +145,19 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list YM settlement recon documents: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<ReconDetailsDto>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<ReconDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a035_ym_settlement_recon::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get YM settlement recon document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
     match build_details_dto(doc).await {
@@ -169,7 +168,7 @@ pub async fn get_by_id(
                 id,
                 e
             );
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -235,7 +234,11 @@ async fn resolve_organization_name(organization_id: &str) -> anyhow::Result<Opti
     let Some(uuid) = Uuid::parse_str(organization_id).ok() else {
         return Ok(None);
     };
-    let organization = crate::domain::a002_organization::service::get_by_id(uuid).await?;
+    let organization = crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        uuid,
+    )
+    .await?;
     Ok(organization.map(|item| item.base.description))
 }
 
@@ -258,7 +261,7 @@ pub struct GenerateResponse {
 /// задан) и upsert-нуть документы сверки. Идемпотентна по (кабинет, ордер).
 pub async fn generate(
     Json(req): Json<GenerateRequest>,
-) -> Result<Json<GenerateResponse>, axum::http::StatusCode> {
+) -> Result<Json<GenerateResponse>, ApiError> {
     let date_from = req.date_from.unwrap_or_default();
     let date_to = req.date_to.unwrap_or_default();
     match a035_ym_settlement_recon::service::generate(&date_from, &date_to).await {
@@ -269,55 +272,49 @@ pub async fn generate(
         })),
         Err(e) => {
             tracing::error!("Failed to generate YM settlement recon documents: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// Пересчитать один документ из текущего p907 (кнопка «Обновить» в карточке).
-pub async fn recompute(
-    Path(id): Path<String>,
-) -> Result<Json<ReconDetailsDto>, axum::http::StatusCode> {
+pub async fn recompute(Path(id): Path<String>) -> Result<Json<ReconDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a035_ym_settlement_recon::service::recompute(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!(
                 "Failed to recompute YM settlement recon document {}: {}",
                 id,
                 e
             );
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
     match build_details_dto(doc).await {
         Ok(dto) => Ok(Json(dto)),
         Err(e) => {
             tracing::error!("Failed to enrich recomputed document {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// Провести документ: записать события «Дата оплаты поставщику» в p915 по заказам ордера.
-pub async fn post_document(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn post_document(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a035_ym_settlement_recon::service::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post YM settlement recon document {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(serde_json::json!({"success": true})))
 }
 
 /// Отменить проведение: удалить события supplier_payment этого ордера из p915.
-pub async fn unpost_document(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn unpost_document(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a035_ym_settlement_recon::service::unpost_document(uuid)
         .await
@@ -327,7 +324,7 @@ pub async fn unpost_document(
                 id,
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(serde_json::json!({"success": true})))
 }

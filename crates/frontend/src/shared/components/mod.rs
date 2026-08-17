@@ -6,6 +6,7 @@ pub mod date_range_picker_exp;
 pub mod date_range_picker_smart;
 pub mod date_range_picker_v2;
 pub mod date_range_picker_v3;
+pub mod date_range_picker_v4;
 pub mod filter_panel;
 pub mod hint_link;
 pub mod month_selector;

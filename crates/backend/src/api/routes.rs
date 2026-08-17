@@ -7,12 +7,13 @@ use axum::{
 };
 
 use super::handlers;
+use crate::shared::app_state::AppState;
 use crate::system::auth::middleware::{check_scope, check_scope_read};
 
 /// Business routes configuration.
 /// Each aggregate group is wrapped with require_scope_auto for its scope.
 /// Projections, usecases, and dashboards require authentication but no scope.
-pub fn configure_business_routes() -> Router {
+pub fn configure_business_routes() -> Router<AppState> {
     Router::new()
         .merge(a001_routes())
         .merge(a002_routes())
@@ -104,7 +105,7 @@ pub fn configure_business_routes() -> Router {
 // YM-обслуживание — консолидация подключений к модели «подключение = бизнес» (admin-only)
 // ============================================================================
 
-fn ym_maintenance_routes() -> Router {
+fn ym_maintenance_routes() -> Router<AppState> {
     use crate::system::auth::middleware::require_admin;
 
     Router::new()
@@ -122,13 +123,13 @@ fn ym_maintenance_routes() -> Router {
 // (использование — auth-only, управление — admin-only)
 // ============================================================================
 
-fn plugin_routes() -> Router {
+fn plugin_routes() -> Router<AppState> {
     plugin_use_routes().merge(plugin_admin_routes())
 }
 
 /// Использование плагинов — доступно любому аутентифицированному пользователю
 /// (просмотр списка активных плагинов и их запуск).
-fn plugin_use_routes() -> Router {
+fn plugin_use_routes() -> Router<AppState> {
     use crate::system::auth::middleware::require_auth;
 
     Router::new()
@@ -143,7 +144,7 @@ fn plugin_use_routes() -> Router {
 
 /// Управление плагинами — только администратор (создание/редактирование,
 /// импорт/экспорт, публикация в S3, обновление с сервера, отладка, статистика).
-fn plugin_admin_routes() -> Router {
+fn plugin_admin_routes() -> Router<AppState> {
     use crate::system::auth::middleware::require_admin;
 
     Router::new()
@@ -198,7 +199,7 @@ fn plugin_admin_routes() -> Router {
 // Универсальный резолвер представлений ссылок (*_ref) — только аутентификация
 // ============================================================================
 
-fn refs_routes() -> Router {
+fn refs_routes() -> Router<AppState> {
     Router::new()
         .route("/api/refs/resolve", get(handlers::refs::resolve))
         .layer(middleware::from_fn(
@@ -212,7 +213,7 @@ fn refs_routes() -> Router {
 // Aggregates A001–A025 (each wrapped with require_scope_auto)
 // ============================================================================
 
-fn a001_routes() -> Router {
+fn a001_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/connection_1c",
@@ -242,7 +243,7 @@ fn a001_routes() -> Router {
         ))
 }
 
-fn a002_routes() -> Router {
+fn a002_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/organization",
@@ -263,7 +264,7 @@ fn a002_routes() -> Router {
         ))
 }
 
-fn a003_routes() -> Router {
+fn a003_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/counterparty",
@@ -280,7 +281,7 @@ fn a003_routes() -> Router {
         ))
 }
 
-fn a004_routes() -> Router {
+fn a004_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/nomenclature",
@@ -321,7 +322,7 @@ fn a004_routes() -> Router {
         ))
 }
 
-fn a005_routes() -> Router {
+fn a005_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/marketplace",
@@ -342,7 +343,7 @@ fn a005_routes() -> Router {
         ))
 }
 
-fn a006_routes() -> Router {
+fn a006_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/connection_mp",
@@ -368,7 +369,7 @@ fn a006_routes() -> Router {
         ))
 }
 
-fn a007_routes() -> Router {
+fn a007_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/marketplace_product",
@@ -395,7 +396,7 @@ fn a007_routes() -> Router {
         ))
 }
 
-fn a008_routes() -> Router {
+fn a008_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/marketplace_sales",
@@ -414,7 +415,7 @@ fn a008_routes() -> Router {
         ))
 }
 
-fn a009_routes() -> Router {
+fn a009_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/ozon_returns",
@@ -439,7 +440,7 @@ fn a009_routes() -> Router {
         ))
 }
 
-fn a010_routes() -> Router {
+fn a010_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a010/ozon-fbs-posting",
@@ -472,7 +473,7 @@ fn a010_routes() -> Router {
         ))
 }
 
-fn a011_routes() -> Router {
+fn a011_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a011/ozon-fbo-posting",
@@ -501,7 +502,7 @@ fn a011_routes() -> Router {
         ))
 }
 
-fn a012_routes() -> Router {
+fn a012_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a012/wb-sales",
@@ -566,7 +567,7 @@ fn a012_routes() -> Router {
         ))
 }
 
-fn a013_routes() -> Router {
+fn a013_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a013/ym-order",
@@ -615,7 +616,7 @@ fn a013_routes() -> Router {
         ))
 }
 
-fn a014_routes() -> Router {
+fn a014_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/ozon_transactions",
@@ -649,7 +650,7 @@ fn a014_routes() -> Router {
         ))
 }
 
-fn a015_routes() -> Router {
+fn a015_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a015/wb-orders",
@@ -690,7 +691,7 @@ fn a015_routes() -> Router {
         ))
 }
 
-fn a016_routes() -> Router {
+fn a016_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a016/ym-returns",
@@ -739,7 +740,7 @@ fn a016_routes() -> Router {
         ))
 }
 
-fn a017_routes() -> Router {
+fn a017_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a017-llm-agent",
@@ -776,7 +777,7 @@ fn a017_routes() -> Router {
         ))
 }
 
-fn a038_routes() -> Router {
+fn a038_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a038-llm-connection",
@@ -811,7 +812,7 @@ fn a038_routes() -> Router {
         ))
 }
 
-fn a039_routes() -> Router {
+fn a039_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a039-mail-message",
@@ -833,7 +834,7 @@ fn a039_routes() -> Router {
 }
 
 /// Каталог и матрица доступа LLM-навыков.
-fn llm_skills_routes() -> Router {
+fn llm_skills_routes() -> Router<AppState> {
     Router::new()
         .route("/api/llm-skills", get(handlers::llm_skills::list))
         .route("/api/llm-skills/reload", post(handlers::llm_skills::reload))
@@ -849,13 +850,13 @@ fn llm_skills_routes() -> Router {
 }
 
 /// Каталог LLM-инструментов (read-only обзор реестра для UI).
-fn llm_tools_routes() -> Router {
+fn llm_tools_routes() -> Router<AppState> {
     Router::new().route("/api/llm-tools", get(handlers::llm_tools::list))
 }
 
 /// Сводка качества работы агентов (дашборд d407). Скоуп тот же, что у каталога
 /// навыков: это надзорная страница по флоту сотрудников.
-fn llm_quality_routes() -> Router {
+fn llm_quality_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/llm-quality/overview",
@@ -868,7 +869,7 @@ fn llm_quality_routes() -> Router {
         ))
 }
 
-fn a018_routes() -> Router {
+fn a018_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a018-llm-chat",
@@ -963,7 +964,7 @@ fn a018_routes() -> Router {
         ))
 }
 
-fn a019_routes() -> Router {
+fn a019_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a019-llm-artifact",
@@ -988,7 +989,7 @@ fn a019_routes() -> Router {
         ))
 }
 
-fn a020_routes() -> Router {
+fn a020_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a020/wb-promotions",
@@ -1017,7 +1018,7 @@ fn a020_routes() -> Router {
         ))
 }
 
-fn a021_routes() -> Router {
+fn a021_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a021/production-output/list",
@@ -1042,7 +1043,7 @@ fn a021_routes() -> Router {
         ))
 }
 
-fn a022_routes() -> Router {
+fn a022_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a022/kit-variant/list",
@@ -1059,7 +1060,7 @@ fn a022_routes() -> Router {
         ))
 }
 
-fn a026_routes() -> Router {
+fn a026_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a026/wb-advert-daily/list",
@@ -1096,7 +1097,7 @@ fn a026_routes() -> Router {
         ))
 }
 
-fn a036_routes() -> Router {
+fn a036_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a036/wb-sales-funnel/list",
@@ -1133,7 +1134,7 @@ fn a036_routes() -> Router {
         ))
 }
 
-fn a037_routes() -> Router {
+fn a037_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a037/wb-product-snapshot/list",
@@ -1158,7 +1159,7 @@ fn a037_routes() -> Router {
         ))
 }
 
-fn a040_routes() -> Router {
+fn a040_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a040/wb-search-analytics/list",
@@ -1175,7 +1176,7 @@ fn a040_routes() -> Router {
         ))
 }
 
-fn a041_routes() -> Router {
+fn a041_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a041/ym-shows-sales/list",
@@ -1190,7 +1191,7 @@ fn a041_routes() -> Router {
         }))
 }
 
-fn a043_routes() -> Router {
+fn a043_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a043/wb-finance-reports/list",
@@ -1211,7 +1212,7 @@ fn a043_routes() -> Router {
         ))
 }
 
-fn a034_routes() -> Router {
+fn a034_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a034/ym-realization/list",
@@ -1271,7 +1272,7 @@ fn a034_routes() -> Router {
         ))
 }
 
-fn a035_routes() -> Router {
+fn a035_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a035/ym-settlement-recon/list",
@@ -1304,7 +1305,7 @@ fn a035_routes() -> Router {
         ))
 }
 
-fn a023_routes() -> Router {
+fn a023_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a023/purchase-of-goods/list",
@@ -1329,7 +1330,7 @@ fn a023_routes() -> Router {
         ))
 }
 
-fn a024_routes() -> Router {
+fn a024_routes() -> Router<AppState> {
     // Write routes: upsert, delete, testdata, generate-view — require "all" access.
     let write_routes = Router::new()
         .route(
@@ -1402,7 +1403,7 @@ fn a024_routes() -> Router {
     write_routes.merge(compute_routes)
 }
 
-fn a025_routes() -> Router {
+fn a025_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a025-bi-dashboard",
@@ -1439,7 +1440,7 @@ fn a025_routes() -> Router {
         ))
 }
 
-fn a031_routes() -> Router {
+fn a031_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a031-kb-edit",
@@ -1475,7 +1476,7 @@ fn a031_routes() -> Router {
 /// Создания через HTTP нет намеренно: поручение ставит агент через LLM-инструмент
 /// `create_agent_task`, и все гарды (глубина цепочки, потолки очереди, дубли)
 /// живут там. Ручной путь оставлен только на управление уже созданным.
-fn a042_routes() -> Router {
+fn a042_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a042-agent-task",
@@ -1504,7 +1505,7 @@ fn a042_routes() -> Router {
         ))
 }
 
-fn a032_routes() -> Router {
+fn a032_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a032/wb-returns-claims",
@@ -1521,7 +1522,7 @@ fn a032_routes() -> Router {
         ))
 }
 
-fn a033_routes() -> Router {
+fn a033_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a033/wb-day-close",
@@ -1563,7 +1564,7 @@ fn a033_routes() -> Router {
         ))
 }
 
-fn a027_routes() -> Router {
+fn a027_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a027/wb-documents/list",
@@ -1596,7 +1597,7 @@ fn a027_routes() -> Router {
         ))
 }
 
-fn a028_routes() -> Router {
+fn a028_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a028/missing-cost-registry/list",
@@ -1622,7 +1623,7 @@ fn a028_routes() -> Router {
         ))
 }
 
-fn a029_routes() -> Router {
+fn a029_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a029/wb-supply",
@@ -1664,7 +1665,7 @@ fn a029_routes() -> Router {
         ))
 }
 
-fn a030_routes() -> Router {
+fn a030_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/a030/wb-advert-campaign/list",
@@ -1693,7 +1694,7 @@ fn a030_routes() -> Router {
 // Use Cases U501–U508 — each with its own scope
 // ============================================================================
 
-fn u501_routes() -> Router {
+fn u501_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u501/import/start",
@@ -1710,7 +1711,7 @@ fn u501_routes() -> Router {
         ))
 }
 
-fn u502_routes() -> Router {
+fn u502_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u502/import/start",
@@ -1727,7 +1728,7 @@ fn u502_routes() -> Router {
         ))
 }
 
-fn u503_routes() -> Router {
+fn u503_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u503/import/start",
@@ -1744,7 +1745,7 @@ fn u503_routes() -> Router {
         ))
 }
 
-fn u504_routes() -> Router {
+fn u504_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u504/import/start",
@@ -1761,7 +1762,7 @@ fn u504_routes() -> Router {
         ))
 }
 
-fn u505_routes() -> Router {
+fn u505_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u505/match/start",
@@ -1778,7 +1779,7 @@ fn u505_routes() -> Router {
         ))
 }
 
-fn u506_routes() -> Router {
+fn u506_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u506/import/start",
@@ -1795,7 +1796,7 @@ fn u506_routes() -> Router {
         ))
 }
 
-fn u507_routes() -> Router {
+fn u507_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u507/import/start",
@@ -1812,7 +1813,7 @@ fn u507_routes() -> Router {
         ))
 }
 
-fn u508_routes() -> Router {
+fn u508_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/u508/repost/projections",
@@ -1853,7 +1854,7 @@ fn u508_routes() -> Router {
 // Projections P900–P912 — each with its own scope
 // ============================================================================
 
-fn p900_routes() -> Router {
+fn p900_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p900/sales-register",
@@ -1886,7 +1887,7 @@ fn p900_routes() -> Router {
         ))
 }
 
-fn p901_routes() -> Router {
+fn p901_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p901/barcode/:barcode",
@@ -1907,7 +1908,7 @@ fn p901_routes() -> Router {
         ))
 }
 
-fn p902_routes() -> Router {
+fn p902_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p902/finance-realization",
@@ -1928,7 +1929,7 @@ fn p902_routes() -> Router {
         ))
 }
 
-fn p903_routes() -> Router {
+fn p903_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p903/finance-report",
@@ -1965,7 +1966,7 @@ fn p903_routes() -> Router {
         ))
 }
 
-fn p904_routes() -> Router {
+fn p904_routes() -> Router<AppState> {
     Router::new()
         .route("/api/p904/sales-data", get(handlers::p904_sales_data::list))
         .layer(middleware::from_fn(
@@ -1975,7 +1976,7 @@ fn p904_routes() -> Router {
         ))
 }
 
-fn p905_routes() -> Router {
+fn p905_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p905-commission/list",
@@ -2002,7 +2003,7 @@ fn p905_routes() -> Router {
         ))
 }
 
-fn p906_routes() -> Router {
+fn p906_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p906/nomenclature-prices",
@@ -2023,7 +2024,7 @@ fn p906_routes() -> Router {
         ))
 }
 
-fn p907_routes() -> Router {
+fn p907_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p907/payment-report",
@@ -2064,7 +2065,7 @@ fn p907_routes() -> Router {
         ))
 }
 
-fn p908_routes() -> Router {
+fn p908_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p908/goods-prices",
@@ -2081,7 +2082,7 @@ fn p908_routes() -> Router {
         ))
 }
 
-fn p912_routes() -> Router {
+fn p912_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p912/nomenclature-costs",
@@ -2094,7 +2095,7 @@ fn p912_routes() -> Router {
         ))
 }
 
-fn p913_routes() -> Router {
+fn p913_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p913/wb-advert-order-attr",
@@ -2107,7 +2108,7 @@ fn p913_routes() -> Router {
         ))
 }
 
-fn p914_routes() -> Router {
+fn p914_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p914/mp-finance-turnovers",
@@ -2120,7 +2121,7 @@ fn p914_routes() -> Router {
         ))
 }
 
-fn p915_routes() -> Router {
+fn p915_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/p915/order-events",
@@ -2145,7 +2146,7 @@ fn p915_routes() -> Router {
 // Dashboards (D400, DS01, DS02)
 // ============================================================================
 
-fn dashboard_routes() -> Router {
+fn dashboard_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/d400/monthly_summary",
@@ -2352,7 +2353,7 @@ fn dashboard_routes() -> Router {
 // DataView semantic layer — scope: data_view
 // ============================================================================
 
-fn data_view_routes() -> Router {
+fn data_view_routes() -> Router<AppState> {
     Router::new()
         .route("/api/data-view", get(handlers::data_view::list))
         .route(
@@ -2400,7 +2401,7 @@ fn data_view_routes() -> Router {
 // BI Timeline — scope: bi_timeline
 // ============================================================================
 
-fn bi_timeline_routes() -> Router {
+fn bi_timeline_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/bi-timeline/indicators",
@@ -2421,7 +2422,7 @@ fn bi_timeline_routes() -> Router {
 // General Ledger — scope: general_ledger
 // ============================================================================
 
-fn general_ledger_routes() -> Router {
+fn general_ledger_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/general-ledger",
@@ -2506,7 +2507,7 @@ fn general_ledger_routes() -> Router {
 // External integration API — authenticated via X-Api-Key header (no JWT)
 // ============================================================================
 
-fn ext_routes() -> Router {
+fn ext_routes() -> Router<AppState> {
     let data_routes = Router::new()
         .route(
             "/api/ext/v1/wb-supplies",
@@ -2565,7 +2566,7 @@ fn ext_routes() -> Router {
 // Quality check routes — /api/quality/checks
 // ============================================================================
 
-fn quality_routes() -> Router {
+fn quality_routes() -> Router<AppState> {
     Router::new()
         .route("/api/quality/checks", get(handlers::quality::list_checks))
         .route(
@@ -2619,7 +2620,7 @@ fn quality_routes() -> Router {
 // Misc routes — LLM knowledge (tied to a018_llm_chat scope) + debug
 // ============================================================================
 
-fn misc_routes() -> Router {
+fn misc_routes() -> Router<AppState> {
     let llm_knowledge = Router::new()
         .route(
             "/api/llm-knowledge",
@@ -2641,7 +2642,7 @@ fn misc_routes() -> Router {
     llm_knowledge.merge(debug)
 }
 
-fn kb_read_routes() -> Router {
+fn kb_read_routes() -> Router<AppState> {
     let read_only = Router::new()
         .route("/api/kb/stats", get(handlers::kb_read::stats))
         .route("/api/kb/tree", get(handlers::kb_read::tree))
@@ -2676,7 +2677,7 @@ mod tests {
     /// `cargo test -p backend router_builds`.
     #[test]
     fn router_builds_without_conflicts() {
-        let _app: axum::Router = axum::Router::new()
+        let _app: axum::Router<crate::shared::app_state::AppState> = axum::Router::new()
             .merge(crate::system::api::configure_system_routes())
             .merge(super::configure_business_routes());
     }

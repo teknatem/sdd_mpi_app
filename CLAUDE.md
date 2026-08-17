@@ -80,6 +80,21 @@ cargo check -p frontend --target wasm32-unknown-unknown   # frontend — тол�
 cargo test -p backend router_builds   # после правок роутов: конфликт путей axum виден только при сборке Router
 ```
 
+> **Крейт `backend` — библиотека + бинарь.** Структура модулей в `src/lib.rs`,
+> `main.rs` — только стартовая процедура. Отсюда две вещи: интеграционные тесты
+> живут в `crates/backend/tests/` (линкуются против библиотеки, поднимают
+> пустую базу через `db::init_test_database()` и гоняют боевой роутер
+> `tower::ServiceExt::oneshot`), и **доктесты теперь исполняются** — пример в
+> `///`-комментарии должен компилироваться (`no_run`, если ему нужна БД).
+
+> **База в хендлере — из `AppState`, не из синглтона.** `db::get_connection()`
+> оставлен мостом (182 файла), но новый и правимый код берёт соединение
+> экстрактором `State`, а `service`/`repository` принимают `&DatabaseConnection`
+> параметром. Эталон — `a002_organization`. Ошибки хендлеров — `ApiError`
+> (`shared/error.rs`), тело ответа по RFC 9457; `Result<_, StatusCode>` в
+> `api/handlers` больше нет и заводить его обратно не надо (метрика
+> `api.status_only_errors` держит ноль).
+
 > **Храповик метрик.** `tools/check_health.ps1` сравнивает свежий
 > `codebase_metrics.json` с версией на `HEAD` и **блокирует коммит**, если
 > отслеживаемая метрика ухудшилась. Это единственный шаг pre-commit хука с

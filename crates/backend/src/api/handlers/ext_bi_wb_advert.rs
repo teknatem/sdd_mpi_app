@@ -1,6 +1,7 @@
 //! External BI API for daily WB advertising data (a026).
 
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::domain::a026_wb_advert_daily;
@@ -57,17 +58,17 @@ pub struct AdvertResponse {
 /// Authentication: X-Api-Key.
 pub async fn list_advert(
     Query(query): Query<AdvertQuery>,
-) -> Result<Json<AdvertResponse>, StatusCode> {
+) -> Result<Json<AdvertResponse>, ApiError> {
     let date_from = query
         .date_from
         .as_deref()
         .filter(|value| !value.is_empty())
-        .ok_or(StatusCode::BAD_REQUEST)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
     let date_to = query
         .date_to
         .as_deref()
         .filter(|value| !value.is_empty())
-        .ok_or(StatusCode::BAD_REQUEST)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
     let result = a026_wb_advert_daily::repository::product_rows_for_period(
         date_from,
         date_to,
@@ -78,7 +79,7 @@ pub async fn list_advert(
     .await
     .map_err(|error| {
         tracing::error!("[ext-api] wb-advert-daily list error: {error}");
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = result

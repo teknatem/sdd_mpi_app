@@ -1,6 +1,7 @@
 //! External BI API handler for the Yandex Market sales funnel (a041).
 //! Emits a flat JSON array of one row per `offer_id × date`.
 
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 
@@ -55,17 +56,17 @@ pub struct FunnelResponse {
     pub total: usize,
 }
 
-fn required_date(value: Option<&str>) -> Result<&str, axum::http::StatusCode> {
+fn required_date(value: Option<&str>) -> Result<&str, ApiError> {
     value
         .filter(|value| !value.is_empty())
-        .ok_or(axum::http::StatusCode::BAD_REQUEST)
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))
 }
 
 /// GET /api/ext/v1/ym-sales-funnel — сохранённая дневная воронка YM.
 /// Authentication is handled by the shared `X-Api-Key` middleware.
 pub async fn list_funnel(
     Query(query): Query<FunnelQuery>,
-) -> Result<Json<FunnelResponse>, axum::http::StatusCode> {
+) -> Result<Json<FunnelResponse>, ApiError> {
     let date_from = required_date(query.date_from.as_deref())?;
     let date_to = required_date(query.date_to.as_deref())?;
     let limit = query.limit.clamp(1, MAX_LIMIT);
@@ -80,7 +81,7 @@ pub async fn list_funnel(
     .await
     .map_err(|error| {
         tracing::error!("[ext-api] ym-funnel list error: {}", error);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = result
@@ -124,15 +125,16 @@ mod tests {
 
     #[test]
     fn required_period_values_reject_missing_and_empty_dates() {
+        // Сравниваем по статусу, а не по значению: `ApiError` умышленно не
+        // `PartialEq` — у ошибки нет осмысленного равенства, есть код ответа.
+        for absent in [None, Some("")] {
+            let status = required_date(absent).map(|_| ()).unwrap_err().status();
+            assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
+        }
         assert_eq!(
-            required_date(None),
-            Err(axum::http::StatusCode::BAD_REQUEST)
+            required_date(Some("2026-08-01")).expect("дата задана"),
+            "2026-08-01"
         );
-        assert_eq!(
-            required_date(Some("")),
-            Err(axum::http::StatusCode::BAD_REQUEST)
-        );
-        assert_eq!(required_date(Some("2026-08-01")), Ok("2026-08-01"));
     }
 
     #[test]

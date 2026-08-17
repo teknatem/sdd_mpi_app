@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -89,7 +90,7 @@ pub struct DetailsDto {
 
 pub async fn list_paginated(
     Query(q): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = q.limit.unwrap_or(100).clamp(1, 500);
     let offset = q.offset.unwrap_or(0);
     let page = offset / page_size;
@@ -106,7 +107,7 @@ pub async fn list_paginated(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list YM shows-sales: {e}");
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     let total_pages = result.total.div_ceil(page_size);
     Ok(Json(PaginatedResponse {
@@ -118,15 +119,15 @@ pub async fn list_paginated(
     }))
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<DetailsDto>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<DetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = a041_ym_shows_sales_daily::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get YM shows-sales {id}: {e}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
     Ok(Json(DetailsDto {
         id: doc.base.id.as_string(),
         document_no: doc.header.document_no,

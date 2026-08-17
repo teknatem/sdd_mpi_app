@@ -5,6 +5,7 @@
 //! `<= date` when `date` is given.
 //! Authentication is handled by the `check_api_key` middleware (X-Api-Key header).
 
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 
@@ -78,9 +79,7 @@ pub struct StockResponse {
 ///   &limit=50000&offset=0   (опц.)
 ///
 /// Заголовок: `X-Api-Key: <ключ>`.
-pub async fn list_stocks(
-    Query(q): Query<StocksQuery>,
-) -> Result<Json<StockResponse>, axum::http::StatusCode> {
+pub async fn list_stocks(Query(q): Query<StocksQuery>) -> Result<Json<StockResponse>, ApiError> {
     let limit = q.limit.clamp(1, MAX_LIMIT);
 
     let result = a037_wb_product_snapshot::repository::stock_rows(
@@ -92,7 +91,7 @@ pub async fn list_stocks(
     .await
     .map_err(|e| {
         tracing::error!("[ext-api] wb-stocks error: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = result

@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Path, extract::Query, Json};
 use contracts::domain::a007_marketplace_product::aggregate::MarketplaceProductListItemDto;
 use serde::{Deserialize, Serialize};
@@ -29,7 +30,7 @@ pub struct ListMarketplaceProductsQuery {
 /// GET /api/a007/marketplace-product
 pub async fn list_paginated(
     Query(query): Query<ListMarketplaceProductsQuery>,
-) -> Result<Json<PaginatedMarketplaceProductResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedMarketplaceProductResponse>, ApiError> {
     use a007_marketplace_product::repository::MarketplaceProductListQuery;
 
     let limit = query.limit.unwrap_or(100);
@@ -83,7 +84,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list marketplace products: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -91,11 +92,11 @@ pub async fn list_paginated(
 /// GET /api/marketplace_product
 pub async fn list_all() -> Result<
     Json<Vec<contracts::domain::a007_marketplace_product::aggregate::MarketplaceProduct>>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     match a007_marketplace_product::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
@@ -104,23 +105,23 @@ pub async fn get_by_id(
     Path(id): Path<String>,
 ) -> Result<
     Json<contracts::domain::a007_marketplace_product::aggregate::MarketplaceProduct>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a007_marketplace_product::service::get_by_id(uuid).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/marketplace_product
 pub async fn upsert(
     Json(dto): Json<contracts::domain::a007_marketplace_product::aggregate::MarketplaceProductDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let result = if dto.id.is_some() {
         a007_marketplace_product::service::update(dto)
             .await
@@ -134,21 +135,21 @@ pub async fn upsert(
         Ok(id) => Ok(Json(json!({"id": id}))),
         Err(e) => {
             tracing::error!("Failed to save marketplace_product: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// DELETE /api/marketplace_product/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a007_marketplace_product::service::delete(uuid).await {
         Ok(true) => Ok(()),
-        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 

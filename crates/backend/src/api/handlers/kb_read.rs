@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Path, http::StatusCode, Json};
 use once_cell::sync::Lazy;
 use serde::Serialize;
@@ -378,12 +379,12 @@ pub async fn tree() -> Json<KbTreeResponse> {
     })
 }
 
-pub async fn get_article(Path(id): Path<String>) -> Result<Json<KbArticleDetail>, StatusCode> {
+pub async fn get_article(Path(id): Path<String>) -> Result<Json<KbArticleDetail>, ApiError> {
     let kb_dir = knowledge_base_dir();
     let kb = crate::shared::llm::knowledge_base::kb_read();
     let metrics = crate::shared::llm::kb_metrics::snapshot();
     let Some(doc) = kb.get(&id) else {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(axum::http::StatusCode::NOT_FOUND.into());
     };
 
     // Связи, ведущие на реальные статьи, — видимое лицо графа в UI.

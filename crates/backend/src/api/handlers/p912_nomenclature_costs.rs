@@ -1,4 +1,5 @@
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use serde::Deserialize;
 
 use crate::projections::p912_nomenclature_costs::service;
@@ -19,7 +20,7 @@ pub async fn list(
     Query(params): Query<ListParams>,
 ) -> Result<
     Json<contracts::projections::p912_nomenclature_costs::dto::NomenclatureCostListResponse>,
-    StatusCode,
+    ApiError,
 > {
     let limit = params
         .limit
@@ -45,7 +46,7 @@ pub async fn list(
         )),
         Err(error) => {
             tracing::error!("Failed to list p912 nomenclature costs: {}", error);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

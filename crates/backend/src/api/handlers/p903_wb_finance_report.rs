@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     body::Body,
     extract::Query,
@@ -18,7 +19,7 @@ use crate::projections::p903_wb_finance_report::repository;
 /// Handler для получения списка финансовых отчетов с фильтрами
 pub async fn list_reports(
     Query(req): Query<WbFinanceReportListRequest>,
-) -> Result<Json<WbFinanceReportListResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbFinanceReportListResponse>, ApiError> {
     let (items, total) = repository::list_with_filters(
         &req.date_from,
         &req.date_to,
@@ -36,7 +37,7 @@ pub async fn list_reports(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list finance report: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let gl_counts = crate::general_ledger::repository::count_by_registrator_refs(
@@ -45,7 +46,7 @@ pub async fn list_reports(
     .await
     .map_err(|e| {
         tracing::error!("Failed to count p903 general ledger rows: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos: Vec<WbFinanceReportDto> = items
@@ -241,7 +242,7 @@ pub struct OperationKindsQuery {
 
 pub async fn list_operation_kinds(
     Query(query): Query<OperationKindsQuery>,
-) -> Result<Json<Vec<String>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<String>>, ApiError> {
     let items = repository::list_distinct_supplier_oper_names(
         &query.date_from,
         &query.date_to,
@@ -251,7 +252,7 @@ pub async fn list_operation_kinds(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list finance report operation kinds: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     Ok(Json(items))
@@ -259,13 +260,13 @@ pub async fn list_operation_kinds(
 
 pub async fn get_report_detail_by_id(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<WbFinanceReportDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbFinanceReportDetailResponse>, ApiError> {
     load_report_detail_by_id(&id).await.map(Json)
 }
 
 pub async fn post_report_by_id(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<WbFinanceReportDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbFinanceReportDetailResponse>, ApiError> {
     let item = repository::get_by_id(&id)
         .await
         .map_err(|e| {
@@ -273,9 +274,9 @@ pub async fn post_report_by_id(
                 "Failed to get finance report detail before post by id: {}",
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let day = NaiveDate::parse_from_str(&item.rr_dt, "%Y-%m-%d").map_err(|e| {
         tracing::error!(
@@ -283,7 +284,7 @@ pub async fn post_report_by_id(
             item.rr_dt,
             e
         );
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     crate::projections::p903_wb_finance_report::service::rebuild_day_from_existing(
@@ -293,7 +294,7 @@ pub async fn post_report_by_id(
     .await
     .map_err(|e| {
         tracing::error!("Failed to rebuild p903 general ledger for id {}: {}", id, e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     load_report_detail_by_id(&id).await.map(Json)
@@ -302,14 +303,14 @@ pub async fn post_report_by_id(
 /// Handler для получения raw JSON по композитному ключу
 pub async fn get_raw_json_by_id(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<String, axum::http::StatusCode> {
+) -> Result<String, ApiError> {
     let item = repository::get_by_id(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get finance report raw json by id: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(item.extra.unwrap_or_else(|| "{}".to_string()))
 }
@@ -322,10 +323,10 @@ pub struct SearchBySridQuery {
 
 pub async fn search_by_srid(
     Query(query): Query<SearchBySridQuery>,
-) -> Result<Json<Vec<WbFinanceReportDto>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbFinanceReportDto>>, ApiError> {
     let items = repository::search_by_srid(&query.srid).await.map_err(|e| {
         tracing::error!("Failed to search finance report by srid: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos: Vec<WbFinanceReportDto> = items
@@ -337,23 +338,21 @@ pub async fn search_by_srid(
 }
 
 /// Преобразование Model в DTO для списка (без extra для экономии трафика)
-async fn load_report_detail_by_id(
-    id: &str,
-) -> Result<WbFinanceReportDetailResponse, axum::http::StatusCode> {
+async fn load_report_detail_by_id(id: &str) -> Result<WbFinanceReportDetailResponse, ApiError> {
     let item = repository::get_by_id(id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get finance report detail by id: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let general_ledger_entries =
         crate::general_ledger::repository::list_by_registrator_ref(&item.id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to load p903 general ledger rows by id: {}", e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?
             .into_iter()
             .map(to_general_ledger_dto)

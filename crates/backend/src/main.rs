@@ -1,30 +1,7 @@
-#![allow(
-    clippy::useless_format,
-    clippy::unnecessary_map_or,
-    clippy::type_complexity,
-    clippy::manual_div_ceil,
-    clippy::unused_enumerate_index,
-    clippy::unnecessary_lazy_evaluations,
-    clippy::too_many_arguments,
-    clippy::if_same_then_else,
-    clippy::unnecessary_cast,
-    clippy::redundant_pattern_matching,
-    clippy::option_as_ref_deref,
-    clippy::derivable_impls
-)]
+//! Точка входа. Вся структура крейта — в `lib.rs`; здесь только стартовая
+//! процедура, чтобы интеграционные тесты могли линковаться против библиотеки.
 
-pub mod api;
-pub mod dashboards;
-pub mod data_schemes;
-pub mod data_view;
-pub mod domain;
-pub mod general_ledger;
-pub mod plugins;
-pub mod projections;
-pub mod quality;
-pub mod shared;
-pub mod system;
-pub mod usecases;
+use backend::{api, quality, shared, system, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -67,8 +44,11 @@ async fn main() -> anyhow::Result<()> {
 
     // 2. Initialize database (loads config from config.toml)
     println!("Step 2: Initializing database...");
-    match shared::data::db::initialize_database().await {
-        Ok(_) => println!("✓ Database initialized successfully\n"),
+    let db = match shared::data::db::initialize_database().await {
+        Ok(db) => {
+            println!("✓ Database initialized successfully\n");
+            db
+        }
         Err(e) => {
             println!("✗ CRITICAL ERROR: Database initialization failed!");
             println!("   Error: {}\n", e);
@@ -78,7 +58,8 @@ async fn main() -> anyhow::Result<()> {
             println!("========================================\n");
             return Err(anyhow::anyhow!("db init failed: {e}"));
         }
-    }
+    };
+    let state = AppState::new(db);
 
     // 3. Run database migrations
     println!("Step 3: Running database migrations...");
@@ -288,7 +269,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(middleware::from_fn(
             system::middleware::request_logger::request_logger,
         ))
-        .layer(cors);
+        .layer(cors)
+        .with_state(state);
     println!("✓ Routes configured\n");
 
     // 7. Start server

@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Path, extract::Query, Json};
 use contracts::domain::a033_wb_day_close::{
     ArchiveAndRecreateRequest, CompareRequest, CompareResponse, CreateActiveRequest,
@@ -28,7 +29,7 @@ pub struct ListQuery_ {
 
 pub async fn list_paginated(
     Query(q): Query<ListQuery_>,
-) -> Result<Json<Vec<WbDayCloseListDto>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbDayCloseListDto>>, ApiError> {
     let query = ListQuery {
         connection_id: q.connection_id,
         date_from: q.date_from,
@@ -43,7 +44,7 @@ pub async fn list_paginated(
         .map(|items| Json(items.into_iter().map(|d| d.to_list_dto()).collect()))
         .map_err(|e| {
             tracing::error!("list a033: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -81,17 +82,15 @@ pub struct RegistratorRow {
     pub delta: f64,
 }
 
-pub async fn advert_live(
-    Path(id): Path<String>,
-) -> Result<Json<AdvertLiveTotals>, axum::http::StatusCode> {
+pub async fn advert_live(Path(id): Path<String>) -> Result<Json<AdvertLiveTotals>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("advert_live get a033 {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let (build_result, diag) = tokio::try_join!(
         advert_builder::build(&doc.connection_id, &doc.business_date),
@@ -99,7 +98,7 @@ pub async fn advert_live(
     )
     .map_err(|e| {
         tracing::error!("advert_live build {}: {}", id, e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let p913_no_order: f64 = build_result.no_order_lines.iter().map(|r| r.amount).sum();
@@ -134,14 +133,14 @@ pub async fn advert_live(
     }))
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<WbDayClose>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<WbDayClose>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     match service::get_by_id(uuid).await {
         Ok(Some(doc)) => Ok(Json(doc)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("get a033 {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -152,7 +151,7 @@ pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<WbDayClose>, axum:
 
 pub async fn list_by_day(
     Path((connection_id, business_date)): Path<(String, String)>,
-) -> Result<Json<Vec<WbDayCloseListDto>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbDayCloseListDto>>, ApiError> {
     service::list_by_day(&connection_id, &business_date)
         .await
         .map(|items| Json(items.into_iter().map(|d| d.to_list_dto()).collect()))
@@ -163,7 +162,7 @@ pub async fn list_by_day(
                 business_date,
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -173,13 +172,13 @@ pub async fn list_by_day(
 
 pub async fn create_active(
     Json(body): Json<CreateActiveRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     service::create_active(&body.connection_id, &body.business_date)
         .await
         .map(|id| Json(serde_json::json!({ "id": id.to_string() })))
         .map_err(|e| {
             tracing::error!("create a033: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -187,13 +186,11 @@ pub async fn create_active(
 // POST /api/a033/wb-day-close/:id/recalculate
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub async fn recalculate(
-    Path(id): Path<String>,
-) -> Result<axum::http::StatusCode, axum::http::StatusCode> {
+pub async fn recalculate(Path(id): Path<String>) -> Result<axum::http::StatusCode, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     service::recalculate(uuid).await.map_err(|e| {
         tracing::error!("recalculate a033 {}: {}", id, e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
@@ -205,14 +202,14 @@ pub async fn recalculate(
 pub async fn repost_problematic_a012(
     Path(id): Path<String>,
     Json(body): Json<RepostProblematicRequest>,
-) -> Result<Json<RepostResult>, axum::http::StatusCode> {
+) -> Result<Json<RepostResult>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     service::repost_problematic_a012(uuid, &body.only_problem_codes)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!("repost a033 {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -223,14 +220,14 @@ pub async fn repost_problematic_a012(
 pub async fn archive_and_recreate(
     Path(id): Path<String>,
     Json(body): Json<ArchiveAndRecreateRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     service::archive_and_recreate(uuid, body.reason)
         .await
         .map(|new_id| Json(serde_json::json!({ "id": new_id.to_string() })))
         .map_err(|e| {
             tracing::error!("archive_and_recreate a033 {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -238,9 +235,7 @@ pub async fn archive_and_recreate(
 // POST /api/a033/wb-day-close/compare
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub async fn compare(
-    Json(body): Json<CompareRequest>,
-) -> Result<Json<CompareResponse>, axum::http::StatusCode> {
+pub async fn compare(Json(body): Json<CompareRequest>) -> Result<Json<CompareResponse>, ApiError> {
     let active_uuid =
         Uuid::parse_str(&body.active_id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let archived_uuid =
@@ -251,6 +246,6 @@ pub async fn compare(
         .map(Json)
         .map_err(|e| {
             tracing::error!("compare a033: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }

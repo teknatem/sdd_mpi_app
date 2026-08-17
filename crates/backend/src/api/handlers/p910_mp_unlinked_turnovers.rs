@@ -1,6 +1,6 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
-    http::StatusCode,
     Json,
 };
 use contracts::projections::p910_mp_unlinked_turnovers::dto::{
@@ -25,7 +25,7 @@ pub struct ListParams {
 
 pub async fn list(
     Query(params): Query<ListParams>,
-) -> Result<Json<MpUnlinkedTurnoverListResponse>, StatusCode> {
+) -> Result<Json<MpUnlinkedTurnoverListResponse>, ApiError> {
     let limit = params.limit.or(Some(1000));
     let offset = params.offset.or(Some(0));
     let sort_desc = params.sort_desc.unwrap_or(true);
@@ -40,7 +40,7 @@ pub async fn list(
     .await
     .map_err(|error| {
         tracing::error!("Failed to count p910 rows: {}", error);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     let items = crate::projections::p910_mp_unlinked_turnovers::service::list_with_filters(
         params.date_from,
@@ -57,7 +57,7 @@ pub async fn list(
     .await
     .map_err(|error| {
         tracing::error!("Failed to list p910 rows: {}", error);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos = items.into_iter().map(model_to_dto).collect::<Vec<_>>();
@@ -70,14 +70,14 @@ pub async fn list(
     }))
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<MpUnlinkedTurnoverDto>, StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<MpUnlinkedTurnoverDto>, ApiError> {
     let model = crate::projections::p910_mp_unlinked_turnovers::service::get_by_id(&id)
         .await
         .map_err(|error| {
             tracing::error!("Failed to load p910 detail '{}': {}", id, error);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(model_to_dto(model)))
 }

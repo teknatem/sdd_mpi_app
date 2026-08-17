@@ -1,39 +1,37 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Path, Json};
 use serde_json::json;
 
 use crate::domain::a005_marketplace;
 
 /// GET /api/marketplace
-pub async fn list_all() -> Result<
-    Json<Vec<contracts::domain::a005_marketplace::aggregate::Marketplace>>,
-    axum::http::StatusCode,
-> {
+pub async fn list_all(
+) -> Result<Json<Vec<contracts::domain::a005_marketplace::aggregate::Marketplace>>, ApiError> {
     match a005_marketplace::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/marketplace/:id
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<Json<contracts::domain::a005_marketplace::aggregate::Marketplace>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::domain::a005_marketplace::aggregate::Marketplace>, ApiError> {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a005_marketplace::service::get_by_id(uuid).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/marketplace
 pub async fn upsert(
     Json(dto): Json<contracts::domain::a005_marketplace::aggregate::MarketplaceDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let result = if dto.id.is_some() {
         a005_marketplace::service::update(dto)
             .await
@@ -45,20 +43,20 @@ pub async fn upsert(
     };
     match result {
         Ok(id) => Ok(Json(json!({"id": id}))),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// DELETE /api/marketplace/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a005_marketplace::service::delete(uuid).await {
         Ok(true) => Ok(()),
-        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 

@@ -5,10 +5,11 @@ use axum::{
 };
 
 use super::handlers;
+use crate::shared::app_state::AppState;
 use crate::system::auth;
 
 /// Конфигурация системных роутов приложения
-pub fn configure_system_routes() -> Router {
+pub fn configure_system_routes() -> Router<AppState> {
     Router::new()
         // ========================================
         // HEALTH CHECK

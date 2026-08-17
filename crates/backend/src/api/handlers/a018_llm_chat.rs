@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     body::Body,
     extract::{Multipart, Path, Query},
@@ -47,12 +48,12 @@ pub struct LlmChatPaginatedResponse {
 }
 
 /// GET /api/a018-llm-chat
-pub async fn list_all() -> Result<Json<Vec<LlmChat>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<LlmChat>>, ApiError> {
     match a018_llm_chat::service::list_all().await {
         Ok(v) => Ok(Json(v)),
         Err(e) => {
             tracing::error!("a018 list_all failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -60,12 +61,12 @@ pub async fn list_all() -> Result<Json<Vec<LlmChat>>, axum::http::StatusCode> {
 /// GET /api/a018-llm-chat/with-stats
 pub async fn list_with_stats(
     CurrentUser(claims): CurrentUser,
-) -> Result<Json<Vec<LlmChatListItem>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<LlmChatListItem>>, ApiError> {
     match a018_llm_chat::service::list_with_stats(&claims.sub, claims.is_admin).await {
         Ok(v) => Ok(Json(v)),
         Err(e) => {
             tracing::error!("a018 list_with_stats failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -73,7 +74,7 @@ pub async fn list_with_stats(
 /// GET /api/a018-llm-chat/list
 pub async fn list_paginated(
     Query(params): Query<LlmChatListParams>,
-) -> Result<Json<LlmChatPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<LlmChatPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let page = (offset / limit) as u64;
@@ -94,32 +95,30 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("a018 list_paginated failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// GET /api/a018-llm-chat/:id
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<LlmChatDetail>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<LlmChatDetail>, ApiError> {
     match a018_llm_chat::service::get_by_id(&id).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("a018 get_by_id({id}) failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// DELETE /api/a018-llm-chat/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a018_llm_chat::service::delete(&id).await {
         Ok(()) => Ok(()),
         Err(e) => {
             tracing::error!("a018 delete({id}) failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -145,14 +144,14 @@ pub async fn set_model(
 pub async fn upsert(
     CurrentUser(claims): CurrentUser,
     Json(dto): Json<a018_llm_chat::service::LlmChatDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if dto.id.is_some() {
         // Update
         match a018_llm_chat::service::update(dto).await {
             Ok(_) => Ok(Json(json!({"success": true}))),
             Err(e) => {
                 tracing::error!("Failed to update LLM chat: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     } else {
@@ -161,21 +160,19 @@ pub async fn upsert(
             Ok(id) => Ok(Json(json!({"success": true, "id": id.to_string()}))),
             Err(e) => {
                 tracing::error!("Failed to create LLM chat: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     }
 }
 
 /// GET /api/a018-llm-chat/:id/messages
-pub async fn get_messages(
-    Path(id): Path<String>,
-) -> Result<Json<Vec<LlmChatMessage>>, axum::http::StatusCode> {
+pub async fn get_messages(Path(id): Path<String>) -> Result<Json<Vec<LlmChatMessage>>, ApiError> {
     match a018_llm_chat::service::get_messages(&id).await {
         Ok(v) => Ok(Json(v)),
         Err(e) => {
             tracing::error!("a018 get_messages({id}) failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -184,12 +181,12 @@ pub async fn get_messages(
 /// Полный журнал вызовов инструментов для сообщения ассистента.
 pub async fn get_tool_trace(
     Path(message_id): Path<String>,
-) -> Result<Json<Vec<ToolTraceEntry>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<ToolTraceEntry>>, ApiError> {
     match a018_llm_chat::service::get_tool_trace(&message_id).await {
         Ok(v) => Ok(Json(v)),
         Err(e) => {
             tracing::error!("a018 get_tool_trace({message_id}) failed: {e}");
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -204,12 +201,12 @@ pub struct SetRatingRequest {
 pub async fn set_rating(
     Path(id): Path<String>,
     Json(payload): Json<SetRatingRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     match a018_llm_chat::service::set_rating(&id, payload.rating).await {
         Ok(()) => Ok(Json(json!({ "success": true }))),
         Err(e) => {
             tracing::warn!("set_rating failed for chat {}: {}", id, e);
-            Err(axum::http::StatusCode::BAD_REQUEST)
+            Err(axum::http::StatusCode::BAD_REQUEST.into())
         }
     }
 }
@@ -225,14 +222,14 @@ pub async fn set_shared(
     CurrentUser(claims): CurrentUser,
     Path(id): Path<String>,
     Json(payload): Json<SetSharedRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     match a018_llm_chat::service::set_shared(&id, payload.is_shared, &claims.sub, claims.is_admin)
         .await
     {
         Ok(()) => Ok(Json(json!({ "success": true }))),
         Err(e) => {
             tracing::warn!("set_shared failed for chat {}: {}", id, e);
-            Err(axum::http::StatusCode::FORBIDDEN)
+            Err(axum::http::StatusCode::FORBIDDEN.into())
         }
     }
 }
@@ -261,9 +258,9 @@ pub async fn send_message(
     Path(id): Path<String>,
     CurrentUser(claims): CurrentUser,
     Json(payload): Json<a018_llm_chat::service::SendMessageRequest>,
-) -> Result<(StatusCode, Json<SendJobResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<SendJobResponse>), ApiError> {
     let database_activity = crate::system::maintenance::try_begin_database_activity()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::SERVICE_UNAVAILABLE))?;
     // Собеседник переезжает в фоновую задачу: инструменты, действующие от лица
     // пользователя (тикеты), должны знать автора, а сам HTTP-запрос к моменту их
     // выполнения уже завершится.
@@ -282,7 +279,7 @@ pub async fn send_message(
         .await
         .map_err(|error| {
             tracing::error!("failed to register durable LLM job: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     if !should_start {
@@ -311,23 +308,23 @@ pub async fn send_message(
 }
 
 /// POST /api/a018-llm-chat/jobs/:job_id/cancel
-pub async fn cancel_job(Path(job_id): Path<String>) -> Result<Json<serde_json::Value>, StatusCode> {
+pub async fn cancel_job(Path(job_id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let cancelled = job_store::cancel(&job_id).await.map_err(|e| {
         tracing::error!("a018 cancel_job({job_id}) failed: {e}");
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     if cancelled {
         Ok(Json(json!({ "ok": true })))
     } else {
-        Err(StatusCode::NOT_FOUND)
+        Err(axum::http::StatusCode::NOT_FOUND.into())
     }
 }
 
 /// GET /api/a018-llm-chat/jobs/:job_id
 /// Returns current status of a background LLM job.
-pub async fn poll_job(Path(job_id): Path<String>) -> Result<Json<JobStatusResponse>, StatusCode> {
+pub async fn poll_job(Path(job_id): Path<String>) -> Result<Json<JobStatusResponse>, ApiError> {
     match job_store::take(&job_id).await {
-        None => Err(StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Some(LlmJobStatus::Pending(progress)) => Ok(Json(JobStatusResponse {
             status: "pending".to_string(),
             message: None,
@@ -428,12 +425,12 @@ pub async fn stream_job(
 /// Список пакетов контекста, привязанных к чату.
 pub async fn get_chat_context(
     Path(id): Path<String>,
-) -> Result<Json<Vec<ContextPackageSummary>>, StatusCode> {
+) -> Result<Json<Vec<ContextPackageSummary>>, ApiError> {
     match a018_llm_chat::service::list_chat_context(&id).await {
         Ok(v) => Ok(Json(v)),
         Err(e) => {
             tracing::error!("a018 get_chat_context({id}) failed: {e}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -442,13 +439,13 @@ pub async fn get_chat_context(
 /// Получить один пакет контекста (для details-страницы просмотра контекста LLM).
 pub async fn get_context_package(
     Path(id): Path<String>,
-) -> Result<Json<ContextPackageSummary>, StatusCode> {
+) -> Result<Json<ContextPackageSummary>, ApiError> {
     match a018_llm_chat::service::get_context_by_id(&id).await {
         Ok(Some(s)) => Ok(Json(s)),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("a018 get_context_package({id}) failed: {e}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -459,7 +456,7 @@ pub async fn add_chat_context(
     Path(id): Path<String>,
     CurrentUser(claims): CurrentUser,
     Json(req): Json<AddContextRequest>,
-) -> Result<Json<ContextPackageSummary>, StatusCode> {
+) -> Result<Json<ContextPackageSummary>, ApiError> {
     // Снимок навигации кладём только если клиент его просит: аналитическому чату по
     // объекту он не нужен, а обращению в поддержку — наоборот, самое ценное.
     let session_user_id = req.with_session_snapshot.then_some(claims.sub.as_str());
@@ -474,7 +471,7 @@ pub async fn add_chat_context(
         Ok(summary) => Ok(Json(summary)),
         Err(e) => {
             tracing::error!("add_chat_context error: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -517,22 +514,22 @@ pub async fn upload_attachment(
                 || message.contains("length limit")
                 || message.contains("body limit")
             {
-                StatusCode::PAYLOAD_TOO_LARGE
+                axum::http::StatusCode::PAYLOAD_TOO_LARGE
             } else if message.contains("S3 storage is disabled")
                 || message.contains("[s3].bucket")
                 || message.contains("[s3].access_key_id")
                 || message.contains("[s3].secret_access_key")
             {
-                StatusCode::SERVICE_UNAVAILABLE
+                axum::http::StatusCode::SERVICE_UNAVAILABLE
             } else if message.contains("multipart")
                 || message.contains("supported")
                 || message.contains("No file")
                 || message.contains("No filename")
                 || message.contains("Invalid chat ID")
             {
-                StatusCode::BAD_REQUEST
+                axum::http::StatusCode::BAD_REQUEST
             } else {
-                StatusCode::INTERNAL_SERVER_ERROR
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR
             };
             Err((status, Json(json!({ "error": message }))))
         }
@@ -543,7 +540,7 @@ pub async fn upload_attachment(
 pub async fn get_attachment(
     CurrentUser(claims): CurrentUser,
     Path((chat_id, attachment_id)): Path<(String, String)>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&chat_id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -558,14 +555,16 @@ pub async fn get_attachment(
         .header(header::CONTENT_TYPE, attachment.content_type)
         .header(header::CACHE_CONTROL, "private, max-age=3600")
         .body(Body::from(bytes))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|error| {
+            ApiError::internal(format!("не удалось собрать ответ с вложением: {error}"))
+        })
 }
 
 /// DELETE /api/a018-llm-chat/:chat_id/attachments/:attachment_id
 pub async fn delete_pending_attachment(
     CurrentUser(claims): CurrentUser,
     Path((chat_id, attachment_id)): Path<(String, String)>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&chat_id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -582,7 +581,7 @@ pub async fn delete_pending_attachment(
 pub async fn get_workspace(
     CurrentUser(claims): CurrentUser,
     Path(id): Path<String>,
-) -> Result<Json<ChatWorkspaceView>, StatusCode> {
+) -> Result<Json<ChatWorkspaceView>, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -591,7 +590,7 @@ pub async fn get_workspace(
             .await
             .map_err(|e| {
                 tracing::error!("a018 get_workspace({id}) failed: {e}");
-                StatusCode::INTERNAL_SERVER_ERROR
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR
             })?;
     Ok(Json(ChatWorkspaceView {
         activities,
@@ -607,7 +606,7 @@ pub async fn answer_intake_question(
     CurrentUser(claims): CurrentUser,
     Path(id): Path<String>,
     Json(body): Json<AnswerQuestionRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -615,7 +614,7 @@ pub async fn answer_intake_question(
         .await
         .map_err(|e| {
             tracing::warn!("a018 answer_intake_question({id}) failed: {e}");
-            StatusCode::BAD_REQUEST
+            ApiError::from(axum::http::StatusCode::BAD_REQUEST)
         })?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -626,7 +625,7 @@ pub async fn set_active_activity(
     CurrentUser(claims): CurrentUser,
     Path(id): Path<String>,
     Json(body): Json<SetActiveActivityRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -640,7 +639,7 @@ pub async fn set_active_activity(
 pub async fn get_workspace_file(
     CurrentUser(claims): CurrentUser,
     Path((id, path)): Path<(String, String)>,
-) -> Result<Json<ChatFileContent>, StatusCode> {
+) -> Result<Json<ChatFileContent>, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -660,7 +659,7 @@ pub async fn save_workspace_file(
     CurrentUser(claims): CurrentUser,
     Path((id, path)): Path<(String, String)>,
     Json(body): Json<SaveChatFileRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ApiError> {
     a018_llm_chat::service::ensure_chat_access(&id, &claims.sub, claims.is_admin)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -668,7 +667,7 @@ pub async fn save_workspace_file(
         .await
         .map_err(|e| {
             tracing::warn!("a018 save_workspace_file({id}, {path}) rejected: {e}");
-            StatusCode::BAD_REQUEST
+            ApiError::from(axum::http::StatusCode::BAD_REQUEST)
         })?;
     Ok(StatusCode::NO_CONTENT)
 }

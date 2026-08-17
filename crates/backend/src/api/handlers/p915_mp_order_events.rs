@@ -1,6 +1,6 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
-    http::StatusCode,
     Json,
 };
 use contracts::projections::p915_mp_order_events::dto::{
@@ -25,7 +25,7 @@ pub struct ListParams {
 
 pub async fn list(
     Query(params): Query<ListParams>,
-) -> Result<Json<MpOrderEventListResponse>, StatusCode> {
+) -> Result<Json<MpOrderEventListResponse>, ApiError> {
     let limit = params.limit.or(Some(1000));
     let offset = params.offset.or(Some(0));
     let sort_desc = params.sort_desc.unwrap_or(false);
@@ -42,7 +42,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!("Failed to count p915 rows: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = crate::projections::p915_mp_order_events::repository::list_with_filters(
@@ -61,7 +61,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list p915 rows: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let has_more = offset.unwrap_or(0) + (items.len() as u64) < total_count;
@@ -77,12 +77,12 @@ pub async fn list(
 /// Полный таймлайн событий одного заказа (упорядочен по дате/типу события).
 pub async fn by_order(
     Path(order_id): Path<String>,
-) -> Result<Json<Vec<MpOrderEventDto>>, StatusCode> {
+) -> Result<Json<Vec<MpOrderEventDto>>, ApiError> {
     let items = crate::projections::p915_mp_order_events::repository::list_by_order_id(&order_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to list p915 rows by order_id: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(items.into_iter().map(model_to_dto).collect()))
 }

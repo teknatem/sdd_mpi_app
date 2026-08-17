@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -12,7 +13,7 @@ use crate::projections::p905_wb_commission_history::repository;
 /// Handler для получения списка комиссий с фильтрами
 pub async fn list_commissions(
     Query(req): Query<CommissionListRequest>,
-) -> Result<Json<CommissionListResponse>, axum::http::StatusCode> {
+) -> Result<Json<CommissionListResponse>, ApiError> {
     let (items, total) = repository::list_with_filters(
         req.date_from,
         req.date_to,
@@ -25,7 +26,7 @@ pub async fn list_commissions(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list commissions: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos: Vec<CommissionHistoryDto> = items.into_iter().map(model_to_dto).collect();
@@ -39,14 +40,14 @@ pub async fn list_commissions(
 /// Handler для получения комиссии по ID
 pub async fn get_commission(
     Path(id): Path<String>,
-) -> Result<Json<CommissionHistoryDto>, axum::http::StatusCode> {
+) -> Result<Json<CommissionHistoryDto>, ApiError> {
     let item = repository::get_by_id(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get commission: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(model_to_dto(item)))
 }
@@ -54,7 +55,7 @@ pub async fn get_commission(
 /// Handler для создания/обновления комиссии
 pub async fn save_commission(
     Json(req): Json<CommissionSaveRequest>,
-) -> Result<Json<CommissionSaveResponse>, axum::http::StatusCode> {
+) -> Result<Json<CommissionSaveResponse>, ApiError> {
     // Генерируем raw_json если не предоставлен
     let raw_json = req.raw_json.unwrap_or_else(|| {
         serde_json::json!({
@@ -100,7 +101,7 @@ pub async fn save_commission(
 
     repository::upsert_entry(&entry).await.map_err(|e| {
         tracing::error!("Failed to save commission: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let message = if is_new {
@@ -118,10 +119,10 @@ pub async fn save_commission(
 /// Handler для удаления комиссии
 pub async fn delete_commission(
     Path(id): Path<String>,
-) -> Result<Json<CommissionDeleteResponse>, axum::http::StatusCode> {
+) -> Result<Json<CommissionDeleteResponse>, ApiError> {
     let deleted = repository::delete_by_id(&id).await.map_err(|e| {
         tracing::error!("Failed to delete commission: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     if deleted == 0 {
@@ -139,7 +140,7 @@ pub async fn delete_commission(
 
 /// Handler для синхронизации комиссий с API
 /// DEPRECATED: Используйте u504 Import from Wildberries вместо этого
-pub async fn sync_commissions() -> Result<Json<CommissionSyncResponse>, axum::http::StatusCode> {
+pub async fn sync_commissions() -> Result<Json<CommissionSyncResponse>, ApiError> {
     Ok(Json(CommissionSyncResponse {
         status: "deprecated".to_string(),
         message: "Эта функция устарела. Используйте 'Импорт из Wildberries' (u504) и выберите 'p905_wb_commission_history' для синхронизации комиссий.".to_string(),

@@ -136,7 +136,12 @@ impl ImportExecutor {
             anyhow::anyhow!(error_msg)
         })?;
 
-        match crate::domain::a002_organization::service::get_by_id(organization_uuid).await? {
+        match crate::domain::a002_organization::service::get_by_id(
+            crate::shared::data::db::get_connection(),
+            organization_uuid,
+        )
+        .await?
+        {
             Some(org) => Ok(org.base.id.as_string()),
             None => {
                 let error_msg = format!(

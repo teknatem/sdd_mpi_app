@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -72,7 +73,7 @@ pub struct PaginatedResponse {
 /// GET /api/a021/production-output/list
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -104,7 +105,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list production output: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -112,17 +113,15 @@ pub async fn list_paginated(
 /// GET /api/a021/production-output/:id
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<
-    Json<contracts::domain::a021_production_output::aggregate::ProductionOutput>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::domain::a021_production_output::aggregate::ProductionOutput>, ApiError>
+{
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     match a021_production_output::service::get_by_id(uuid).await {
         Ok(Some(doc)) => Ok(Json(doc)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get production output {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -130,13 +129,13 @@ pub async fn get_by_id(
 /// POST /api/a021/production-output/:id/post
 pub async fn post_production_output(
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a021_production_output::service::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post production output {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(
         serde_json::json!({"success": true, "message": "Document posted"}),
@@ -146,13 +145,13 @@ pub async fn post_production_output(
 /// POST /api/a021/production-output/:id/unpost
 pub async fn unpost_production_output(
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a021_production_output::service::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost production output {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(
         serde_json::json!({"success": true, "message": "Document unposted"}),

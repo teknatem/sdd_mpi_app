@@ -942,7 +942,11 @@ impl ImportExecutor {
         // Попытаться найти существующую организацию по ID (Ref_Key из 1С)
         let existing = if !odata_org.ref_key.is_empty() {
             if let Ok(uuid) = Uuid::parse_str(&odata_org.ref_key) {
-                a002_organization::repository::get_by_id(uuid).await?
+                a002_organization::repository::get_by_id(
+                    crate::shared::data::db::get_connection(),
+                    uuid,
+                )
+                .await?
             } else {
                 None
             }
@@ -971,7 +975,11 @@ impl ImportExecutor {
             existing_org.base.metadata.is_deleted = odata_org.deletion_mark;
             existing_org.before_write();
 
-            a002_organization::repository::update(&existing_org).await?;
+            a002_organization::repository::update(
+                crate::shared::data::db::get_connection(),
+                &existing_org,
+            )
+            .await?;
             tracing::info!(
                 "Successfully updated organization: ref_key={}, code={}",
                 odata_org.ref_key,
@@ -1021,7 +1029,11 @@ impl ImportExecutor {
             // Вызов before_write для обновления метаданных
             new_org.before_write();
 
-            let result = a002_organization::repository::insert(&new_org).await;
+            let result = a002_organization::repository::insert(
+                crate::shared::data::db::get_connection(),
+                &new_org,
+            )
+            .await;
 
             match result {
                 Ok(uuid) => {

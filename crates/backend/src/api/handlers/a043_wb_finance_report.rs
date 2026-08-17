@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -42,7 +43,7 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> Result<
     Json<ListResponse<crate::domain::a043_wb_finance_report::repository::FinanceReportListRow>>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     let page_size = normalized_page_size(q.limit);
     let offset = q.offset.unwrap_or(0);
@@ -60,7 +61,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!(error=%e, "a043 list failed");
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     let total_pages = result.total.div_ceil(page_size);
     Ok(Json(ListResponse {
@@ -80,15 +81,15 @@ pub struct DetailResponse {
     pub lines_count: usize,
 }
 
-pub async fn get(Path(id): Path<String>) -> Result<Json<DetailResponse>, axum::http::StatusCode> {
+pub async fn get(Path(id): Path<String>) -> Result<Json<DetailResponse>, ApiError> {
     let id = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let document = service::get_by_id(id)
         .await
         .map_err(|e| {
             tracing::error!(error=%e, "a043 get failed");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
     Ok(Json(DetailResponse {
         id: document.base.id.as_string(),
         lines_count: document.lines.len(),
@@ -114,7 +115,7 @@ pub struct LinesResponse {
 pub async fn lines(
     Path(id): Path<String>,
     Query(q): Query<LinesQuery>,
-) -> Result<Json<LinesResponse>, axum::http::StatusCode> {
+) -> Result<Json<LinesResponse>, ApiError> {
     let id = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let offset = q.offset.unwrap_or(0);
     let limit = normalized_page_size(q.limit);
@@ -122,9 +123,9 @@ pub async fn lines(
         .await
         .map_err(|e| {
             tracing::error!(error=%e, "a043 lines failed");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
     Ok(Json(LinesResponse {
         items: page.items,
         total: page.total,

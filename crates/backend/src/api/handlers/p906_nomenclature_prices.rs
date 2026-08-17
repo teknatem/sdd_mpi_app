@@ -1,4 +1,5 @@
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use serde::Deserialize;
 
 use crate::projections::p906_nomenclature_prices::excel_import;
@@ -23,7 +24,7 @@ pub struct ListResponse {
 }
 
 /// GET /api/p906/nomenclature-prices
-pub async fn list(Query(params): Query<ListParams>) -> Result<Json<ListResponse>, StatusCode> {
+pub async fn list(Query(params): Query<ListParams>) -> Result<Json<ListResponse>, ApiError> {
     // Валидация лимита: минимум 10, максимум 10000, по умолчанию 1000
     let limit = match params.limit {
         Some(lim) if lim < 10 => {
@@ -73,14 +74,14 @@ pub async fn list(Query(params): Query<ListParams>) -> Result<Json<ListResponse>
         }
         Err(e) => {
             tracing::error!("Failed to list nomenclature prices: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// GET /api/p906/periods
 /// Возвращает список уникальных периодов для фильтра в UI
-pub async fn get_periods() -> Result<Json<Vec<String>>, StatusCode> {
+pub async fn get_periods() -> Result<Json<Vec<String>>, ApiError> {
     match service::get_unique_periods().await {
         Ok(periods) => {
             tracing::info!("P906 periods response: {} unique periods", periods.len());
@@ -88,7 +89,7 @@ pub async fn get_periods() -> Result<Json<Vec<String>>, StatusCode> {
         }
         Err(e) => {
             tracing::error!("Failed to get unique periods: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -97,8 +98,7 @@ pub async fn get_periods() -> Result<Json<Vec<String>>, StatusCode> {
 /// Импортирует данные цен из Excel файла
 pub async fn import_excel(
     Json(excel_data): Json<excel_import::ExcelData>,
-) -> Result<Json<contracts::projections::p906_nomenclature_prices::excel::ImportResult>, StatusCode>
-{
+) -> Result<Json<contracts::projections::p906_nomenclature_prices::excel::ImportResult>, ApiError> {
     tracing::info!(
         "Received Excel import request with {} rows",
         excel_data.metadata.row_count
@@ -109,7 +109,7 @@ pub async fn import_excel(
         Ok(result) => result,
         Err(e) => {
             tracing::error!("Excel import error: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
     Ok(Json(result))

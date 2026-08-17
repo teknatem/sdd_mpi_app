@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use contracts::domain::a015_wb_orders::aggregate::WbOrders;
 use contracts::domain::common::AggregateId;
@@ -72,7 +73,7 @@ pub struct PaginatedWbOrdersResponse {
 /// Handler для получения списка Wildberries Orders с серверной пагинацией
 pub async fn list_orders(
     Query(query): Query<ListOrdersQuery>,
-) -> Result<Json<PaginatedWbOrdersResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedWbOrdersResponse>, ApiError> {
     use a015_wb_orders::repository::{list_sql, WbOrdersListQuery};
 
     let page_size = query.limit.unwrap_or(100);
@@ -101,7 +102,7 @@ pub async fn list_orders(
     // Execute SQL query
     let result = list_sql(list_query.clone()).await.map_err(|e| {
         tracing::error!("Failed to list Wildberries orders: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let total = result.total;
@@ -115,7 +116,7 @@ pub async fn list_orders(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load marketplace products: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mp_map: std::collections::HashMap<String, (String, Option<String>)> = marketplace_products
@@ -132,7 +133,7 @@ pub async fn list_orders(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load nomenclature: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let nom_map: std::collections::HashMap<String, (String, String, String, Option<String>)> =
@@ -248,16 +249,16 @@ pub async fn list_orders(
 /// Handler для получения детальной информации о Wildberries Order
 pub async fn get_order_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<WbOrders>, axum::http::StatusCode> {
+) -> Result<Json<WbOrders>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     let item = a015_wb_orders::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get Wildberries order detail: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(item))
 }
@@ -270,12 +271,12 @@ pub struct SearchBySridQuery {
 
 pub async fn search_by_srid(
     Query(query): Query<SearchBySridQuery>,
-) -> Result<Json<Vec<WbOrders>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbOrders>>, ApiError> {
     let items = a015_wb_orders::repository::search_by_document_no(&query.srid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to search by srid: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(items))
@@ -284,12 +285,12 @@ pub async fn search_by_srid(
 /// Handler для получения raw JSON от WB API по raw_payload_ref
 pub async fn get_raw_json(
     axum::extract::Path(ref_id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let json_value = raw_storage::get_json_value_by_ref(&ref_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get raw JSON: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(json_value))
@@ -298,12 +299,12 @@ pub async fn get_raw_json(
 /// Handler для удаления документа
 pub async fn delete_order(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a015_wb_orders::service::delete(uuid).await.map_err(|e| {
         tracing::error!("Failed to delete order: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -312,14 +313,14 @@ pub async fn delete_order(
 /// Handler для проведения документа
 pub async fn post_order(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a015_wb_orders::posting::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post order: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(
@@ -330,14 +331,14 @@ pub async fn post_order(
 /// Handler для отмены проведения документа
 pub async fn unpost_order(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a015_wb_orders::posting::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost order: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(
@@ -353,7 +354,7 @@ pub async fn unpost_order(
 /// `a015:{id}`, p916 — «сырой» `{id}` (см. `a015::posting::post_document`).
 pub async fn get_projections(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let raw_ref = uuid.to_string();
     let prefixed_ref = format!("a015:{raw_ref}");
@@ -365,7 +366,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p909 projections for {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let p916_items =
@@ -376,7 +377,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p916 projections for {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({

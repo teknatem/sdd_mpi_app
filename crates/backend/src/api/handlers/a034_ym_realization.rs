@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -139,7 +140,7 @@ async fn resolve_product_names(refs: Vec<String>) -> std::collections::HashMap<S
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -183,7 +184,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list YM realization documents: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -232,16 +233,14 @@ async fn compute_row_discrepancies(dto: &YmRealizationListItemDto) -> anyhow::Re
     Ok((delivery_discrepancy, returns_discrepancy))
 }
 
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<YmRealizationDetailsDto>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<YmRealizationDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a034_ym_realization::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get YM realization document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -249,7 +248,7 @@ pub async fn get_by_id(
         Ok(dto) => Ok(Json(dto)),
         Err(e) => {
             tracing::error!("Failed to enrich YM realization document {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -303,39 +302,39 @@ async fn resolve_organization_name(organization_id: &str) -> anyhow::Result<Opti
     let Some(uuid) = Uuid::parse_str(organization_id).ok() else {
         return Ok(None);
     };
-    let organization = crate::domain::a002_organization::service::get_by_id(uuid).await?;
+    let organization = crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        uuid,
+    )
+    .await?;
     Ok(organization.map(|item| item.base.description))
 }
 
-pub async fn post_document(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn post_document(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a034_ym_realization::service::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post YM realization document {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(serde_json::json!({"success": true})))
 }
 
-pub async fn unpost_document(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn unpost_document(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     a034_ym_realization::service::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost YM realization document {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     Ok(Json(serde_json::json!({"success": true})))
 }
 
 pub async fn get_general_ledger_entries(
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let rows = crate::general_ledger::repository::list_by_registrator("a034_ym_realization", &id)
         .await
         .map_err(|e| {
@@ -344,7 +343,7 @@ pub async fn get_general_ledger_entries(
                 id,
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let general_ledger_entries = rows.into_iter().map(to_journal_dto).collect::<Vec<_>>();
@@ -395,14 +394,14 @@ pub struct PaymentDetailResponse {
 
 pub async fn get_payment_detail(
     Path(id): Path<String>,
-) -> Result<Json<PaymentDetailResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaymentDetailResponse>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a034_ym_realization::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get YM realization document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -417,7 +416,7 @@ pub async fn get_payment_detail(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load p907 buyer movements for a034 {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let product_names = resolve_product_names(
@@ -615,14 +614,14 @@ fn build_orders_side(
     (orders, orders_unres)
 }
 
-async fn load_doc_for_recon(id: &str) -> Result<YmRealization, axum::http::StatusCode> {
+async fn load_doc_for_recon(id: &str) -> Result<YmRealization, ApiError> {
     let uuid = Uuid::parse_str(id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     match a034_ym_realization::service::get_by_id(uuid).await {
         Ok(Some(doc)) => Ok(doc),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get YM realization document {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -630,11 +629,11 @@ async fn load_doc_for_recon(id: &str) -> Result<YmRealization, axum::http::Statu
 // ── Сверка реализации (продажи vs заказы, доставленные в дату документа) ──
 pub async fn get_reconciliation_sales(
     Path(id): Path<String>,
-) -> Result<Json<ReconResponse>, axum::http::StatusCode> {
+) -> Result<Json<ReconResponse>, ApiError> {
     let doc = load_doc_for_recon(&id).await?;
     let groups = compute_recon_sales_groups(&doc).await.map_err(|e| {
         tracing::error!("Failed to compute a034 sales reconciliation {}: {}", id, e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     Ok(Json(ReconResponse { groups }))
 }
@@ -753,7 +752,7 @@ async fn compute_recon_sales_groups(doc: &YmRealization) -> anyhow::Result<Vec<R
 // a016 любого статуса. Информация по заказу (order_id) сохраняется как ключ-ссылка.
 pub async fn get_reconciliation_returns(
     Path(id): Path<String>,
-) -> Result<Json<ReconResponse>, axum::http::StatusCode> {
+) -> Result<Json<ReconResponse>, ApiError> {
     let doc = load_doc_for_recon(&id).await?;
     let groups = compute_recon_returns_groups(&doc).await.map_err(|e| {
         tracing::error!(
@@ -761,7 +760,7 @@ pub async fn get_reconciliation_returns(
             id,
             e
         );
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
     Ok(Json(ReconResponse { groups }))
 }
@@ -1081,14 +1080,14 @@ pub struct DeliveryOrdersResponse {
 
 pub async fn get_delivery_orders(
     Path(id): Path<String>,
-) -> Result<Json<DeliveryOrdersResponse>, axum::http::StatusCode> {
+) -> Result<Json<DeliveryOrdersResponse>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a034_ym_realization::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get YM realization document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -1103,7 +1102,7 @@ pub async fn get_delivery_orders(
     .await
     .map_err(|e| {
         tracing::error!("Failed to load a013 delivered lines for a034 {}: {}", id, e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let product_names = resolve_product_names(
@@ -1162,7 +1161,7 @@ pub struct FetchMissingOrdersResponse {
 
 pub async fn fetch_missing_orders(
     Path(id): Path<String>,
-) -> Result<Json<FetchMissingOrdersResponse>, axum::http::StatusCode> {
+) -> Result<Json<FetchMissingOrdersResponse>, ApiError> {
     use std::collections::BTreeSet;
 
     let doc = load_doc_for_recon(&id).await?;
@@ -1190,7 +1189,7 @@ pub async fn fetch_missing_orders(
                     order_no,
                     e
                 );
-                return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+                return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
             }
         }
     }
@@ -1211,10 +1210,10 @@ pub async fn fetch_missing_orders(
     let connection =
         match crate::domain::a006_connection_mp::service::get_by_id(connection_uuid).await {
             Ok(Some(c)) => c,
-            Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+            Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
             Err(e) => {
                 tracing::error!("a034 fetch_missing_orders: connection load failed: {}", e);
-                return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+                return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
             }
         };
     let organization_id = doc.header.organization_id.clone();
@@ -1319,14 +1318,14 @@ fn group_to_summary_row(g: &ReconGroup) -> ReconSummaryRow {
 
 pub async fn get_reconciliation_summary(
     Path(id): Path<String>,
-) -> Result<Json<ReconSummaryResponse>, axum::http::StatusCode> {
+) -> Result<Json<ReconSummaryResponse>, ApiError> {
     let doc = load_doc_for_recon(&id).await?;
 
     let deliveries = compute_recon_sales_groups(&doc)
         .await
         .map_err(|e| {
             tracing::error!("a034 recon summary: sales groups failed for {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
         .iter()
         .map(group_to_summary_row)
@@ -1340,7 +1339,7 @@ pub async fn get_reconciliation_summary(
                 id,
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
         .iter()
         .map(group_to_summary_row)

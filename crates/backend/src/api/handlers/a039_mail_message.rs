@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -24,16 +25,16 @@ pub struct MailMessagePaginatedResponse {
     pub total_pages: usize,
 }
 
-pub async fn list_all() -> Result<Json<Vec<MailMessage>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<MailMessage>>, ApiError> {
     match a039_mail_message::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 pub async fn list_paginated(
     Query(params): Query<MailMessageListParams>,
-) -> Result<Json<MailMessagePaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<MailMessagePaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
@@ -52,23 +53,21 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<MailMessage>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<MailMessage>, ApiError> {
     match a039_mail_message::service::get_by_id(&id).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a039_mail_message::service::delete(&id).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }

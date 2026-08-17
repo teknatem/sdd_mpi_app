@@ -2,6 +2,7 @@
 //! Power BI consumers. Emits a flat JSON array of one row per `nm_id × date`.
 //! Authentication is handled by the `check_api_key` middleware (X-Api-Key header).
 
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 
@@ -97,19 +98,17 @@ pub struct FunnelResponse {
 ///   &limit=5000&offset=0                       (опционально)
 ///
 /// Заголовок: `X-Api-Key: <ключ>` (см. `[external_api].api_key` в config.toml).
-pub async fn list_funnel(
-    Query(q): Query<FunnelQuery>,
-) -> Result<Json<FunnelResponse>, axum::http::StatusCode> {
+pub async fn list_funnel(Query(q): Query<FunnelQuery>) -> Result<Json<FunnelResponse>, ApiError> {
     let date_from = q
         .date_from
         .as_deref()
         .filter(|s| !s.is_empty())
-        .ok_or(axum::http::StatusCode::BAD_REQUEST)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
     let date_to = q
         .date_to
         .as_deref()
         .filter(|s| !s.is_empty())
-        .ok_or(axum::http::StatusCode::BAD_REQUEST)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
 
     let limit = q.limit.clamp(1, MAX_LIMIT);
 
@@ -123,7 +122,7 @@ pub async fn list_funnel(
     .await
     .map_err(|e| {
         tracing::error!("[ext-api] wb-funnel list error: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = result

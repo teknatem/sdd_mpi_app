@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -107,7 +108,7 @@ pub struct WbProductSnapshotDetailsDto {
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -140,21 +141,21 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list WB product snapshot documents: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<Json<WbProductSnapshotDetailsDto>, axum::http::StatusCode> {
+) -> Result<Json<WbProductSnapshotDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a037_wb_product_snapshot::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get WB product snapshot document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -166,7 +167,7 @@ pub async fn get_by_id(
                 id,
                 e
             );
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -289,9 +290,7 @@ pub struct SeriesResponse {
     pub points: Vec<SeriesPointDto>,
 }
 
-pub async fn get_series(
-    Query(q): Query<SeriesQuery>,
-) -> Result<Json<SeriesResponse>, axum::http::StatusCode> {
+pub async fn get_series(Query(q): Query<SeriesQuery>) -> Result<Json<SeriesResponse>, ApiError> {
     match a037_wb_product_snapshot::service::series_for_nm(
         &q.connection_id,
         q.nm_id,
@@ -316,7 +315,7 @@ pub async fn get_series(
         })),
         Err(e) => {
             tracing::error!("Failed to get WB product snapshot series: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -358,14 +357,14 @@ fn rating_changed(a: f64, b: f64) -> bool {
 
 pub async fn get_rating_changes(
     Query(q): Query<RatingChangesQuery>,
-) -> Result<Json<RatingChangesResponse>, axum::http::StatusCode> {
+) -> Result<Json<RatingChangesResponse>, ApiError> {
     let uuid = Uuid::parse_str(&q.id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let current = match a037_wb_product_snapshot::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("rating_changes: failed to get current {}: {}", q.id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -378,7 +377,7 @@ pub async fn get_rating_changes(
         Ok(prev) => prev,
         Err(e) => {
             tracing::error!("rating_changes: failed to get previous: {}", e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -407,7 +406,7 @@ pub async fn get_rating_changes(
         })),
         Err(e) => {
             tracing::error!("rating_changes: failed to build rows: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -476,7 +475,11 @@ async fn resolve_organization_name(organization_id: &str) -> anyhow::Result<Opti
     let Some(uuid) = parse_uuid(organization_id) else {
         return Ok(None);
     };
-    let organization = crate::domain::a002_organization::service::get_by_id(uuid).await?;
+    let organization = crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        uuid,
+    )
+    .await?;
     Ok(organization.map(|item| item.base.description))
 }
 

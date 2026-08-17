@@ -928,7 +928,12 @@ impl ImportExecutor {
 
         // Получаем ID организации по UUID-ссылке из подключения
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let error_msg = format!(
@@ -1090,7 +1095,12 @@ impl ImportExecutor {
 
         // Получаем ID организации по UUID-ссылке из подключения
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let error_msg = format!(
@@ -1231,7 +1241,12 @@ impl ImportExecutor {
         );
 
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let msg = format!(
@@ -1556,7 +1571,12 @@ impl ImportExecutor {
 
         // Step 2: fetch recent orders in date range (includes supplyId for assigned orders)
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let msg = format!(
@@ -1932,7 +1952,12 @@ impl ImportExecutor {
 
         // Получаем ID организации по UUID-ссылке из подключения
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let error_msg = format!(
@@ -2516,7 +2541,12 @@ impl ImportExecutor {
         let mut total_updated = 0;
 
         let organization_id = match Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let error_msg = format!(
@@ -4952,7 +4982,12 @@ impl ImportExecutor {
 
         // Разрешаем organization_id и marketplace_id из подключения
         let organization_id = match uuid::Uuid::parse_str(&connection.organization_ref) {
-            Ok(org_uuid) => match a002_organization::service::get_by_id(org_uuid).await? {
+            Ok(org_uuid) => match a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                org_uuid,
+            )
+            .await?
+            {
                 Some(org) => org.base.id.as_string(),
                 None => {
                     let msg = format!("Организация '{}' не найдена", connection.organization_ref);

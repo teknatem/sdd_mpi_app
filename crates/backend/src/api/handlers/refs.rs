@@ -59,9 +59,12 @@ async fn resolve_representation(kind: &str, id: &str) -> Option<String> {
             pick(&item.base.description, &item.base.code)
         }
         "organization_ref" => {
-            let item = crate::domain::a002_organization::service::get_by_id(uuid)
-                .await
-                .ok()??;
+            let item = crate::domain::a002_organization::service::get_by_id(
+                crate::shared::data::db::get_connection(),
+                uuid,
+            )
+            .await
+            .ok()??;
             pick(&item.base.description, &item.base.code)
         }
         "nomenclature_ref" => {

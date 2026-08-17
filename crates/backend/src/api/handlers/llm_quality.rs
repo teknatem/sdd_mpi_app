@@ -4,6 +4,7 @@
 //! вердикты, причины провалов, ценность статей KB), и разбивать их на отдельные
 //! запросы значило бы показывать картину, собранную из разных моментов времени.
 
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use contracts::dashboards::d407_llm_quality::LlmQualityOverview;
 use serde::Deserialize;
@@ -21,12 +22,12 @@ fn default_days() -> i64 {
 /// GET /api/llm-quality/overview?days=30
 pub async fn overview(
     Query(query): Query<OverviewQuery>,
-) -> Result<Json<LlmQualityOverview>, axum::http::StatusCode> {
+) -> Result<Json<LlmQualityOverview>, ApiError> {
     let raw = crate::shared::llm::verdicts::quality_overview(query.days)
         .await
         .map_err(|error| {
             tracing::error!("llm quality overview: {error}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     // Строки приходят из sqlx-материализатора нетипизированными; типизируем на
@@ -34,6 +35,6 @@ pub async fn overview(
     // «пустым дашбордом» без объяснений.
     serde_json::from_value(raw).map(Json).map_err(|error| {
         tracing::error!("llm quality overview: несовпадение формы данных: {error}");
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })
 }

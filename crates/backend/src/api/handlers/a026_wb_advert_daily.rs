@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     body::Body,
     extract::{Path, Query},
@@ -158,7 +159,7 @@ pub struct WbAdvertDailyDetailsDto {
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -191,7 +192,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list WB advert daily documents: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -619,16 +620,14 @@ async fn build_doc_csv_row_prefix(
     })
 }
 
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<WbAdvertDailyDetailsDto>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<WbAdvertDailyDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a026_wb_advert_daily::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get WB advert daily document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -636,7 +635,7 @@ pub async fn get_by_id(
         Ok(dto) => Ok(Json(dto)),
         Err(e) => {
             tracing::error!("Failed to enrich WB advert daily document {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -800,7 +799,11 @@ async fn resolve_organization_name(organization_id: &str) -> anyhow::Result<Opti
     let Some(uuid) = parse_uuid(organization_id) else {
         return Ok(None);
     };
-    let organization = crate::domain::a002_organization::service::get_by_id(uuid).await?;
+    let organization = crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        uuid,
+    )
+    .await?;
     Ok(organization.map(|item| item.base.description))
 }
 
@@ -816,39 +819,33 @@ fn parse_uuid(value: &str) -> Option<Uuid> {
     Uuid::parse_str(value).ok()
 }
 
-pub async fn post_document(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn post_document(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a026_wb_advert_daily::posting::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post WB advert daily document {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
 }
 
-pub async fn unpost_document(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn unpost_document(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a026_wb_advert_daily::posting::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost WB advert daily document {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
 }
 
-pub async fn get_projections(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn get_projections(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let p913_items =
         crate::projections::p913_wb_advert_order_attr::repository::list_by_registrator(
             "a026_wb_advert_daily",
@@ -857,7 +854,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p913 projections for {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let p911_items =
@@ -865,7 +862,7 @@ pub async fn get_projections(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get p911 projections for {}: {}", id, e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?;
 
     let p916_items =
@@ -876,7 +873,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p916 projections for {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({
@@ -888,7 +885,7 @@ pub async fn get_projections(
 
 pub async fn get_general_ledger_entries(
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let rows = crate::general_ledger::repository::list_by_registrator("a026_wb_advert_daily", &id)
         .await
         .map_err(|e| {
@@ -897,7 +894,7 @@ pub async fn get_general_ledger_entries(
                 id,
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let general_ledger_entries = rows.into_iter().map(to_journal_dto).collect::<Vec<_>>();

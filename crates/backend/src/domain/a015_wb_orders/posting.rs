@@ -49,9 +49,12 @@ async fn sync_organization_from_connection(
         }
     };
 
-    if crate::domain::a002_organization::service::get_by_id(organization_uuid)
-        .await?
-        .is_none()
+    if crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        organization_uuid,
+    )
+    .await?
+    .is_none()
     {
         tracing::warn!(
             "Skip organization sync for WB Orders {}: organization_ref not found={}",

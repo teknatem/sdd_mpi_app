@@ -1,4 +1,4 @@
-use axum::http::StatusCode;
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -14,11 +14,11 @@ use crate::projections::p901_nomenclature_barcodes::{repository, service};
 pub async fn get_by_barcode(
     Path(barcode): Path<String>,
     Query(req): Query<contracts::projections::p901_nomenclature_barcodes::BarcodeByIdRequest>,
-) -> Result<Json<BarcodeByIdResponse>, StatusCode> {
+) -> Result<Json<BarcodeByIdResponse>, ApiError> {
     // source - обязательный параметр
     if req.source.is_empty() {
         tracing::error!("Source parameter is required for barcode lookup");
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(axum::http::StatusCode::BAD_REQUEST.into());
     }
 
     let model = repository::get_by_barcode_and_source(&barcode, &req.source)
@@ -30,9 +30,9 @@ pub async fn get_by_barcode(
                 req.source,
                 e
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let dto = service::model_to_dto(&model);
 
@@ -45,7 +45,7 @@ pub async fn get_barcodes_by_nomenclature(
     Query(req): Query<
         contracts::projections::p901_nomenclature_barcodes::BarcodesByNomenclatureRequest,
     >,
-) -> Result<Json<BarcodesByNomenclatureResponse>, StatusCode> {
+) -> Result<Json<BarcodesByNomenclatureResponse>, ApiError> {
     let models = repository::get_by_nomenclature_ref(&nomenclature_ref, req.include_inactive)
         .await
         .map_err(|e| {
@@ -54,7 +54,7 @@ pub async fn get_barcodes_by_nomenclature(
                 nomenclature_ref,
                 e
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let dtos = service::models_to_dtos(models);
@@ -70,7 +70,7 @@ pub async fn get_barcodes_by_nomenclature(
 /// Handler для получения списка штрихкодов с фильтрами
 pub async fn list_barcodes(
     Query(req): Query<BarcodeListRequest>,
-) -> Result<Json<BarcodeListResponse>, StatusCode> {
+) -> Result<Json<BarcodeListResponse>, ApiError> {
     let (models, total_count) = repository::list_with_filters(
         req.nomenclature_ref,
         req.article,
@@ -82,7 +82,7 @@ pub async fn list_barcodes(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list barcodes: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos = service::barcodes_with_nomenclature_to_dtos(models);

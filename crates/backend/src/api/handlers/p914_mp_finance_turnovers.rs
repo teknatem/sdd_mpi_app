@@ -1,4 +1,5 @@
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use contracts::projections::p914_mp_finance_turnovers::dto::{
     MpFinanceTurnoverDto, MpFinanceTurnoverListResponse,
 };
@@ -21,7 +22,7 @@ pub struct ListParams {
 
 pub async fn list(
     Query(params): Query<ListParams>,
-) -> Result<Json<MpFinanceTurnoverListResponse>, StatusCode> {
+) -> Result<Json<MpFinanceTurnoverListResponse>, ApiError> {
     let limit = params.limit.or(Some(1000));
     let offset = params.offset.or(Some(0));
     let sort_desc = params.sort_desc.unwrap_or(true);
@@ -39,7 +40,7 @@ pub async fn list(
         .await
         .map_err(|e| {
             tracing::error!("Failed to count p914 rows: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let items = crate::projections::p914_mp_finance_turnovers::repository::list_with_filters(
@@ -58,7 +59,7 @@ pub async fn list(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list p914 rows: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let has_more = offset.unwrap_or(0) + (items.len() as u64) < total_count;

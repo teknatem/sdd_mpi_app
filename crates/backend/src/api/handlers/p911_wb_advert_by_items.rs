@@ -1,6 +1,6 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
-    http::StatusCode,
     Json,
 };
 use contracts::general_ledger::GeneralLedgerEntryDto;
@@ -27,7 +27,7 @@ pub struct ListParams {
 
 pub async fn list(
     Query(params): Query<ListParams>,
-) -> Result<Json<WbAdvertByItemListResponse>, StatusCode> {
+) -> Result<Json<WbAdvertByItemListResponse>, ApiError> {
     let limit = params.limit.or(Some(1000));
     let offset = params.offset.or(Some(0));
     let sort_desc = params.sort_desc.unwrap_or(true);
@@ -45,7 +45,7 @@ pub async fn list(
     .await
     .map_err(|error| {
         tracing::error!("Failed to count p911 rows: {}", error);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = crate::projections::p911_wb_advert_by_items::service::list_with_filters(
@@ -65,7 +65,7 @@ pub async fn list(
     .await
     .map_err(|error| {
         tracing::error!("Failed to list p911 rows: {}", error);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos = items.into_iter().map(model_to_dto).collect::<Vec<_>>();
@@ -80,7 +80,7 @@ pub async fn list(
 
 pub async fn get_by_general_ledger_ref(
     Path(general_ledger_ref): Path<String>,
-) -> Result<Json<WbAdvertByItemDetailDto>, StatusCode> {
+) -> Result<Json<WbAdvertByItemDetailDto>, ApiError> {
     let items = crate::projections::p911_wb_advert_by_items::service::list_by_general_ledger_ref(
         &general_ledger_ref,
     )
@@ -91,11 +91,11 @@ pub async fn get_by_general_ledger_ref(
             general_ledger_ref,
             error
         );
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     if items.is_empty() {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(axum::http::StatusCode::NOT_FOUND.into());
     }
 
     let general_ledger_entry = crate::general_ledger::repository::get_by_id(&general_ledger_ref)
@@ -106,7 +106,7 @@ pub async fn get_by_general_ledger_ref(
                 general_ledger_ref,
                 error
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
         .map(to_general_ledger_dto);
 

@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -119,7 +120,7 @@ pub struct WbSalesFunnelDailyDetailsDto {
 
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -152,7 +153,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list WB sales funnel documents: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -173,7 +174,7 @@ pub struct WbSalesFunnelExportRowDto {
 /// источник CSV-выгрузки за период.
 pub async fn export_lines(
     Query(query): Query<ListQuery>,
-) -> Result<Json<Vec<WbSalesFunnelExportRowDto>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbSalesFunnelExportRowDto>>, ApiError> {
     let list_query = WbSalesFunnelDailyListQuery {
         date_from: query.date_from,
         date_to: query.date_to,
@@ -202,7 +203,7 @@ pub async fn export_lines(
         )),
         Err(e) => {
             tracing::error!("Failed to export WB sales funnel lines: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -225,7 +226,7 @@ pub struct ProductMetricsDto {
 /// Сумма метрик воронки по nm_id за период (для колонок в снимке товаров a037).
 pub async fn get_product_metrics(
     Query(q): Query<ProductMetricsQuery>,
-) -> Result<Json<Vec<ProductMetricsDto>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<ProductMetricsDto>>, ApiError> {
     match a036_wb_sales_funnel_daily::service::product_metrics_sum(
         &q.connection_id,
         &q.date_from,
@@ -245,7 +246,7 @@ pub async fn get_product_metrics(
         )),
         Err(e) => {
             tracing::error!("Failed to get WB funnel product metrics: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -256,27 +257,26 @@ pub struct BackfillFunnelResponse {
 }
 
 /// Разовый бэкфилл стадии 1 универсальной воронки p916 из сохранённых документов a036.
-pub async fn rebuild_funnel_projection(
-) -> Result<Json<BackfillFunnelResponse>, axum::http::StatusCode> {
+pub async fn rebuild_funnel_projection() -> Result<Json<BackfillFunnelResponse>, ApiError> {
     match a036_wb_sales_funnel_daily::service::backfill_stage1_funnel().await {
         Ok(inserted) => Ok(Json(BackfillFunnelResponse { inserted })),
         Err(e) => {
             tracing::error!("Failed to backfill p916 stage-1 from a036: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<Json<WbSalesFunnelDailyDetailsDto>, axum::http::StatusCode> {
+) -> Result<Json<WbSalesFunnelDailyDetailsDto>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let doc = match a036_wb_sales_funnel_daily::service::get_by_id(uuid).await {
         Ok(Some(doc)) => doc,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get WB sales funnel document {}: {}", id, e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -284,22 +284,20 @@ pub async fn get_by_id(
         Ok(dto) => Ok(Json(dto)),
         Err(e) => {
             tracing::error!("Failed to enrich WB sales funnel document {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// Проведение документа a036: пересобрать его движения воронки p916 (стадия 1).
-pub async fn post(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn post(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a036_wb_sales_funnel_daily::service::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post a036 document {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(
@@ -310,9 +308,7 @@ pub async fn post(
 /// Движения воронки p916, которые документ a036 порождает при импорте (маркетинговая
 /// стадия: переходы/корзина/заказы-воронки). Закладка «Проекции» показывает JSON,
 /// соответствующий записанным данным. registrator_ref = id документа.
-pub async fn get_projections(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn get_projections(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let raw_ref = uuid.to_string();
 
@@ -324,7 +320,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p916 projections for {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({
@@ -440,7 +436,11 @@ async fn resolve_organization_name(organization_id: &str) -> anyhow::Result<Opti
     let Some(uuid) = parse_uuid(organization_id) else {
         return Ok(None);
     };
-    let organization = crate::domain::a002_organization::service::get_by_id(uuid).await?;
+    let organization = crate::domain::a002_organization::service::get_by_id(
+        crate::shared::data::db::get_connection(),
+        uuid,
+    )
+    .await?;
     Ok(organization.map(|item| item.base.description))
 }
 

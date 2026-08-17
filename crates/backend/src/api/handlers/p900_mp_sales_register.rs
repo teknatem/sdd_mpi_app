@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use contracts::domain::common::AggregateId;
 use contracts::projections::p900_mp_sales_register::{
@@ -31,9 +32,11 @@ async fn get_org_map() -> HashMap<String, String> {
     }
 
     // Загружаем организации из БД
-    let organizations = crate::domain::a002_organization::service::list_all()
-        .await
-        .unwrap_or_default();
+    let organizations = crate::domain::a002_organization::service::list_all(
+        crate::shared::data::db::get_connection(),
+    )
+    .await
+    .unwrap_or_default();
 
     let map: HashMap<String, String> = organizations
         .into_iter()
@@ -52,7 +55,7 @@ async fn get_org_map() -> HashMap<String, String> {
 /// Handler для получения списка продаж с фильтрами
 pub async fn list_sales(
     Query(req): Query<SalesRegisterListRequest>,
-) -> Result<Json<SalesRegisterListResponse>, axum::http::StatusCode> {
+) -> Result<Json<SalesRegisterListResponse>, ApiError> {
     let (items, total) = service::list_with_filters(
         &req.date_from,
         &req.date_to,
@@ -67,7 +70,7 @@ pub async fn list_sales(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list sales: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     // Получаем кэш организаций
@@ -94,14 +97,14 @@ pub async fn get_sale_detail(
         String,
         String,
     )>,
-) -> Result<Json<SalesRegisterDetailDto>, axum::http::StatusCode> {
+) -> Result<Json<SalesRegisterDetailDto>, ApiError> {
     let item = service::get_by_id(&marketplace, &document_no, &line_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get sale detail: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     // Получаем кэш организаций
     let org_map = get_org_map().await;
@@ -120,12 +123,12 @@ pub async fn get_sale_detail(
 /// Handler для статистики по датам
 pub async fn get_stats_by_date(
     Query(req): Query<SalesRegisterStatsByDateRequest>,
-) -> Result<Json<SalesRegisterStatsByDateResponse>, axum::http::StatusCode> {
+) -> Result<Json<SalesRegisterStatsByDateResponse>, ApiError> {
     let stats = service::calculate_daily_stats(&req.date_from, &req.date_to, req.marketplace)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get stats by date: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(SalesRegisterStatsByDateResponse { data: stats }))
@@ -134,12 +137,12 @@ pub async fn get_stats_by_date(
 /// Handler для статистики по маркетплейсам
 pub async fn get_stats_by_marketplace(
     Query(req): Query<SalesRegisterStatsByDateRequest>,
-) -> Result<Json<SalesRegisterStatsByMarketplaceResponse>, axum::http::StatusCode> {
+) -> Result<Json<SalesRegisterStatsByMarketplaceResponse>, ApiError> {
     let stats = service::calculate_marketplace_stats(&req.date_from, &req.date_to)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get stats by marketplace: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(SalesRegisterStatsByMarketplaceResponse {
@@ -148,14 +151,14 @@ pub async fn get_stats_by_marketplace(
 }
 
 /// Handler для запуска backfill marketplace_product_ref
-pub async fn backfill_product_refs() -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn backfill_product_refs() -> Result<Json<serde_json::Value>, ApiError> {
     tracing::info!("Starting backfill of marketplace_product_ref");
 
     let stats = backfill::backfill_marketplace_product_refs()
         .await
         .map_err(|e| {
             tracing::error!("Backfill failed: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     tracing::info!(
@@ -219,12 +222,12 @@ fn model_to_dto(model: repository::Model, org_map: &HashMap<String, String>) -> 
 /// Handler для получения проекций по registrator_ref
 pub async fn get_by_registrator(
     axum::extract::Path(registrator_ref): axum::extract::Path<String>,
-) -> Result<Json<Vec<SalesRegisterDto>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<SalesRegisterDto>>, ApiError> {
     let items = service::get_by_registrator(&registrator_ref)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get projections by registrator: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     // Получаем кэш организаций

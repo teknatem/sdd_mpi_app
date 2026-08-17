@@ -2,6 +2,7 @@
 //!
 //! GET /api/llm-skills → versioned catalog snapshot with package metadata.
 
+use crate::shared::error::ApiError;
 use crate::system::auth::extractor::CurrentUser;
 use axum::{http::StatusCode, Json};
 
@@ -16,13 +17,13 @@ pub async fn reload(CurrentUser(claims): CurrentUser) -> Json<serde_json::Value>
     Json(crate::shared::llm::skills::reload(Some(claims.sub)).await)
 }
 
-pub async fn access_matrix() -> Result<Json<serde_json::Value>, StatusCode> {
+pub async fn access_matrix() -> Result<Json<serde_json::Value>, ApiError> {
     crate::shared::llm::skill_policy::matrix_json()
         .await
         .map(Json)
         .map_err(|error| {
             tracing::error!("[skills] failed to load access matrix: {}", error);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 

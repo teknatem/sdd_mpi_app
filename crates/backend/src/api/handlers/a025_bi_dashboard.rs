@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -27,17 +28,17 @@ pub struct BiDashboardPaginatedResponse {
 }
 
 /// GET /api/a025-bi-dashboard
-pub async fn list_all() -> Result<Json<Vec<BiDashboard>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<BiDashboard>>, ApiError> {
     match a025_bi_dashboard::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a025-bi-dashboard/list
 pub async fn list_paginated(
     Query(params): Query<BiDashboardListParams>,
-) -> Result<Json<BiDashboardPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<BiDashboardPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let page = offset / limit;
@@ -59,57 +60,55 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a025-bi-dashboard/owner/:user_id
 pub async fn list_by_owner(
     Path(user_id): Path<String>,
-) -> Result<Json<Vec<BiDashboard>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<BiDashboard>>, ApiError> {
     match a025_bi_dashboard::service::list_by_owner(&user_id).await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a025-bi-dashboard/public
-pub async fn list_public() -> Result<Json<Vec<BiDashboard>>, axum::http::StatusCode> {
+pub async fn list_public() -> Result<Json<Vec<BiDashboard>>, ApiError> {
     match a025_bi_dashboard::service::list_public().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a025-bi-dashboard/:id
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<BiDashboard>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<BiDashboard>, ApiError> {
     match a025_bi_dashboard::service::get_by_id(&id).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// DELETE /api/a025-bi-dashboard/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a025_bi_dashboard::service::delete(&id).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/a025-bi-dashboard (upsert)
 pub async fn upsert(
     Json(dto): Json<a025_bi_dashboard::service::BiDashboardDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if dto.id.is_some() {
         match a025_bi_dashboard::service::update(dto).await {
             Ok(_) => Ok(Json(json!({"success": true}))),
             Err(e) => {
                 tracing::error!("Failed to update BI dashboard: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     } else {
@@ -117,7 +116,7 @@ pub async fn upsert(
             Ok(id) => Ok(Json(json!({"success": true, "id": id.to_string()}))),
             Err(e) => {
                 tracing::error!("Failed to create BI dashboard: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     }

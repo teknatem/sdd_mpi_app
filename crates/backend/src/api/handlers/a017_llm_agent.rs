@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -25,16 +26,16 @@ pub struct LlmAgentPaginatedResponse {
     pub total_pages: usize,
 }
 
-pub async fn list_all() -> Result<Json<Vec<LlmAgent>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<LlmAgent>>, ApiError> {
     match a017_llm_agent::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 pub async fn list_paginated(
     Query(params): Query<LlmAgentListParams>,
-) -> Result<Json<LlmAgentPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<LlmAgentPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let sort_by = params.sort_by.as_deref().unwrap_or("description");
@@ -54,34 +55,34 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
-pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<LlmAgent>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<LlmAgent>, ApiError> {
     match a017_llm_agent::service::get_by_id(&id).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a017_llm_agent::service::delete(&id).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 pub async fn upsert(
     Json(dto): Json<a017_llm_agent::service::LlmAgentDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if dto.id.is_some() {
         match a017_llm_agent::service::update(dto).await {
             Ok(_) => Ok(Json(json!({"success": true}))),
             Err(e) => {
                 tracing::error!("Failed to update LLM agent: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     } else {
@@ -89,17 +90,17 @@ pub async fn upsert(
             Ok(id) => Ok(Json(json!({"success": true, "id": id.to_string()}))),
             Err(e) => {
                 tracing::error!("Failed to create LLM agent: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     }
 }
 
-pub async fn get_primary() -> Result<Json<LlmAgent>, axum::http::StatusCode> {
+pub async fn get_primary() -> Result<Json<LlmAgent>, ApiError> {
     match a017_llm_agent::service::get_primary().await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
@@ -115,15 +116,13 @@ pub async fn skills(Query(q): Query<SkillsQuery>) -> Json<serde_json::Value> {
     Json(crate::shared::llm::skills::employee_skills(&at).await)
 }
 
-pub async fn test_connection(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn test_connection(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     use crate::shared::llm::provider_factory;
 
     let agent = match a017_llm_agent::service::get_by_id(&id).await {
         Ok(Some(v)) => v,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     };
 
     let provider = match provider_factory::create_provider(&agent, None) {
@@ -158,15 +157,13 @@ pub async fn test_connection(
     }
 }
 
-pub async fn fetch_models(
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn fetch_models(Path(id): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
     use crate::shared::llm::provider_factory;
 
     let agent = match a017_llm_agent::service::get_by_id(&id).await {
         Ok(Some(v)) => v,
-        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     };
 
     match provider_factory::list_models(&agent).await {
@@ -178,7 +175,7 @@ pub async fn fetch_models(
 
             if let Err(e) = a017_llm_agent::repository::update(&updated_agent).await {
                 tracing::error!("Failed to save models: {}", e);
-                return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+                return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
             }
 
             Ok(Json(json!({

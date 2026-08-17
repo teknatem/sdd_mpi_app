@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -58,7 +59,7 @@ pub struct PaginatedResponse {
 /// GET /api/a022/kit-variant/list
 pub async fn list_paginated(
     Query(query): Query<ListQuery>,
-) -> Result<Json<PaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedResponse>, ApiError> {
     let page_size = query.limit.unwrap_or(100);
     let offset = query.offset.unwrap_or(0);
     let page = if page_size > 0 { offset / page_size } else { 0 };
@@ -88,7 +89,7 @@ pub async fn list_paginated(
         }
         Err(e) => {
             tracing::error!("Failed to list kit variants: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -96,15 +97,14 @@ pub async fn list_paginated(
 /// GET /api/a022/kit-variant/:id
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<Json<contracts::domain::a022_kit_variant::aggregate::KitVariant>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::domain::a022_kit_variant::aggregate::KitVariant>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     match a022_kit_variant::service::get_by_id(uuid).await {
         Ok(Some(item)) => Ok(Json(item)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
         Err(e) => {
             tracing::error!("Failed to get kit variant {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

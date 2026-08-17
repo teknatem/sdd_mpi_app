@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use contracts::projections::p902_ozon_finance_realization::dto::{
     OzonFinanceRealizationByIdResponse, OzonFinanceRealizationDto,
@@ -10,7 +11,7 @@ use crate::projections::p902_ozon_finance_realization::repository;
 /// Handler для получения списка финансовых данных с фильтрами
 pub async fn list_finance_realization(
     Query(req): Query<OzonFinanceRealizationListRequest>,
-) -> Result<Json<OzonFinanceRealizationListResponse>, axum::http::StatusCode> {
+) -> Result<Json<OzonFinanceRealizationListResponse>, ApiError> {
     let (items, total) = repository::list_with_filters(
         &req.date_from,
         &req.date_to,
@@ -29,7 +30,7 @@ pub async fn list_finance_realization(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list finance realization: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos: Vec<OzonFinanceRealizationDto> = items.into_iter().map(model_to_dto).collect();
@@ -50,14 +51,14 @@ pub async fn get_finance_realization_detail(
         String,
         String,
     )>,
-) -> Result<Json<OzonFinanceRealizationByIdResponse>, axum::http::StatusCode> {
+) -> Result<Json<OzonFinanceRealizationByIdResponse>, ApiError> {
     let item = repository::get_by_id(&posting_number, &sku, &operation_type)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get finance realization detail: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(OzonFinanceRealizationByIdResponse {
         item: model_to_dto_simple(item),
@@ -67,12 +68,12 @@ pub async fn get_finance_realization_detail(
 /// Handler для получения статистики по периоду
 pub async fn get_stats(
     Query(req): Query<OzonFinanceRealizationStatsRequest>,
-) -> Result<Json<OzonFinanceRealizationStatsResponse>, axum::http::StatusCode> {
+) -> Result<Json<OzonFinanceRealizationStatsResponse>, ApiError> {
     let stats = repository::get_stats(&req.date_from, &req.date_to, req.connection_mp_ref)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get finance realization stats: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(OzonFinanceRealizationStatsResponse {

@@ -23,9 +23,16 @@ const ACQUIRE_TIMEOUT_SECS: u64 = 30;
 /// How long SQLite waits for the write lock before returning SQLITE_BUSY (per connection).
 const BUSY_TIMEOUT_SECS: u64 = 15;
 
-pub async fn initialize_database() -> anyhow::Result<()> {
-    if DB_CONN.get().is_some() {
-        return Ok(());
+/// Открывает боевую базу и запоминает соединение в глобальном мосте.
+///
+/// Возвращает соединение, чтобы вызывающий положил его в [`AppState`] —
+/// синглтон при этом остаётся заполненным ради 166 файлов, которые пока ходят
+/// через [`get_connection`].
+///
+/// [`AppState`]: crate::shared::app_state::AppState
+pub async fn initialize_database() -> anyhow::Result<DatabaseConnection> {
+    if let Some(existing) = DB_CONN.get() {
+        return Ok(existing.clone());
     }
 
     let cfg = config::load_config()?;
@@ -61,11 +68,86 @@ pub async fn initialize_database() -> anyhow::Result<()> {
     let conn = SqlxSqliteConnector::from_sqlx_sqlite_pool(pool);
 
     DB_CONN
-        .set(conn)
+        .set(conn.clone())
         .map_err(|_| anyhow::anyhow!("Failed to set DB_CONN"))?;
-    Ok(())
+    Ok(conn)
 }
 
+/// Пустая база с прогнанными миграциями — для интеграционных тестов.
+///
+/// Не `#[cfg(test)]`: интеграционные тесты компилируются отдельным крейтом и
+/// видят библиотеку ровно в том виде, в каком её собирают для боевого бинаря.
+///
+/// Соединение кладётся в тот же глобальный мост, поэтому код, ещё не
+/// переведённый на [`AppState`], в тестах работает против этой базы. Отсюда
+/// два следствия, и оба намеренные: **база одна на весь тестовый бинарь**
+/// (`OnceCell` заполняется один раз), и тесты, пишущие в одни и те же таблицы,
+/// обязаны учитывать соседей.
+///
+/// **Почему файл во временном каталоге, а не `:memory:`.** У SQLite in-memory
+/// база принадлежит *соединению*: пул открывает второе — и оно попадает в
+/// пустую базу, где нет ни `_sqlx_migrations`, ни настроек. Проверено дорогой
+/// ценой: тесты падали то на «no such table», то на 401, потому что секрет JWT
+/// каждый раз читался из другой базы. `cache=shared` чинит владение, но взамен
+/// приносит `SQLITE_LOCKED`, который не лечится `busy_timeout`. Файл в TEMP
+/// снимает вопрос целиком; имя содержит pid, так что параллельные тестовые
+/// бинари не пересекаются, а остатки перетираются при следующем запуске.
+///
+/// [`AppState`]: crate::shared::app_state::AppState
+pub async fn init_test_database() -> anyhow::Result<DatabaseConnection> {
+    // Тесты внутри бинаря идут параллельно и все зовут эту функцию. Без замка
+    // второй вызов увидел бы пустой `OnceCell`, начал поднимать свою базу и
+    // проиграл гонку на `set` — а первый к тому моменту уже отдал бы роутер,
+    // работающий против ещё не мигрированной базы.
+    static INIT: Mutex<()> = Mutex::const_new(());
+    let _guard = INIT.lock().await;
+
+    if let Some(existing) = DB_CONN.get() {
+        return Ok(existing.clone());
+    }
+
+    let path = std::env::temp_dir().join(format!("backend-test-{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(4)
+        .acquire_timeout(Duration::from_secs(10))
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(&path)
+                .create_if_missing(true)
+                .foreign_keys(true),
+        )
+        .await?;
+
+    crate::shared::data::migration_runner::run_migrations_on(&pool).await?;
+
+    // Секрет JWT фиксируем здесь, а не оставляем на `get_jwt_secret`: тот при
+    // пустой таблице генерирует новый и сохраняет, и два параллельных теста
+    // успевают сгенерировать по своему — токен, подписанный первым секретом,
+    // проверяется вторым и даёт 401. Ставим один раз, до выдачи роутера.
+    sqlx::query(
+        "INSERT OR REPLACE INTO sys_settings (key, value, description, created_at, updated_at)
+         VALUES ('jwt_secret', ?, 'Fixed secret for the test database', ?, ?)",
+    )
+    .bind("test-jwt-secret-not-for-production")
+    .bind(chrono::Utc::now().to_rfc3339())
+    .bind(chrono::Utc::now().to_rfc3339())
+    .execute(&pool)
+    .await?;
+
+    let conn = SqlxSqliteConnector::from_sqlx_sqlite_pool(pool);
+    DB_CONN
+        .set(conn.clone())
+        .map_err(|_| anyhow::anyhow!("Failed to set DB_CONN"))?;
+    Ok(conn)
+}
+
+/// **Мост, а не точка расширения.** Глобальный синглтон оставлен рабочим,
+/// потому что перевод 166 файлов одним коммитом непроверяем. Новый код берёт
+/// базу из [`AppState`] (`state.db()`), правимый — переводится вместе с правкой.
+///
+/// [`AppState`]: crate::shared::app_state::AppState
 pub fn get_connection() -> &'static DatabaseConnection {
     DB_CONN
         .get()

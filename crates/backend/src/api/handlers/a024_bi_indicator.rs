@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -36,17 +37,17 @@ pub struct BiIndicatorPaginatedResponse {
 }
 
 /// GET /api/a024-bi-indicator
-pub async fn list_all() -> Result<Json<Vec<BiIndicator>>, axum::http::StatusCode> {
+pub async fn list_all() -> Result<Json<Vec<BiIndicator>>, ApiError> {
     match a024_bi_indicator::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a024-bi-indicator/list
 pub async fn list_paginated(
     Query(params): Query<BiIndicatorListParams>,
-) -> Result<Json<BiIndicatorPaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<BiIndicatorPaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 10000);
     let offset = params.offset.unwrap_or(0);
     let page = offset / limit;
@@ -68,61 +69,59 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a024-bi-indicator/owner/:user_id
 pub async fn list_by_owner(
     Path(user_id): Path<String>,
-) -> Result<Json<Vec<BiIndicator>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<BiIndicator>>, ApiError> {
     match a024_bi_indicator::service::list_by_owner(&user_id).await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a024-bi-indicator/public
-pub async fn list_public() -> Result<Json<Vec<BiIndicator>>, axum::http::StatusCode> {
+pub async fn list_public() -> Result<Json<Vec<BiIndicator>>, ApiError> {
     match a024_bi_indicator::service::list_public().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/a024-bi-indicator/resolve-batch
 pub async fn resolve_batch(
     Json(req): Json<IndicatorBatchLookupRequest>,
-) -> Result<Json<Vec<BiIndicator>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<BiIndicator>>, ApiError> {
     match a024_bi_indicator::service::list_by_ids(&req.ids).await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a024-bi-indicator/:id
-pub async fn get_by_id(
-    Path(id): Path<String>,
-) -> Result<Json<BiIndicator>, axum::http::StatusCode> {
+pub async fn get_by_id(Path(id): Path<String>) -> Result<Json<BiIndicator>, ApiError> {
     match a024_bi_indicator::service::get_by_id(&id).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// DELETE /api/a024-bi-indicator/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     match a024_bi_indicator::service::delete(&id).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/a024-bi-indicator
 pub async fn upsert(
     Json(dto): Json<a024_bi_indicator::service::BiIndicatorDto>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let response_id = dto.id.clone();
     if dto.id.is_some() {
         match a024_bi_indicator::service::update(dto).await {
@@ -136,9 +135,9 @@ pub async fn upsert(
             Err(e) => {
                 tracing::error!("Failed to update BI indicator: {}", e);
                 if e.to_string().contains("Version conflict") {
-                    Err(axum::http::StatusCode::CONFLICT)
+                    Err(axum::http::StatusCode::CONFLICT.into())
                 } else {
-                    Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                    Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
                 }
             }
         }
@@ -147,7 +146,7 @@ pub async fn upsert(
             Ok(id) => Ok(Json(json!({"success": true, "id": id.to_string()}))),
             Err(e) => {
                 tracing::error!("Failed to create BI indicator: {}", e);
-                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
             }
         }
     }
@@ -344,7 +343,7 @@ pub struct DrilldownParams {
 pub async fn drilldown(
     Path(id): Path<String>,
     Query(params): Query<DrilldownParams>,
-) -> Result<Json<DrilldownResponse>, axum::http::StatusCode> {
+) -> Result<Json<DrilldownResponse>, ApiError> {
     let connection_mp_refs: Vec<String> = params
         .connection_mp_refs
         .as_deref()
@@ -375,7 +374,7 @@ pub async fn drilldown(
         Ok(resp) => Ok(Json(resp)),
         Err(e) => {
             tracing::error!("Drilldown error for indicator {}: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -389,12 +388,12 @@ pub async fn drilldown(
 /// Универсальный schema drilldown без привязки к BI indicator.
 pub async fn execute_drilldown(
     Json(req): Json<DrilldownRequest>,
-) -> Result<Json<DrilldownResponse>, axum::http::StatusCode> {
+) -> Result<Json<DrilldownResponse>, ApiError> {
     match crate::shared::drilldown::execute_schema_drilldown(&req).await {
         Ok(resp) => Ok(Json(resp)),
         Err(e) => {
             tracing::error!("Universal drilldown error: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use chrono::NaiveDate;
 use contracts::domain::a011_ozon_fbo_posting::aggregate::OzonFboPosting;
@@ -8,12 +9,12 @@ use uuid::Uuid;
 use crate::domain::a011_ozon_fbo_posting;
 
 /// Handler для получения списка OZON FBO Posting
-pub async fn list_postings() -> Result<Json<Vec<OzonFboPosting>>, axum::http::StatusCode> {
+pub async fn list_postings() -> Result<Json<Vec<OzonFboPosting>>, ApiError> {
     let items = a011_ozon_fbo_posting::service::list_all()
         .await
         .map_err(|e| {
             tracing::error!("Failed to list OZON FBO postings: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(items))
@@ -22,16 +23,16 @@ pub async fn list_postings() -> Result<Json<Vec<OzonFboPosting>>, axum::http::St
 /// Handler для получения детальной информации о OZON FBO Posting
 pub async fn get_posting_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<OzonFboPosting>, axum::http::StatusCode> {
+) -> Result<Json<OzonFboPosting>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     let item = a011_ozon_fbo_posting::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get OZON FBO posting detail: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(item))
 }
@@ -39,14 +40,14 @@ pub async fn get_posting_detail(
 /// Handler для проведения документа
 pub async fn post_document(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a011_ozon_fbo_posting::posting::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post document: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -55,14 +56,14 @@ pub async fn post_document(
 /// Handler для отмены проведения документа
 pub async fn unpost_document(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a011_ozon_fbo_posting::posting::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost document: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -77,7 +78,7 @@ pub struct PostPeriodRequest {
 /// Handler для проведения документов за период
 pub async fn post_period(
     Query(req): Query<PostPeriodRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let from = NaiveDate::parse_from_str(&req.from, "%Y-%m-%d")
         .map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let to = NaiveDate::parse_from_str(&req.to, "%Y-%m-%d")
@@ -87,7 +88,7 @@ pub async fn post_period(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list documents: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let mut posted_count = 0;

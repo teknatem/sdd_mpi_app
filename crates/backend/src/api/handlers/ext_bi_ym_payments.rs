@@ -11,6 +11,7 @@
 //! приложения они бессмысленны.
 //! Authentication is handled by the `check_api_key` middleware (X-Api-Key header).
 
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -75,17 +76,17 @@ pub struct PaymentsResponse {
 /// Заголовок: `X-Api-Key: <ключ>`.
 pub async fn list_payment_report(
     Query(q): Query<PaymentsQuery>,
-) -> Result<Json<PaymentsResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaymentsResponse>, ApiError> {
     let date_from = q
         .date_from
         .as_deref()
         .filter(|s| !s.is_empty())
-        .ok_or(axum::http::StatusCode::BAD_REQUEST)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
     let date_to = q
         .date_to
         .as_deref()
         .filter(|s| !s.is_empty())
-        .ok_or(axum::http::StatusCode::BAD_REQUEST)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::BAD_REQUEST))?;
 
     let limit = q.limit.clamp(1, MAX_LIMIT);
     let offset = q.offset.max(0);
@@ -100,7 +101,7 @@ pub async fn list_payment_report(
     .await
     .map_err(|e| {
         tracing::error!("[ext-api] ym-payment-report error: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let items = models

@@ -1,6 +1,6 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -58,10 +58,10 @@ pub async fn list(Query(params): Query<LlmKnowledgeListParams>) -> Json<Vec<LlmK
 
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<Json<LlmKnowledgeDetailResponse>, StatusCode> {
+) -> Result<Json<LlmKnowledgeDetailResponse>, ApiError> {
     let kb = crate::shared::llm::knowledge_base::kb_read();
     let Some(doc) = kb.get(&id) else {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(axum::http::StatusCode::NOT_FOUND.into());
     };
 
     Ok(Json(LlmKnowledgeDetailResponse {

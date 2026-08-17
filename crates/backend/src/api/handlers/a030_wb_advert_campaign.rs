@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     http::StatusCode,
@@ -73,7 +74,7 @@ pub struct NmPositionDto {
 
 pub async fn list(
     Query(query): Query<ListQuery>,
-) -> Result<Json<Vec<WbAdvertCampaignListItemDto>>, StatusCode> {
+) -> Result<Json<Vec<WbAdvertCampaignListItemDto>>, ApiError> {
     let items = if let Some(connection_id) = query.connection_id.filter(|v| !v.trim().is_empty()) {
         a030_wb_advert_campaign::service::list_by_connection(&connection_id).await
     } else {
@@ -81,7 +82,7 @@ pub async fn list(
     };
     let items = items.map_err(|e| {
         tracing::error!("Failed to list a030_wb_advert_campaign: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let p913_aggregates =
@@ -139,15 +140,15 @@ pub async fn list(
 
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<Json<WbAdvertCampaignDetailsDto>, StatusCode> {
+) -> Result<Json<WbAdvertCampaignDetailsDto>, ApiError> {
     let id = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let item = a030_wb_advert_campaign::service::get_by_id(id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get a030_wb_advert_campaign: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(WbAdvertCampaignDetailsDto {
         id: item.base.id.value().to_string(),
@@ -169,15 +170,15 @@ pub async fn get_by_id(
 
 /// GET /api/a030/wb-advert-campaign/:id/nm-positions
 /// Returns nm_id positions from info_json, enriched with article and product name from a007.
-pub async fn nm_positions(Path(id): Path<String>) -> Result<Json<Vec<NmPositionDto>>, StatusCode> {
+pub async fn nm_positions(Path(id): Path<String>) -> Result<Json<Vec<NmPositionDto>>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let item = a030_wb_advert_campaign::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get campaign for nm_positions: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let connection_id = item.header.connection_id.clone();
     let nm_entries = extract_nm_entries(&item.source_meta.info_json);
@@ -223,15 +224,15 @@ pub struct AdvertDailyStatRow {
 /// Returns all a026_wb_advert_daily documents for this campaign in chronological order.
 pub async fn advert_stats(
     Path(id): Path<String>,
-) -> Result<Json<Vec<AdvertDailyStatRow>>, StatusCode> {
+) -> Result<Json<Vec<AdvertDailyStatRow>>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let item = a030_wb_advert_campaign::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get campaign for advert_stats: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let docs = crate::domain::a026_wb_advert_daily::service::list_by_advert_id(
         &item.header.connection_id,
@@ -244,7 +245,7 @@ pub async fn advert_stats(
             item.header.advert_id,
             e
         );
-        StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     Ok(Json(

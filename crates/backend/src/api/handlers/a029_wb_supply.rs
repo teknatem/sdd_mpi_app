@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use contracts::domain::a029_wb_supply::aggregate::{WbSupply, WbSupplyOrderRow};
 use serde::{Deserialize, Serialize};
@@ -215,7 +216,7 @@ pub struct WbSupplyLinkDto {
 
 pub async fn list_supplies(
     Query(query): Query<ListSuppliesQuery>,
-) -> Result<Json<PaginatedWbSupplyResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedWbSupplyResponse>, ApiError> {
     use a029_wb_supply::repository::{list_sql, WbSupplyListQuery};
 
     let page_size = query.limit.unwrap_or(100);
@@ -243,7 +244,7 @@ pub async fn list_supplies(
 
     let result = list_sql(list_query).await.map_err(|e| {
         tracing::error!("Failed to list WB supplies: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let total = result.total;
@@ -284,30 +285,30 @@ pub async fn list_supplies(
 
 /// Resolve a supply by either its internal UUID or WB supply ID ("WB-GI-…").
 /// Tabs now use WB-GI-... as key, so all per-supply endpoints must support both forms.
-async fn resolve_supply(id: &str) -> Result<WbSupply, axum::http::StatusCode> {
+async fn resolve_supply(id: &str) -> Result<WbSupply, ApiError> {
     if id.starts_with("WB-") {
         a029_wb_supply::service::get_by_supply_id(id)
             .await
             .map_err(|e| {
                 tracing::error!("resolve_supply by supply_id {}: {}", id, e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?
-            .ok_or(axum::http::StatusCode::NOT_FOUND)
+            .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))
     } else {
         let uuid = Uuid::parse_str(id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
         a029_wb_supply::service::get_by_id(uuid)
             .await
             .map_err(|e| {
                 tracing::error!("resolve_supply by uuid {}: {}", id, e);
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
             })?
-            .ok_or(axum::http::StatusCode::NOT_FOUND)
+            .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))
     }
 }
 
 pub async fn get_supply_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<WbSupply>, axum::http::StatusCode> {
+) -> Result<Json<WbSupply>, ApiError> {
     let mut item = resolve_supply(&id).await?;
 
     if item.supply_orders.is_empty() {
@@ -324,14 +325,14 @@ pub async fn get_supply_detail(
 /// If no stored orders, falls back to a015_wb_orders matched by income_id.
 pub async fn get_supply_by_wb_id(
     axum::extract::Path(wb_id): axum::extract::Path<String>,
-) -> Result<Json<WbSupply>, axum::http::StatusCode> {
+) -> Result<Json<WbSupply>, ApiError> {
     let mut item = a029_wb_supply::service::get_by_supply_id(&wb_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get WB supply by wb_id {}: {}", wb_id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     if item.supply_orders.is_empty() {
         item.supply_orders = orders_from_a015(&wb_id).await;
@@ -344,7 +345,7 @@ pub async fn get_supply_by_wb_id(
 
 pub async fn get_supply_for_order(
     axum::extract::Path(order_id): axum::extract::Path<String>,
-) -> Result<Json<WbSupplyLinkDto>, axum::http::StatusCode> {
+) -> Result<Json<WbSupplyLinkDto>, ApiError> {
     let uuid = Uuid::parse_str(&order_id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let order = crate::domain::a015_wb_orders::service::get_by_id(uuid)
         .await
@@ -354,17 +355,17 @@ pub async fn get_supply_for_order(
                 order_id,
                 e
             );
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let supply = a029_wb_supply::service::get_for_order(&order)
         .await
         .map_err(|e| {
             tracing::error!("Failed to find WB supply for order {}: {}", order_id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(WbSupplyLinkDto {
         id: supply.base.id.value().to_string(),
@@ -377,7 +378,7 @@ pub async fn get_supply_for_order(
 /// Falls back to a015_wb_orders by income_id if no orders are stored in the supply.
 pub async fn get_supply_orders(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<Vec<WbSupplyOrderRow>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbSupplyOrderRow>>, ApiError> {
     let supply = resolve_supply(&id).await?;
 
     let mut orders = if supply.supply_orders.is_empty() {
@@ -436,7 +437,7 @@ pub struct StickersResponse {
 pub async fn get_supply_stickers(
     axum::extract::Path(id): axum::extract::Path<String>,
     Query(query): Query<StickersQuery>,
-) -> Result<Json<StickersResponse>, axum::http::StatusCode> {
+) -> Result<Json<StickersResponse>, ApiError> {
     let mut supply = resolve_supply(&id).await?;
 
     // Fall back to a015_wb_orders if no stored orders in supply aggregate
@@ -588,12 +589,12 @@ pub async fn get_supply_stickers(
 
 pub async fn get_raw_json(
     axum::extract::Path(ref_id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let json_value = raw_storage::get_json_value_by_ref(&ref_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get raw JSON: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(json_value))
@@ -601,12 +602,12 @@ pub async fn get_raw_json(
 
 pub async fn delete_supply(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a029_wb_supply::service::delete(uuid).await.map_err(|e| {
         tracing::error!("Failed to delete supply: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     Ok(Json(serde_json::json!({"success": true})))

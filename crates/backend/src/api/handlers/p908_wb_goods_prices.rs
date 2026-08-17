@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -11,7 +12,7 @@ use crate::projections::p908_wb_goods_prices::repository::{self, WbGoodsPriceRow
 /// Handler для получения списка цен товаров WB
 pub async fn list_goods_prices(
     Query(req): Query<WbGoodsPriceListRequest>,
-) -> Result<Json<WbGoodsPriceListResponse>, axum::http::StatusCode> {
+) -> Result<Json<WbGoodsPriceListResponse>, ApiError> {
     let (items, total) = repository::list_with_filters(
         req.connection_mp_ref,
         req.vendor_code,
@@ -24,7 +25,7 @@ pub async fn list_goods_prices(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list WB goods prices: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let dtos: Vec<WbGoodsPriceDto> = items.into_iter().map(row_to_dto).collect();
@@ -38,17 +39,15 @@ pub async fn list_goods_prices(
 }
 
 /// Handler для получения одной записи цены товара WB по nm_id
-pub async fn get_goods_price(
-    Path(nm_id): Path<i64>,
-) -> Result<Json<WbGoodsPriceDto>, axum::http::StatusCode> {
+pub async fn get_goods_price(Path(nm_id): Path<i64>) -> Result<Json<WbGoodsPriceDto>, ApiError> {
     let item = repository::get_by_nm_id(nm_id).await.map_err(|e| {
         tracing::error!("Failed to get WB goods price: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     match item {
         Some(model) => Ok(Json(model_to_dto(model))),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 

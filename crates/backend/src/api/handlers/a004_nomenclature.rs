@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -38,20 +39,18 @@ pub struct NomenclaturePaginatedResponse {
 }
 
 /// GET /api/nomenclature
-pub async fn list_all() -> Result<
-    Json<Vec<contracts::domain::a004_nomenclature::aggregate::Nomenclature>>,
-    axum::http::StatusCode,
-> {
+pub async fn list_all(
+) -> Result<Json<Vec<contracts::domain::a004_nomenclature::aggregate::Nomenclature>>, ApiError> {
     match a004_nomenclature::service::list_all().await {
         Ok(v) => Ok(Json(v)),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/a004/nomenclature?limit=&offset=&sort_by=&sort_desc=&q=&only_mp=
 pub async fn list_paginated(
     Query(params): Query<NomenclatureListParams>,
-) -> Result<Json<NomenclaturePaginatedResponse>, axum::http::StatusCode> {
+) -> Result<Json<NomenclaturePaginatedResponse>, ApiError> {
     let limit = params.limit.unwrap_or(100).clamp(10, 1000);
     let offset = params.offset.unwrap_or(0);
     let sort_by = params.sort_by.as_deref().unwrap_or("article");
@@ -84,25 +83,22 @@ pub async fn list_paginated(
                 total_pages,
             }))
         }
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// GET /api/nomenclature/:id
 pub async fn get_by_id(
     Path(id): Path<String>,
-) -> Result<
-    Json<contracts::domain::a004_nomenclature::aggregate::Nomenclature>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::domain::a004_nomenclature::aggregate::Nomenclature>, ApiError> {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a004_nomenclature::service::get_by_id(uuid).await {
         Ok(Some(v)) => Ok(Json(v)),
-        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
@@ -142,22 +138,22 @@ pub async fn upsert(
 }
 
 /// DELETE /api/nomenclature/:id
-pub async fn delete(Path(id): Path<String>) -> Result<(), axum::http::StatusCode> {
+pub async fn delete(Path(id): Path<String>) -> Result<(), ApiError> {
     let uuid = match uuid::Uuid::parse_str(&id) {
         Ok(uuid) => uuid,
-        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST.into()),
     };
     match a004_nomenclature::service::delete(uuid).await {
         Ok(true) => Ok(()),
-        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(false) => Err(axum::http::StatusCode::NOT_FOUND.into()),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into()),
     }
 }
 
 /// POST /api/nomenclature/import-excel
 pub async fn import_excel(
     Json(excel_data): Json<a004_nomenclature::excel_import::ExcelData>,
-) -> Result<Json<contracts::domain::a004_nomenclature::ImportResult>, axum::http::StatusCode> {
+) -> Result<Json<contracts::domain::a004_nomenclature::ImportResult>, ApiError> {
     tracing::info!(
         "Received Excel import request with {} rows",
         excel_data.metadata.row_count
@@ -172,7 +168,7 @@ pub async fn import_excel(
         Ok(result) => result,
         Err(e) => {
             tracing::error!("Excel import error: {}", e);
-            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into());
         }
     };
 
@@ -181,12 +177,12 @@ pub async fn import_excel(
 
 /// GET /api/nomenclature/dimensions
 pub async fn get_dimensions(
-) -> Result<Json<a004_nomenclature::repository::DimensionValues>, axum::http::StatusCode> {
+) -> Result<Json<a004_nomenclature::repository::DimensionValues>, ApiError> {
     match a004_nomenclature::repository::get_distinct_dimension_values().await {
         Ok(values) => Ok(Json(values)),
         Err(e) => {
             tracing::error!("Failed to get dimension values: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -194,15 +190,12 @@ pub async fn get_dimensions(
 /// GET /api/nomenclature/search
 pub async fn search_by_article(
     Query(query): Query<SearchNomenclatureQuery>,
-) -> Result<
-    Json<Vec<contracts::domain::a004_nomenclature::aggregate::Nomenclature>>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<Vec<contracts::domain::a004_nomenclature::aggregate::Nomenclature>>, ApiError> {
     match a004_nomenclature::repository::find_by_article(query.article.trim()).await {
         Ok(items) => Ok(Json(items)),
         Err(e) => {
             tracing::error!("Failed to search nomenclature by article: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -210,15 +203,12 @@ pub async fn search_by_article(
 /// GET /api/nomenclature/search-by-barcode
 pub async fn search_by_barcode(
     Query(query): Query<SearchByBarcodeQuery>,
-) -> Result<
-    Json<Vec<contracts::domain::a004_nomenclature::aggregate::Nomenclature>>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<Vec<contracts::domain::a004_nomenclature::aggregate::Nomenclature>>, ApiError> {
     match a004_nomenclature::service::find_by_barcode(query.barcode.trim()).await {
         Ok(items) => Ok(Json(items)),
         Err(e) => {
             tracing::error!("Failed to search nomenclature by barcode: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -234,7 +224,7 @@ pub async fn get_orders(
     Query(params): Query<NomenclatureOrdersQuery>,
 ) -> Result<
     Json<contracts::domain::a004_nomenclature::orders_dto::NomenclatureOrdersResponse>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     let days = params.days.unwrap_or(180).clamp(1, 3650);
     match a004_nomenclature::service::list_related_orders(&id, days).await {
@@ -250,7 +240,7 @@ pub async fn get_orders(
                 id,
                 e
             );
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

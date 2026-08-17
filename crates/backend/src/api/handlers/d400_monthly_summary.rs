@@ -1,4 +1,5 @@
-use axum::{extract::Query, http::StatusCode, Json};
+use crate::shared::error::ApiError;
+use axum::{extract::Query, Json};
 use contracts::dashboards::d400_monthly_summary::{MonthlySummaryRequest, MonthlySummaryResponse};
 
 use crate::dashboards::d400_monthly_summary::service;
@@ -6,7 +7,7 @@ use crate::dashboards::d400_monthly_summary::service;
 /// GET /api/d400/monthly_summary?year=2025&month=12
 pub async fn get_monthly_summary(
     Query(request): Query<MonthlySummaryRequest>,
-) -> Result<Json<MonthlySummaryResponse>, StatusCode> {
+) -> Result<Json<MonthlySummaryResponse>, ApiError> {
     tracing::info!(
         "D400 Dashboard: Getting monthly summary for {}-{:02}",
         request.year,
@@ -24,13 +25,13 @@ pub async fn get_monthly_summary(
         }
         Err(e) => {
             tracing::error!("D400 Dashboard: Failed to get monthly summary: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// GET /api/d400/periods
-pub async fn get_available_periods() -> Result<Json<Vec<String>>, StatusCode> {
+pub async fn get_available_periods() -> Result<Json<Vec<String>>, ApiError> {
     match service::get_available_periods().await {
         Ok(periods) => {
             tracing::info!(
@@ -41,7 +42,7 @@ pub async fn get_available_periods() -> Result<Json<Vec<String>>, StatusCode> {
         }
         Err(e) => {
             tracing::error!("D400 Dashboard: Failed to get periods: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

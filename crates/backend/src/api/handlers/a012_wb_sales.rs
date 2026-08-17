@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{extract::Query, Json};
 use chrono::NaiveDate;
 use contracts::domain::a012_wb_sales::aggregate::WbSales;
@@ -62,7 +63,9 @@ async fn get_org_map() -> HashMap<String, String> {
         return write.0.clone();
     }
 
-    if let Ok(orgs) = a002_organization::service::list_all().await {
+    if let Ok(orgs) =
+        a002_organization::service::list_all(crate::shared::data::db::get_connection()).await
+    {
         write.0 = orgs
             .into_iter()
             .map(|org| {
@@ -273,7 +276,7 @@ pub struct ListSalesQuery {
 /// Использует прямой SQL запрос с денормализованными полями (без JSON парсинга)
 pub async fn list_sales(
     Query(query): Query<ListSalesQuery>,
-) -> Result<Json<PaginatedWbSalesResponse>, axum::http::StatusCode> {
+) -> Result<Json<PaginatedWbSalesResponse>, ApiError> {
     use a012_wb_sales::repository::{list_sql, WbSalesListQuery};
 
     let page_size = query.limit.unwrap_or(100);
@@ -302,7 +305,7 @@ pub async fn list_sales(
     // Execute SQL query (no caching, direct DB query)
     let result = list_sql(list_query.clone()).await.map_err(|e| {
         tracing::error!("Failed to list Wildberries sales: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let total = result.total;
@@ -458,16 +461,16 @@ async fn calculate_wb_sales_totals(
 /// Handler для получения детальной информации о Wildberries Sale
 pub async fn get_sale_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<WbSales>, axum::http::StatusCode> {
+) -> Result<Json<WbSales>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     let item = a012_wb_sales::service::get_by_id(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get Wildberries sale detail: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     Ok(Json(item))
 }
@@ -480,12 +483,12 @@ pub struct SearchBySridQuery {
 
 pub async fn search_by_srid(
     Query(query): Query<SearchBySridQuery>,
-) -> Result<Json<Vec<WbSales>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<WbSales>>, ApiError> {
     let items = a012_wb_sales::repository::search_by_document_no(&query.srid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to search by srid: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(items))
@@ -494,12 +497,12 @@ pub async fn search_by_srid(
 /// Handler для получения raw JSON от WB API по raw_payload_ref
 pub async fn get_raw_json(
     axum::extract::Path(ref_id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let json_value = raw_storage::get_json_value_by_ref(&ref_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get raw JSON: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(json_value))
@@ -508,14 +511,14 @@ pub async fn get_raw_json(
 /// Handler для проведения документа
 pub async fn post_document(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a012_wb_sales::posting::post_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to post document: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -524,14 +527,14 @@ pub async fn post_document(
 /// Handler для отмены проведения документа
 pub async fn unpost_document(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a012_wb_sales::posting::unpost_document(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to unpost document: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))
@@ -551,7 +554,7 @@ pub struct BatchOperationRequest {
 /// Handler для проведения документов за период
 pub async fn post_period(
     Query(req): Query<PostPeriodRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let from = NaiveDate::parse_from_str(&req.from, "%Y-%m-%d")
         .map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
     let to = NaiveDate::parse_from_str(&req.to, "%Y-%m-%d")
@@ -559,7 +562,7 @@ pub async fn post_period(
 
     let documents = a012_wb_sales::service::list_all().await.map_err(|e| {
         tracing::error!("Failed to list documents: {}", e);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     })?;
 
     let mut posted_count = 0;
@@ -590,7 +593,7 @@ pub async fn post_period(
 /// Handler для пакетного проведения документов (до 100 документов за раз)
 pub async fn batch_post_documents(
     Json(req): Json<BatchOperationRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let total = req.ids.len();
     let mut succeeded = 0;
     let mut failed = 0;
@@ -628,7 +631,7 @@ pub async fn batch_post_documents(
 /// Handler для пакетной отмены проведения документов (до 100 документов за раз)
 pub async fn batch_unpost_documents(
     Json(req): Json<BatchOperationRequest>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let total = req.ids.len();
     let mut succeeded = 0;
     let mut failed = 0;
@@ -664,12 +667,12 @@ pub async fn batch_unpost_documents(
 }
 
 /// Handler для миграции старых документов: денормализация всех полей из JSON
-pub async fn migrate_fill_sale_id() -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+pub async fn migrate_fill_sale_id() -> Result<Json<serde_json::Value>, ApiError> {
     let updated = crate::shared::data::db::migrate_wb_sales_denormalize()
         .await
         .map_err(|e| {
             tracing::error!("Failed to migrate WB Sales: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({
@@ -682,20 +685,20 @@ pub async fn migrate_fill_sale_id() -> Result<Json<serde_json::Value>, axum::htt
 /// Handler для получения проекций по registrator_ref
 pub async fn get_projections(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     // Load p900 and p904 projections for a012_wb_sales
     let p900_items = crate::projections::p900_mp_sales_register::service::get_by_registrator(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p900 projections: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let p904_items = crate::projections::p904_sales_data::repository::get_by_registrator(&id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p904 projections: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let p913_items =
@@ -706,7 +709,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p913 projections for a012 {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
     let p913_expense: Vec<_> = p913_items
         .into_iter()
@@ -722,7 +725,7 @@ pub async fn get_projections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get p916 projections for a012 {}: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     // Объединяем результаты
@@ -739,7 +742,7 @@ pub async fn get_projections(
 /// Handler для получения записей журнала операций по registrator_ref
 pub async fn get_general_ledger_entries(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     use crate::general_ledger::turnover_registry::get_turnover_class;
     use contracts::general_ledger::GeneralLedgerEntryDto;
 
@@ -747,7 +750,7 @@ pub async fn get_general_ledger_entries(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get journal entries: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     // Обогащаем каждую запись комментарием из реестра оборотов.
@@ -852,7 +855,7 @@ pub struct AdvertAttributionResponse {
 /// Р В РЎвЂ”Р В Р’В»Р РЋР вЂ№Р РЋР С“ Р РЋР С“Р РЋР вЂљР В Р’В°Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р С›Р в‚¬(amount) Р РЋР С“ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂќР В РЎвЂўР В РІвЂћвЂ“ `advert_clicks_order_expense` Р В Р вЂ  Р В Р’В¶Р РЋРЎвЂњР РЋР вЂљР В Р вЂ¦Р В Р’В°Р В Р’В»Р В Р’Вµ.
 pub async fn get_advert_attribution(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<AdvertAttributionResponse>, axum::http::StatusCode> {
+) -> Result<Json<AdvertAttributionResponse>, ApiError> {
     use std::collections::{HashMap, HashSet};
 
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
@@ -861,9 +864,9 @@ pub async fn get_advert_attribution(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load a012 {} for attribution: {}", id, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?
-        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+        .ok_or(ApiError::from(axum::http::StatusCode::NOT_FOUND))?;
 
     let srid = sale.header.document_no.clone();
 
@@ -875,7 +878,7 @@ pub async fn get_advert_attribution(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list p913 reserves for srid {}: {}", srid, e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     let nom_map = get_nom_map().await;
@@ -1001,14 +1004,14 @@ pub async fn get_advert_attribution(
 /// Handler Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂўР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ dealer_price_ut
 pub async fn refresh_dealer_price(
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let uuid = Uuid::parse_str(&id).map_err(|_| axum::http::StatusCode::BAD_REQUEST)?;
 
     a012_wb_sales::service::refresh_dealer_price(uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to refresh dealer price: {}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })?;
 
     Ok(Json(serde_json::json!({"success": true})))

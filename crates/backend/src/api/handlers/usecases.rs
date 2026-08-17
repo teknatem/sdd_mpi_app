@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -21,13 +22,12 @@ static IMPORT_EXECUTOR: Lazy<Arc<usecases::u501_import_from_ut::ImportExecutor>>
 /// POST /api/u501/import/start
 pub async fn u501_start_import(
     Json(request): Json<contracts::usecases::u501_import_from_ut::ImportRequest>,
-) -> Result<Json<contracts::usecases::u501_import_from_ut::ImportResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u501_import_from_ut::ImportResponse>, ApiError> {
     match IMPORT_EXECUTOR.start_import(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start import: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -35,13 +35,10 @@ pub async fn u501_start_import(
 /// GET /api/u501/import/:session_id/progress
 pub async fn u501_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u501_import_from_ut::progress::ImportProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u501_import_from_ut::progress::ImportProgress>, ApiError> {
     match IMPORT_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -60,13 +57,12 @@ static OZON_IMPORT_EXECUTOR: Lazy<Arc<usecases::u502_import_from_ozon::ImportExe
 /// POST /api/u502/import/start
 pub async fn u502_start_import(
     Json(request): Json<contracts::usecases::u502_import_from_ozon::ImportRequest>,
-) -> Result<Json<contracts::usecases::u502_import_from_ozon::ImportResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u502_import_from_ozon::ImportResponse>, ApiError> {
     match OZON_IMPORT_EXECUTOR.start_import(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start OZON import: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -74,13 +70,10 @@ pub async fn u502_start_import(
 /// GET /api/u502/import/:session_id/progress
 pub async fn u502_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u502_import_from_ozon::progress::ImportProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u502_import_from_ozon::progress::ImportProgress>, ApiError> {
     match OZON_IMPORT_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -99,15 +92,12 @@ static YANDEX_IMPORT_EXECUTOR: Lazy<Arc<usecases::u503_import_from_yandex::Impor
 /// POST /api/u503/import/start
 pub async fn u503_start_import(
     Json(request): Json<contracts::usecases::u503_import_from_yandex::ImportRequest>,
-) -> Result<
-    Json<contracts::usecases::u503_import_from_yandex::ImportResponse>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u503_import_from_yandex::ImportResponse>, ApiError> {
     match YANDEX_IMPORT_EXECUTOR.start_import(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start Yandex Market import: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -115,13 +105,11 @@ pub async fn u503_start_import(
 /// GET /api/u503/import/:session_id/progress
 pub async fn u503_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u503_import_from_yandex::progress::ImportProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u503_import_from_yandex::progress::ImportProgress>, ApiError>
+{
     match YANDEX_IMPORT_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -140,15 +128,12 @@ static WB_IMPORT_EXECUTOR: Lazy<Arc<usecases::u504_import_from_wildberries::Impo
 /// POST /api/u504/import/start
 pub async fn u504_start_import(
     Json(request): Json<contracts::usecases::u504_import_from_wildberries::ImportRequest>,
-) -> Result<
-    Json<contracts::usecases::u504_import_from_wildberries::ImportResponse>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u504_import_from_wildberries::ImportResponse>, ApiError> {
     match WB_IMPORT_EXECUTOR.start_import(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start Wildberries import: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -158,11 +143,11 @@ pub async fn u504_get_progress(
     Path(session_id): Path<String>,
 ) -> Result<
     Json<contracts::usecases::u504_import_from_wildberries::progress::ImportProgress>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     match WB_IMPORT_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -181,13 +166,12 @@ static MATCH_NOMENCLATURE_EXECUTOR: Lazy<Arc<usecases::u505_match_nomenclature::
 /// POST /api/u505/match/start
 pub async fn u505_start_matching(
     Json(request): Json<contracts::usecases::u505_match_nomenclature::MatchRequest>,
-) -> Result<Json<contracts::usecases::u505_match_nomenclature::MatchResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u505_match_nomenclature::MatchResponse>, ApiError> {
     match MATCH_NOMENCLATURE_EXECUTOR.start_matching(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start nomenclature matching: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -195,13 +179,10 @@ pub async fn u505_start_matching(
 /// GET /api/u505/match/:session_id/progress
 pub async fn u505_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u505_match_nomenclature::progress::MatchProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u505_match_nomenclature::progress::MatchProgress>, ApiError> {
     match MATCH_NOMENCLATURE_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -220,15 +201,12 @@ static LEMANAPRO_IMPORT_EXECUTOR: Lazy<Arc<usecases::u506_import_from_lemanapro:
 /// POST /api/u506/import/start
 pub async fn u506_start_import(
     Json(request): Json<contracts::usecases::u506_import_from_lemanapro::ImportRequest>,
-) -> Result<
-    Json<contracts::usecases::u506_import_from_lemanapro::ImportResponse>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u506_import_from_lemanapro::ImportResponse>, ApiError> {
     match LEMANAPRO_IMPORT_EXECUTOR.start_import(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start LemanaPro import: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -236,13 +214,11 @@ pub async fn u506_start_import(
 /// GET /api/u506/import/:session_id/progress
 pub async fn u506_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u506_import_from_lemanapro::progress::ImportProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u506_import_from_lemanapro::progress::ImportProgress>, ApiError>
+{
     match LEMANAPRO_IMPORT_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -267,13 +243,12 @@ static REPOST_EXECUTOR: Lazy<Arc<usecases::u508_repost_documents::RepostExecutor
 /// POST /api/u507/import/start
 pub async fn u507_start_import(
     Json(request): Json<contracts::usecases::u507_import_from_erp::ImportRequest>,
-) -> Result<Json<contracts::usecases::u507_import_from_erp::ImportResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u507_import_from_erp::ImportResponse>, ApiError> {
     match ERP_IMPORT_EXECUTOR.start_import(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start ERP import: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -281,42 +256,34 @@ pub async fn u507_start_import(
 /// GET /api/u507/import/:session_id/progress
 pub async fn u507_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u507_import_from_erp::progress::ImportProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u507_import_from_erp::progress::ImportProgress>, ApiError> {
     match ERP_IMPORT_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
 /// GET /api/u508/repost/projections
-pub async fn u508_get_projections() -> Result<
-    Json<Vec<contracts::usecases::u508_repost_documents::ProjectionOption>>,
-    axum::http::StatusCode,
-> {
+pub async fn u508_get_projections(
+) -> Result<Json<Vec<contracts::usecases::u508_repost_documents::ProjectionOption>>, ApiError> {
     Ok(Json(REPOST_EXECUTOR.list_available_projections()))
 }
 
 /// GET /api/u508/repost/aggregates
-pub async fn u508_get_aggregates() -> Result<
-    Json<Vec<contracts::usecases::u508_repost_documents::AggregateOption>>,
-    axum::http::StatusCode,
-> {
+pub async fn u508_get_aggregates(
+) -> Result<Json<Vec<contracts::usecases::u508_repost_documents::AggregateOption>>, ApiError> {
     Ok(Json(REPOST_EXECUTOR.list_available_aggregates()))
 }
 
 /// POST /api/u508/repost/start
 pub async fn u508_start_repost(
     Json(request): Json<contracts::usecases::u508_repost_documents::RepostRequest>,
-) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, ApiError> {
     match REPOST_EXECUTOR.start_repost(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start projection repost: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -324,13 +291,12 @@ pub async fn u508_start_repost(
 /// POST /api/u508/repost/aggregate/start
 pub async fn u508_start_aggregate_repost(
     Json(request): Json<contracts::usecases::u508_repost_documents::AggregateRepostRequest>,
-) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, ApiError> {
     match REPOST_EXECUTOR.start_aggregate_repost(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start aggregate repost: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -338,13 +304,10 @@ pub async fn u508_start_aggregate_repost(
 /// GET /api/u508/repost/:session_id/progress
 pub async fn u508_get_progress(
     Path(session_id): Path<String>,
-) -> Result<
-    Json<contracts::usecases::u508_repost_documents::progress::RepostProgress>,
-    axum::http::StatusCode,
-> {
+) -> Result<Json<contracts::usecases::u508_repost_documents::progress::RepostProgress>, ApiError> {
     match REPOST_EXECUTOR.get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
-        None => Err(axum::http::StatusCode::NOT_FOUND),
+        None => Err(axum::http::StatusCode::NOT_FOUND.into()),
     }
 }
 
@@ -354,13 +317,12 @@ pub async fn u508_start_funnel_rebuild(
     Json(request): Json<
         contracts::projections::p916_mp_sales_funnel_turnovers::dto::FunnelRebuildRequest,
     >,
-) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, axum::http::StatusCode>
-{
+) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, ApiError> {
     match REPOST_EXECUTOR.start_funnel_rebuild(request).await {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start funnel rebuild: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -379,7 +341,7 @@ pub async fn u508_funnel_diagnostics(
     Query(query): Query<FunnelDiagnosticsQuery>,
 ) -> Result<
     Json<contracts::projections::p916_mp_sales_funnel_turnovers::dto::FunnelPeriodSummary>,
-    axum::http::StatusCode,
+    ApiError,
 > {
     let connection_mp_refs: Vec<String> = query
         .connection_mp_refs
@@ -399,7 +361,7 @@ pub async fn u508_funnel_diagnostics(
         Ok(summary) => Ok(Json(summary)),
         Err(e) => {
             tracing::error!("Failed to compute funnel diagnostics: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }

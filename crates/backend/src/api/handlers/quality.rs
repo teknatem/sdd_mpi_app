@@ -1,3 +1,4 @@
+use crate::shared::error::ApiError;
 use axum::{
     extract::{Path, Query},
     Json,
@@ -15,14 +16,13 @@ pub async fn list_checks() -> Json<Vec<QualityCheckInfo>> {
 }
 
 /// GET /api/quality/checks/overview
-pub async fn list_check_overviews(
-) -> Result<Json<Vec<QualityCheckOverview>>, axum::http::StatusCode> {
+pub async fn list_check_overviews() -> Result<Json<Vec<QualityCheckOverview>>, ApiError> {
     crate::quality::list_check_overviews()
         .await
         .map(Json)
         .map_err(|error| {
             tracing::error!("quality overview: {error}");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::from(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         })
 }
 
@@ -30,7 +30,7 @@ pub async fn list_check_overviews(
 pub async fn run_check(
     Path(id): Path<String>,
     body: Option<Json<QualityCheckRunRequest>>,
-) -> Result<Json<CheckResult>, axum::http::StatusCode> {
+) -> Result<Json<CheckResult>, ApiError> {
     let input = body
         .map(|Json(body)| body.input)
         .unwrap_or_else(|| serde_json::json!({}));
@@ -38,11 +38,11 @@ pub async fn run_check(
         Ok(details) => Ok(Json(details.result)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality check not found: '{}'", id);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("Quality check '{}' failed: {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -66,32 +66,30 @@ fn default_runs_limit() -> i64 {
 pub async fn list_runs(
     Path(id): Path<String>,
     Query(query): Query<RunsQuery>,
-) -> Result<Json<Vec<QualityCheckRunSummary>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<QualityCheckRunSummary>>, ApiError> {
     match crate::quality::list_runs(&id, query.limit).await {
         Ok(runs) => Ok(Json(runs)),
         Err(error) if error.to_string().starts_with("NOT_FOUND:") => {
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(error) => {
             tracing::error!("quality runs '{}': {}", id, error);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
 
 /// GET /api/quality/checks/:id/details
-pub async fn check_details(
-    Path(id): Path<String>,
-) -> Result<Json<CheckDetails>, axum::http::StatusCode> {
+pub async fn check_details(Path(id): Path<String>) -> Result<Json<CheckDetails>, ApiError> {
     match crate::quality::check_details(&id).await {
         Ok(details) => Ok(Json(details)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality check details not found: '{}'", id);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("check_details '{}': {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -99,16 +97,16 @@ pub async fn check_details(
 /// GET /api/quality/checks/:id/sources
 pub async fn list_sources(
     Path(id): Path<String>,
-) -> Result<Json<Vec<QualityCheckSource>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<QualityCheckSource>>, ApiError> {
     match crate::quality::list_check_sources(&id) {
         Ok(sources) => Ok(Json(sources)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality check sources not found: '{}'", id);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("list_sources '{}': {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -137,7 +135,7 @@ fn default_sort_groups() -> String {
 pub async fn list_groups(
     Path(id): Path<String>,
     Query(q): Query<GroupsQuery>,
-) -> Result<Json<NipGroupsResponse>, axum::http::StatusCode> {
+) -> Result<Json<NipGroupsResponse>, ApiError> {
     match crate::quality::list_check_groups(
         &id,
         &q.projection_table,
@@ -151,11 +149,11 @@ pub async fn list_groups(
         Ok(resp) => Ok(Json(resp)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality check groups not found: '{}': {}", id, e);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("list_groups '{}': {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -170,16 +168,16 @@ pub struct RowsQuery {
 pub async fn list_rows(
     Path(id): Path<String>,
     Query(q): Query<RowsQuery>,
-) -> Result<Json<Vec<NipProjectionRow>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<NipProjectionRow>>, ApiError> {
     match crate::quality::list_check_rows(&id, &q.projection_table, &q.registrator_ref).await {
         Ok(rows) => Ok(Json(rows)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality check rows not found: '{}': {}", id, e);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("list_rows '{}': {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -188,16 +186,16 @@ pub async fn list_rows(
 pub async fn bulk_repost(
     Path(id): Path<String>,
     Json(body): Json<NipRepostRequest>,
-) -> Result<Json<NipRepostResult>, axum::http::StatusCode> {
+) -> Result<Json<NipRepostResult>, ApiError> {
     match crate::quality::bulk_repost(&id, &body).await {
         Ok(result) => Ok(Json(result)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality bulk_repost not found: '{}': {}", id, e);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("bulk_repost '{}': {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
@@ -206,16 +204,16 @@ pub async fn bulk_repost(
 pub async fn cleanup_orphans(
     Path(id): Path<String>,
     Json(body): Json<NipCleanupRequest>,
-) -> Result<Json<NipCleanupResult>, axum::http::StatusCode> {
+) -> Result<Json<NipCleanupResult>, ApiError> {
     match crate::quality::cleanup_orphans(&id, &body).await {
         Ok(result) => Ok(Json(result)),
         Err(e) if e.to_string().starts_with("NOT_FOUND:") => {
             tracing::warn!("Quality cleanup not found: '{}': {}", id, e);
-            Err(axum::http::StatusCode::NOT_FOUND)
+            Err(axum::http::StatusCode::NOT_FOUND.into())
         }
         Err(e) => {
             tracing::error!("cleanup_orphans '{}': {}", id, e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
         }
     }
 }
