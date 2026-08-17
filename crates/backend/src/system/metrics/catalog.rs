@@ -62,7 +62,9 @@ impl MetricDef {
 /// Группы = блоки страницы, в порядке показа.
 pub const METRIC_GROUPS: &[(&str, &str)] = &[
     ("code", "Размер кода"),
+    ("build", "Стоимость сборки"),
     ("domain", "Домен"),
+    ("api", "Границы и контракты"),
     ("tests", "Тесты и запахи"),
     ("ui", "UI-стандарт"),
     ("db", "База данных"),
@@ -180,6 +182,138 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
         ),
         "Какую часть кода занимают 10 самых больших файлов",
     ),
+    with_hint(
+        with_limits(
+            def(
+                "code.files_over_2000",
+                "Файлов > 2000 строк",
+                "code",
+                "шт",
+                0,
+                Lower,
+            ),
+            8.0,
+            15.0,
+        ),
+        "Порог, за которым файл перестаёт быть большим и становится хабом",
+    ),
+    with_hint(
+        with_limits(
+            def("code.max_file_lines", "Самый большой файл", "code", "строк", 0, Lower),
+            2500.0,
+            5000.0,
+        ),
+        "Один файл, который держит рекорд. Разбор god-файлов виден именно здесь",
+    ),
+    with_hint(
+        with_limits(
+            def(
+                "code.orphan_files",
+                "Файлов вне дерева модулей",
+                "code",
+                "шт",
+                0,
+                Lower,
+            ),
+            1.0,
+            10.0,
+        ),
+        "Ни один `mod` их не подключает: компилятор их не видит, cargo fmt не форматирует, а в строках кода они посчитаны",
+    ),
+    // --- Стоимость сборки --------------------------------------------------
+    // Пороги намеренно не заданы: секунды сравнимы только с секундами той же
+    // машины. `machine` в build_timings.json фиксирует, чья это была сборка;
+    // до появления второго замера красить нечего, а направление уже записано.
+    with_hint(
+        def(
+            "build.incr_backend_sec",
+            "backend после правки среза",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "cargo check -p backend после изменения одного файла агрегата",
+    ),
+    with_hint(
+        def(
+            "build.incr_frontend_sec",
+            "frontend после правки среза",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "cargo check -p frontend --target wasm32 после изменения одного файла агрегата",
+    ),
+    // `check` останавливается перед кодогенерацией, и потому дёшев. Настоящее
+    // ожидание — эти два: сборка и линковка тест-бинаря и wasm-артефакта.
+    // Разрыв между ними и `check` — не деталь округления, а то, на основании
+    // чего вообще решается вопрос о разбиении на крейты.
+    with_hint(
+        def(
+            "build.bin_backend_sec",
+            "Бинарь backend",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "cargo build --bin backend после правки одного файла агрегата — путь «правка → работающее приложение». check, test и build --bin держат ТРИ независимых набора артефактов и не греют друг друга",
+    ),
+    with_hint(
+        def(
+            "build.test_backend_sec",
+            "Тест-бинарь backend",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "cargo test -p backend --no-run после правки одного файла агрегата: кодогенерация и линковка без запуска тестов",
+    ),
+    with_hint(
+        def(
+            "build.wasm_frontend_sec",
+            "Сборка wasm",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "cargo build -p frontend --target wasm32 после правки одного файла агрегата",
+    ),
+    with_hint(
+        def(
+            "build.contracts_ripple_sec",
+            "Волна от contracts",
+            "build",
+            "с",
+            1,
+            Lower,
+        ),
+        "Одна правка contracts задевает 424 файла backend и 243 frontend — оба крейта пересобираются целиком",
+    ),
+    def(
+        "build.full_backend_sec",
+        "backend с нуля",
+        "build",
+        "с",
+        1,
+        Lower,
+    ),
+    def(
+        "build.full_frontend_sec",
+        "frontend с нуля",
+        "build",
+        "с",
+        1,
+        Lower,
+    ),
+    with_hint(
+        def("arch.crates", "Крейтов в workspace", "build", "шт", 0, Neutral),
+        "Единица инкрементальной компиляции: rustc пересобирает крейт целиком",
+    ),
     // --- Домен -------------------------------------------------------------
     def(
         "arch.aggregates",
@@ -244,6 +378,21 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
     with_hint(
         with_limits(
             def(
+                "arch.vsa_findings",
+                "Замечаний анализатора",
+                "domain",
+                "шт",
+                0,
+                Lower,
+            ),
+            40.0,
+            60.0,
+        ),
+        "Findings внешнего code_grid_dashboard. Каталог .vsa_designer gitignore'ится — на свежем клоне метрики просто нет",
+    ),
+    with_hint(
+        with_limits(
+            def(
                 "arch.docs_coverage",
                 "Документированность",
                 "domain",
@@ -256,8 +405,73 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
         ),
         "Доля объектов с рукописным llm.md рядом с кодом",
     ),
+    // --- Границы и контракты -----------------------------------------------
+    // Три счётчика одной и той же течи. Крейт `contracts` существует ради
+    // compile-time сцепки фронта и бэка; каждый хендлер, отвечающий голым
+    // `serde_json::Value`, каждая ошибка, схлопнутая до `StatusCode`, и каждый
+    // файл фронта, который сам ходит по HTTP, обходят его стороной.
+    with_hint(
+        with_limits(
+            def(
+                "api.untyped_handlers",
+                "Хендлеров без DTO",
+                "api",
+                "шт",
+                0,
+                Lower,
+            ),
+            60.0,
+            100.0,
+        ),
+        "Возвращают serde_json::Value — контракт держится на строковых ключах, а не на типах",
+    ),
+    with_hint(
+        with_limits(
+            def(
+                "api.status_only_errors",
+                "Ошибок без тела",
+                "api",
+                "шт",
+                0,
+                Lower,
+            ),
+            60.0,
+            120.0,
+        ),
+        "Err = StatusCode: причина теряется, и фронт вынужден различать её по подстроке",
+    ),
+    with_hint(
+        with_limits(
+            def(
+                "fe.raw_fetch_files",
+                "Файлов фронта мимо api_utils",
+                "api",
+                "шт",
+                0,
+                Lower,
+            ),
+            40.0,
+            100.0,
+        ),
+        "Свой fetch или gloo_net: авторизация, 401 и разбор ошибок решаются заново в каждом",
+    ),
     // --- Тесты и запахи ----------------------------------------------------
     def("tests.total", "Тестов", "tests", "шт", 0, Neutral),
+    with_hint(
+        with_limits(
+            def(
+                "tests.integration",
+                "Интеграционных тестов",
+                "tests",
+                "шт",
+                0,
+                Higher,
+            ),
+            10.0,
+            1.0,
+        ),
+        "Тесты в crates/backend/tests, поднимающие БД. Красный по построению: глобальный DB_CONN не оставляет тесту способа открыть свою базу",
+    ),
     with_hint(
         with_limits(
             def(

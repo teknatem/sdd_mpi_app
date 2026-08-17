@@ -1,0 +1,21 @@
+{
+    "measured_at": "2026-08-17T05:58:51Z",
+    "git_head": "3751843",
+    "machine": {
+        "name": "D01",
+        "cpus": 28,
+        "rustc": "rustc 1.95.0 (59807616e 2026-04-14)"
+    },
+    "partial": true,
+    "timings": {
+        "build.incr_backend_sec": 9.1,
+        "build.incr_frontend_sec": 10.1,
+        "build.contracts_ripple_sec": 26.3,
+        "build.full_backend_sec": 65.7,
+        "build.full_frontend_sec": 74.4,
+        "build.test_backend_sec": 14,
+        "build.wasm_frontend_sec": 19.5,
+        "build.bin_backend_sec": 14.1
+    },
+    "notes": "build.bin_backend_sec measured directly 2026-08-17 (14.1s, reproduced 14.2s); cold path after `cargo clean -p backend` was 113.7s"
+}
