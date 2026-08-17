@@ -10,18 +10,18 @@
 | Metric | Value |
 |--------|-------|
 | CSS files | 47 |
-| CSS lines | 21006 |
-| Distinct classes | 2125 |
+| CSS lines | 21209 |
+| Distinct classes | 2138 |
 | Block roots | 582 |
 | Classes with no Rust reference | 399 |
-| Inline `style=` in .rs | 4270 |
-| Hardcoded hex outside themes | 368 |
-| Raw px in spacing/size props | 1841 |
-| Tokens defined | 338 |
+| Inline `style=` in .rs | 4191 |
+| Hardcoded hex outside themes | 381 |
+| Raw px in spacing/size props | 1844 |
+| Tokens defined | 339 |
 | Tokens undefined with NO fallback (broken) | 0 |
 | Tokens undefined but with a fallback (dormant) | 1 |
 | Tokens set by Rust at runtime | 6 |
-| Tokens used but undefined (Thaw runtime) | 55 |
+| Tokens used but undefined (Thaw runtime) | 57 |
 | Allowlist entries | 585 |
 
 ## Block roots (582)
@@ -209,7 +209,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `datasets` | page | static/pages/sys_datasets.css | 62 | 39 | allowed |
 | `data-table` | core,feature | static/plugin-sdk.css<br>static/themes/core/components.css | 6 | 6 | allowed |
 | `date-input` | core | static/themes/core/components.css | 1 | 0 | allowed / dead |
-| `date-range-picker` | core | static/themes/core/components.css | 38 | 38 | allowed |
+| `date-range-picker` | core | static/themes/core/components.css | 51 | 51 | allowed |
 | `delete-condition-btn` | feature | static/condition_editor.css | 1 | 1 | allowed |
 | `delta-chip` | core | static/themes/core/viz.css | 6 | 6 | allowed |
 | `detail-grid` | core,page | static/pages/sys_style_guide.css<br>static/themes/core/layout.css | 2 | 2 | allowed |
@@ -676,11 +676,11 @@ the CSS by design. Not bugs.
 
 `--drill-cols`, `--from-x`, `--from-y`, `--mp-color`, `--spec-cat`, `--tabs-z`
 
-### Thaw runtime tokens (55)
+### Thaw runtime tokens (57)
 
 Injected by the Thaw component library at runtime - undefined in our CSS by design.
 
-`--borderRadiusMedium`, `--borderRadiusSmall`, `--colorBrandBackground`, `--colorBrandBackground2`, `--colorBrandBackgroundHover`, `--colorBrandBackgroundPressed`, `--colorBrandForeground1`, `--colorBrandForeground2`, `--colorBrandStroke1`, `--colorBrandStroke2`, `--colorNeutralBackground1Hover`, `--colorNeutralBackground1Pressed`, `--colorNeutralBackground2`, `--colorNeutralBackground3`, `--colorNeutralBackground6`, `--colorNeutralForeground1`, `--colorNeutralForeground2`, `--colorNeutralForeground3`, `--colorNeutralForegroundOnBrand`, `--colorNeutralStroke1`, `--colorNeutralStroke1Hover`, `--colorNeutralStroke2`, `--colorNeutralStroke3`, `--colorNeutralStrokeAccessible`, `--colorNeutralStrokeAccessibleHover`, `--colorPaletteRedForeground1`, `--fontFamilyMonospace`, `--fontWeightSemibold`, `--spacingHorizontalMNudge`, `--spacingHorizontalXS`, `--spacingHorizontalXXS`, `--spacingVerticalS`, `--thaw-color-brand-background-2`, `--thaw-color-brand-foreground-1`, `--thaw-color-brand-foreground-2`, `--thaw-color-brand-stroke-1`, `--thaw-color-danger-background-1`, `--thaw-color-danger-border-1`, `--thaw-color-danger-foreground-1`, `--thaw-color-neutral-background-1`, `--thaw-color-neutral-background-2`, `--thaw-color-neutral-background-3`, `--thaw-color-neutral-foreground-1`, `--thaw-color-neutral-foreground-2`, `--thaw-color-neutral-foreground-3`, `--thaw-color-neutral-stroke-1`, `--thaw-color-palette-red-background-2`, `--thaw-color-palette-red-background-3`, `--thaw-color-palette-red-border-1`, `--thaw-color-palette-red-border-2`, `--thaw-color-palette-red-foreground-1`, `--thaw-color-palette-red-foreground-2`, `--thaw-color-success-border-1`, `--thaw-color-success-foreground-1`, `--thaw-color-warning-foreground-1`
+`--borderRadiusLarge`, `--borderRadiusMedium`, `--borderRadiusSmall`, `--colorBrandBackground`, `--colorBrandBackground2`, `--colorBrandBackgroundHover`, `--colorBrandBackgroundPressed`, `--colorBrandForeground1`, `--colorBrandForeground2`, `--colorBrandStroke1`, `--colorBrandStroke2`, `--colorNeutralBackground1Hover`, `--colorNeutralBackground1Pressed`, `--colorNeutralBackground2`, `--colorNeutralBackground3`, `--colorNeutralBackground6`, `--colorNeutralBackgroundOverlay`, `--colorNeutralForeground1`, `--colorNeutralForeground2`, `--colorNeutralForeground3`, `--colorNeutralForegroundOnBrand`, `--colorNeutralStroke1`, `--colorNeutralStroke1Hover`, `--colorNeutralStroke2`, `--colorNeutralStroke3`, `--colorNeutralStrokeAccessible`, `--colorNeutralStrokeAccessibleHover`, `--colorPaletteRedForeground1`, `--fontFamilyMonospace`, `--fontWeightSemibold`, `--spacingHorizontalMNudge`, `--spacingHorizontalXS`, `--spacingHorizontalXXS`, `--spacingVerticalS`, `--thaw-color-brand-background-2`, `--thaw-color-brand-foreground-1`, `--thaw-color-brand-foreground-2`, `--thaw-color-brand-stroke-1`, `--thaw-color-danger-background-1`, `--thaw-color-danger-border-1`, `--thaw-color-danger-foreground-1`, `--thaw-color-neutral-background-1`, `--thaw-color-neutral-background-2`, `--thaw-color-neutral-background-3`, `--thaw-color-neutral-foreground-1`, `--thaw-color-neutral-foreground-2`, `--thaw-color-neutral-foreground-3`, `--thaw-color-neutral-stroke-1`, `--thaw-color-palette-red-background-2`, `--thaw-color-palette-red-background-3`, `--thaw-color-palette-red-border-1`, `--thaw-color-palette-red-border-2`, `--thaw-color-palette-red-foreground-1`, `--thaw-color-palette-red-foreground-2`, `--thaw-color-success-border-1`, `--thaw-color-success-foreground-1`, `--thaw-color-warning-foreground-1`
 
 ### Theme drift
 
@@ -703,7 +703,7 @@ Theme files are excluded from the hex count - defining colours is their job.
 
 | File | Layer | Lines | Classes | Hex | Raw px |
 |------|-------|-------|---------|-----|--------|
-| static/themes/core/components.css | core | 7714 | 850 | 177 | 702 |
+| static/themes/core/components.css | core | 7917 | 863 | 191 | 726 |
 | static/themes/core/layout.css | core | 2127 | 214 | 30 | 165 |
 | static/pages/plugins.css | page | 1094 | 123 | 28 | 160 |
 | static/pages/d406_wb_sales_funnel.css | page | 380 | 50 | 31 | 61 |

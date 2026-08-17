@@ -83,6 +83,17 @@ function Get-Layer([string]$relPath) {
     return 'feature'
 }
 
+# Demo pages whose whole job is to display components side by side. Inline
+# styles and literal sizes there are the subject matter, not a violation of the
+# UI standard - a swatch grid exists precisely to show raw values.
+#
+# They are excluded from the VIOLATION counters only. Class collection still
+# runs over them, so a class used solely by the style guide is not reported dead.
+function Test-Sandbox([string]$relPath) {
+    $p = $relPath -replace '\\', '/'
+    return $p -match '(^|/)(thaw_test|style_guide|sys_style_guide)\.(rs|css)$'
+}
+
 # --------------------------------------------------------------- 1. Collect CSS facts ---------------------------------------------------------------
 
 # assets/**.css is deliberately OUT of scope: those sheets are include_str!'d into
@@ -171,6 +182,7 @@ foreach ($f in $cssFiles) {
         Classes = $classesHere.Count
         Hex     = $hex
         Px      = $px
+        Sandbox = (Test-Sandbox $rel)
         Full    = $f.FullName
     }
 }
@@ -190,8 +202,13 @@ foreach ($f in $rsFiles) {
     $txt = Get-Content $f.FullName -Raw -Encoding UTF8
     if ($null -eq $txt) { continue }
 
-    $inlineStyle += ([regex]::Matches($txt, '\bstyle\s*=\s*"')).Count
-    $inlineStyle += ([regex]::Matches($txt, '\battr:style\s*=')).Count
+    # Class literals below are collected from every file, including the demo
+    # pages - otherwise a class shown only in the style guide looks dead. Only
+    # the inline-style violation count skips them.
+    if (-not (Test-Sandbox $f.Name)) {
+        $inlineStyle += ([regex]::Matches($txt, '\bstyle\s*=\s*"')).Count
+        $inlineStyle += ([regex]::Matches($txt, '\battr:style\s*=')).Count
+    }
 
     foreach ($m in [regex]::Matches($txt, '(--[A-Za-z0-9_-]+)\s*(?::|=)')) {
         [void]$runtimeVars.Add($m.Groups[1].Value)
@@ -309,8 +326,8 @@ $totalClasses = $classDefs.Count
 $totalBlocks  = $blockFiles.Count
 $deadClasses  = @($classDefs.Keys | Where-Object { -not $classUsed[$_] })
 $totalLines   = ($fileStats.Values | Measure-Object -Property Lines -Sum).Sum
-$totalHex     = ($fileStats.Values | Where-Object { $_.Layer -ne 'theme' } | Measure-Object -Property Hex -Sum).Sum
-$totalPx      = ($fileStats.Values | Measure-Object -Property Px -Sum).Sum
+$totalHex     = ($fileStats.Values | Where-Object { $_.Layer -ne 'theme' -and -not $_.Sandbox } | Measure-Object -Property Hex -Sum).Sum
+$totalPx      = ($fileStats.Values | Where-Object { -not $_.Sandbox } | Measure-Object -Property Px -Sum).Sum
 
 $undefTokens    = @()   # no definition AND no fallback -> broken rendering
 $softTokens     = @()   # no definition but always has a fallback -> degraded
