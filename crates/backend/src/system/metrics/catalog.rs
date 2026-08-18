@@ -403,7 +403,7 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
     with_hint(
         with_limits(
             def(
-                "arch.vsa_findings",
+                "arch.sdd_findings",
                 "Замечаний анализатора",
                 "domain",
                 "шт",
@@ -413,7 +413,7 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
             40.0,
             60.0,
         ),
-        "Findings внешнего SDD Studio. Каталог .vsa_designer gitignore'ится — на свежем клоне метрики просто нет",
+        "Findings внешнего SDD Studio. Каталог .sdd gitignore'ится — на свежем клоне метрики просто нет",
     ),
     with_hint(
         with_limits(

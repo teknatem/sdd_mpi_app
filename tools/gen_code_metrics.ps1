@@ -276,11 +276,22 @@ if (Test-Path $timingsPath) {
 # Output of the external SDD Studio analyzer (F:\dev\sdd_studio). The directory is
 # gitignored, so on a fresh clone this metric is simply absent rather than zero —
 # "not measured" and "nothing found" must not look alike.
-$diagPath = Join-Path $root '.vsa_designer/diagnostics.json'
+# The payload is versioned (ecosystem contract #2). An unknown version is said
+# out loud rather than skipped: a silent skip is indistinguishable from "the
+# analyzer was never run", and that is exactly how this joint breaks quietly.
+$DiagSchemaVersion = 1
+$diagPath = Join-Path $root '.sdd/diagnostics.json'
 if (Test-Path $diagPath) {
     try {
         $diag = Get-Content $diagPath -Raw | ConvertFrom-Json
-        Set-Metric 'arch.vsa_findings' (@($diag.findings).Count)
+        if ($diag.schema_version -ne $DiagSchemaVersion) {
+            $msg = "diagnostics.json has schema_version $($diag.schema_version), " +
+                   "expected $DiagSchemaVersion — SDD Studio and this script disagree " +
+                   "about the format. Findings metric skipped."
+            Write-Warning $msg
+        } else {
+            Set-Metric 'arch.sdd_findings' (@($diag.findings).Count)
+        }
     } catch {
         Write-Warning "diagnostics.json is unreadable, analyzer findings skipped: $_"
     }

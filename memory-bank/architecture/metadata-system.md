@@ -401,6 +401,6 @@ JSON-колонки описываются как обычные поля — п
 
 - `memory-bank/_archive/todo/field-metadata-system.md` — исходный план (реализован, в архиве)
 - `architecture.toml` в корне — машиночитаемый стандарт структуры среза
-  (схема формата — `F:\dev\sdd\MANIFEST_SCHEMA.md`, метод — `F:\dev\sdd\SDD.md`)
+  (схема формата — `MANIFEST_SCHEMA.md`, метод — `SDD.md`; оба в каноне экосистемы)
 - `memory-bank/architecture/domain-layer-architecture.md` — Архитектура domain layer
 
