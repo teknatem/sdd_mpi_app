@@ -131,7 +131,7 @@ fn build_llm_prompt(details: &CheckDetails) -> String {
     }
 
     out.push_str(
-        "\n---\n**Проект:** leptos_marketplace_1 (Rust / Leptos / Axum / SQLite)\n\
+        "\n---\n**Проект:** Integrator, MPI (Rust / Leptos / Axum / SQLite)\n\
          **Задача:** Проанализировать причины нарушений и предложить конкретные исправления.\n",
     );
     out

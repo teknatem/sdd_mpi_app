@@ -26,8 +26,16 @@ fn main() {
     println!("cargo:rustc-env=BUILD_PROFILE={}", profile);
     println!("cargo:rustc-env=GIT_COMMIT={}", detect_git_commit());
 
-    // Source config.toml from workspace root
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+    // Source config.toml from workspace root.
+    //
+    // `env::var`, NOT `env!`: the macro resolves at the time this build script is
+    // compiled and freezes that absolute path into the build-script binary. The
+    // frozen copy survives a move of the repository, so after renaming the project
+    // directory the build failed looking for config.toml under the OLD path — and
+    // only a clean rebuild of the script would have fixed it. Cargo sets this
+    // variable on every run, so reading it at runtime always tracks the real location.
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by cargo");
+    let workspace_root = Path::new(&manifest_dir)
         .parent()
         .and_then(|p| p.parent())
         .expect("Could not find workspace root");
@@ -49,7 +57,13 @@ fn main() {
 /// Short git commit of the working tree, or `"unknown"` when git is unavailable
 /// (no repository, no git binary). Never panics.
 fn detect_git_commit() -> String {
-    let head = Path::new(env!("CARGO_MANIFEST_DIR"))
+    // Runtime lookup for the same reason as above: a path baked in by `env!`
+    // outlives a move of the repository and then points nowhere.
+    let manifest_dir = match env::var("CARGO_MANIFEST_DIR") {
+        Ok(dir) => dir,
+        Err(_) => return "unknown".to_string(),
+    };
+    let head = Path::new(&manifest_dir)
         .parent()
         .and_then(|p| p.parent())
         .map(|root| root.join(".git").join("HEAD"));
@@ -62,7 +76,7 @@ fn detect_git_commit() -> String {
 
     std::process::Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .current_dir(&manifest_dir)
         .output()
         .ok()
         .filter(|output| output.status.success())

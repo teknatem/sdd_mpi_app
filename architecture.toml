@@ -28,6 +28,11 @@
 #
 # Всё, что записано ниже как факт, ИЗМЕРЕНО по коду, а не предположено.
 # Дата замера — в [meta].
+#
+# Это файл-ЭКЗЕМПЛЯР: правила именно этого приложения. Схема самого формата —
+# какие разделы бывают, что означают поля [[rules]], чем `exempt` отличается от
+# `waivers` — вынесена в канон экосистемы: F:\dev\sdd\MANIFEST_SCHEMA.md.
+# Сам метод (срезы, origins, роли, индексы) — F:\dev\sdd\SDD.md.
 
 [meta]
 schema_version = 2
@@ -303,23 +308,18 @@ why = "Заглушка: mod.rs + ui/mod.rs без списка и детале�
 intentional = false
 
 [deviations.orphan_files]
-what = [
-  "crates/backend/src/usecases/u501_import_from_ut/executor_nomenclature.rs",
-  "crates/backend/src/usecases/u501_import_from_ut/IMPORT_NOMENCLATURE_NEW.txt",
-  "crates/backend/src/shared/universal_dashboard/schema_registry.rs",
-  "crates/frontend/src/shared/data/db.rs",
-  "crates/frontend/src/layout/top_header/windows_dropdown.rs",
-  "crates/frontend/src/domain/a024_bi_indicator/ui/details/tabs/drill_spec.rs",
-  "crates/frontend/src/domain/a024_bi_indicator/ui/details/tabs/params.rs",
-]
+what = []
 why = """
-Файлы, которые не подключает ни один `mod`: компилятор их не собирает,
-cargo fmt не форматирует, но в строках кода они посчитаны (631 строка).
-Не удалены намеренно: executor_nomenclature.rs и IMPORT_NOMENCLATURE_NEW.txt —
-две половины незавершённой переделки импорта номенклатуры («Заменить метод
-import_nomenclature в executor.rs, скопировать вручную»), то есть чьё-то
-намерение, а не мусор. Судьба остальных требует решения владельца.
-Метрика code.orphan_files держит их число от роста.
+Файлы, не подключённые ни одним `mod`: компилятор их не собирает, cargo fmt не
+форматирует, но в строках кода они посчитаны. Было семь штук на 631 строку;
+удалены 2026-08-18 по решению владельца — включая executor_nomenclature.rs и
+IMPORT_NOMENCLATURE_NEW.txt, две половины незавершённой переделки импорта
+номенклатуры. Содержимое доступно в истории git, поэтому «намерение» ничего не
+теряет, а мёртвый код перестаёт числиться живым.
+
+Запись оставлена пустой намеренно: она объясняет, что означает метрика
+code.orphan_files, и куда писать следующего сироту, если он появится. Метрика
+держит их число от роста.
 """
 intentional = false
 

@@ -10,13 +10,13 @@
 | Metric | Value |
 |--------|-------|
 | CSS files | 47 |
-| CSS lines | 21363 |
-| Distinct classes | 2152 |
-| Block roots | 584 |
-| Classes with no Rust reference | 376 |
+| CSS lines | 21117 |
+| Distinct classes | 2141 |
+| Block roots | 583 |
+| Classes with no Rust reference | 373 |
 | Inline `style=` in .rs | 4191 |
 | Hardcoded hex outside themes | 381 |
-| Raw px in spacing/size props | 1844 |
+| Raw px in spacing/size props | 1830 |
 | Tokens defined | 340 |
 | Tokens undefined with NO fallback (broken) | 0 |
 | Tokens undefined but with a fallback (dormant) | 1 |
@@ -24,7 +24,7 @@
 | Tokens used but undefined (Thaw runtime) | 57 |
 | Allowlist entries | 587 |
 
-## Block roots (584)
+## Block roots (583)
 
 One row per top-level BEM block. `Used` counts the block's classes that appear
 in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
@@ -613,10 +613,9 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `warning-box` | core | static/themes/core/utilities.css | 4 | 4 | allowed |
 | `warning-item` | feature | static/universal_dashboard.css | 1 | 0 | allowed / dead |
 | `width-40px` | core | static/themes/core/thaw-patches.css | 1 | 1 | allowed |
-| `windows-dropdown` | core | static/themes/core/app-shell.css<br>static/themes/core/components.css | 11 | 8 | allowed |
 | `windows-list` | core | static/themes/core/app-shell.css | 9 | 8 | allowed |
 
-## Blocks defined in more than one file (31)
+## Blocks defined in more than one file (30)
 
 A block owned by several files has no owner. Each of these is either one
 concept that must collapse onto a single definition, or a name collision.
@@ -625,35 +624,34 @@ concept that must collapse onto a single definition, or a name collision.
 |-------|-------|------------|
 | `page` | 8 | static/pages/llm_skills.css<br>static/pages/quality_check_details.css<br>static/pages/sys_datasets.css<br>static/pages/sys_raw_storage.css<br>static/pages/sys_tickets.css<br>static/themes/core/components.css<br>static/themes/core/layout.css<br>static/themes/core/utilities.css |
 | `table` | 6 | static/pages/quality_check_details.css<br>static/pages/sys_datasets.css<br>static/pages/sys_style_guide.css<br>static/themes/core/components.css<br>static/themes/core/layout.css<br>static/themes/core/thaw-patches.css |
-| `badge` | 4 | static/pages/sys_style_guide.css<br>static/plugin-sdk.css<br>static/themes/core/components.css<br>static/themes/core/layout.css |
 | `text-muted` | 4 | static/pages/sys_datasets.css<br>static/themes/core/components.css<br>static/themes/core/utilities.css<br>static/universal_dashboard.css |
+| `badge` | 4 | static/pages/sys_style_guide.css<br>static/plugin-sdk.css<br>static/themes/core/components.css<br>static/themes/core/layout.css |
 | `form` | 4 | static/pages/login.css<br>static/pages/sys_tickets.css<br>static/themes/core/components.css<br>static/themes/core/thaw-patches.css |
 | `gl-dim-chip` | 3 | static/themes/core/components.css<br>static/themes/core/general_ledger_dimensions.css<br>static/themes/core/layout.css |
 | `card` | 3 | static/plugin-sdk.css<br>static/themes/core/components.css<br>static/themes/core/layout.css |
 | `hidden` | 2 | static/pages/knowledge_base.css<br>static/themes/core/utilities.css |
-| `filter-select` | 2 | static/themes/core/layout.css<br>static/universal_dashboard.css |
+| `drill-th` | 2 | static/themes/core/components.css<br>static/themes/core/fields.css |
 | `button` | 2 | static/themes/core/components.css<br>static/themes/core/thaw-patches.css |
 | `drill-cell` | 2 | static/themes/core/components.css<br>static/themes/core/fields.css |
-| `drill-th` | 2 | static/themes/core/components.css<br>static/themes/core/fields.css |
+| `filter-select` | 2 | static/themes/core/layout.css<br>static/universal_dashboard.css |
 | `help-text` | 2 | static/condition_editor.css<br>static/themes/core/components.css |
 | `table-wrapper` | 2 | static/pages/sys_task_type_registry.css<br>static/themes/core/layout.css |
 | `filter-bar` | 2 | static/themes/core/components.css<br>static/themes/core/fields.css |
 | `card-animated` | 2 | static/pages/sys_tickets.css<br>static/themes/core/components.css |
 | `thaw-table-cell-layout` | 2 | static/themes/core/components.css<br>static/themes/core/thaw-patches.css |
 | `detail-grid` | 2 | static/pages/sys_style_guide.css<br>static/themes/core/layout.css |
-| `gl-dim-chip-list` | 2 | static/themes/core/general_ledger_dimensions.css<br>static/themes/core/layout.css |
+| `drilldown-report` | 2 | static/themes/core/components.css<br>static/themes/core/fields.css |
 | `thaw-card` | 2 | static/pages/sys_tickets.css<br>static/themes/core/thaw-patches.css |
 | `stat-card` | 2 | static/pages/sys_raw_storage.css<br>static/themes/core/components.css |
-| `modal` | 2 | static/pages/sys_datasets.css<br>static/themes/core/components.css |
+| `resizable` | 2 | static/themes/core/components.css<br>static/themes/core/thaw-patches.css |
 | `css` | 2 | static/themes/core/base.css<br>static/themes/core/index.css |
 | `json-preview` | 2 | static/themes/core/components.css<br>static/themes/core/utilities.css |
-| `drilldown-report` | 2 | static/themes/core/components.css<br>static/themes/core/fields.css |
-| `resizable` | 2 | static/themes/core/components.css<br>static/themes/core/thaw-patches.css |
+| `data-table` | 2 | static/plugin-sdk.css<br>static/themes/core/components.css |
 | `maintenance-line` | 2 | static/pages/login.css<br>static/pages/maintenance.css |
-| `windows-dropdown` | 2 | static/themes/core/app-shell.css<br>static/themes/core/components.css |
+| `gl-dim-chip-list` | 2 | static/themes/core/general_ledger_dimensions.css<br>static/themes/core/layout.css |
+| `modal` | 2 | static/pages/sys_datasets.css<br>static/themes/core/components.css |
 | `filter-input` | 2 | static/themes/core/layout.css<br>static/universal_dashboard.css |
 | `page-action-button` | 2 | static/pages/sys_raw_storage.css<br>static/themes/core/layout.css |
-| `data-table` | 2 | static/plugin-sdk.css<br>static/themes/core/components.css |
 
 ## Tokens
 
@@ -705,7 +703,7 @@ Theme files are excluded from the hex count - defining colours is their job.
 
 | File | Layer | Lines | Classes | Hex | Raw px |
 |------|-------|-------|---------|-----|--------|
-| static/themes/core/components.css | core | 8004 | 874 | 191 | 726 |
+| static/themes/core/components.css | core | 7879 | 866 | 191 | 720 |
 | static/themes/core/layout.css | core | 2127 | 214 | 30 | 165 |
 | static/pages/plugins.css | page | 1094 | 123 | 28 | 160 |
 | static/pages/d406_wb_sales_funnel.css | page | 380 | 50 | 31 | 61 |
@@ -719,9 +717,9 @@ Theme files are excluded from the hex count - defining colours is their job.
 | static/pages/a018_chat_workspace.css | page | 296 | 35 | 0 | 44 |
 | static/pages/llm_skills.css | page | 230 | 31 | 0 | 42 |
 | static/universal_dashboard.css | feature | 284 | 43 | 0 | 34 |
-| static/themes/core/app-shell.css | core | 731 | 60 | 0 | 31 |
 | static/pages/general_ledger_matrix.css | page | 167 | 24 | 5 | 23 |
 | static/pages/sys_tickets.css | page | 694 | 48 | 6 | 20 |
+| static/themes/core/app-shell.css | core | 610 | 51 | 0 | 23 |
 | static/pages/sys_style_guide.css | page | 274 | 37 | 1 | 21 |
 | static/ai_chat_menu.css | feature | 80 | 7 | 0 | 19 |
 | static/pages/knowledge_base.css | page | 113 | 17 | 1 | 18 |
@@ -750,7 +748,7 @@ appears in no `.rs` or asset `.html`. Nothing loads these.
 
 None.
 
-### Classes with no Rust reference (376)
+### Classes with no Rust reference (373)
 
 Conservative: a class counts as used if it appears as a whole token in any Rust
 string literal, or if some `format!` stem is a prefix of it. Still verify before
@@ -765,69 +763,69 @@ deleting - a class may be referenced from an asset `.html` or a plugin bundle.
 | `table` | `table__cell--highlight` `table__cell--highlight-alt` `table__cell--sticky` `table__row--cancelled` `table__row--selected` `table__row--warning` `table__sort-icon` `table__sort-icon--active` `table__totals-header` `table__tree-label` `table__tree-placeholder` `table__tree-toggle` |
 | `mp-ms` | `mp-ms` `mp-ms__badge` `mp-ms__badge--all` `mp-ms__badges` `mp-ms__badge--selected` `mp-ms__clear` `mp-ms__state` `mp-ms__state--error` `mp-ms__summary` `mp-ms__toolbar` |
 | `activity-item` | `activity-item` `activity-item__details` `activity-item__icon` `activity-item__icon--error` `activity-item__icon--success` `activity-item__icon--warning` `activity-item__text` `activity-item__time` |
-| `stat-card` | `stat-card__change` `stat-card__change--down` `stat-card__change--flat` `stat-card__change--up` `stat-card__subtitle` `stat-card--error` `stat-card--success` |
-| `sys-ticket-details` | `sys-ticket-details__attachment-item--linked` `sys-ticket-details__attachment-item--selected` `sys-ticket-details__attachment-name--image` `sys-ticket-details__attachments-list--dragover` `sys-ticket-details__comment-attachments` `sys-ticket-details__comment--linked` `sys-ticket-details__comment--selected` |
-| `app-panel-activity` | `app-panel-activity` `app-panel-activity__content` `app-panel-activity__header` `app-panel-activity__section` `app-panel-activity__section-body` `app-panel-activity__section-header` `app-panel-activity__title` |
-| `dashboard-filter` | `dashboard-filter` `dashboard-filter__checkboxes` `dashboard-filter__checkbox-label` `dashboard-filter__checkbox-row` `dashboard-filter__label` `dashboard-filter--daterange` `dashboard-filter--multiselect` |
 | `dom-tree-node` | `dom-tree-node__class--special` `dom-tree-node__data-attr--hidden` `dom-tree-node__header--clickable` `dom-tree-node__tag--page` `dom-tree-node__tag--panel-left` `dom-tree-node__tag--right-panel` `dom-tree-node__tag--table` |
+| `sys-ticket-details` | `sys-ticket-details__attachment-item--linked` `sys-ticket-details__attachment-item--selected` `sys-ticket-details__attachment-name--image` `sys-ticket-details__attachments-list--dragover` `sys-ticket-details__comment-attachments` `sys-ticket-details__comment--linked` `sys-ticket-details__comment--selected` |
+| `dashboard-filter` | `dashboard-filter` `dashboard-filter__checkboxes` `dashboard-filter__checkbox-label` `dashboard-filter__checkbox-row` `dashboard-filter__label` `dashboard-filter--daterange` `dashboard-filter--multiselect` |
+| `app-panel-activity` | `app-panel-activity` `app-panel-activity__content` `app-panel-activity__header` `app-panel-activity__section` `app-panel-activity__section-body` `app-panel-activity__section-header` `app-panel-activity__title` |
+| `stat-card` | `stat-card__change` `stat-card__change--down` `stat-card__change--flat` `stat-card__change--up` `stat-card__subtitle` `stat-card--error` `stat-card--success` |
 | `schema-test-result` | `schema-test-result` `schema-test-result__content` `schema-test-result__rows` `schema-test-result__status` `schema-test-result__time` `schema-test-result--error` `schema-test-result--success` |
 | `proj-list-source` | `proj-list-source` `proj-list-source__empty` `proj-list-source__main` `proj-list-source__meta` `proj-list-source__role` `proj-list-source__row` `proj-list-source__title` |
 | `indicator-set` | `indicator-set` `indicator-set__grid` `indicator-set__grid--cols-2` `indicator-set__grid--cols-3` `indicator-set__grid--cols-4` `indicator-set__title` |
+| `stat` | `stat` `stat__label` `stat__value` `stat--bad` `stat--ok` |
 | `app-sidebar` | `app-sidebar__chevron--expanded` `app-sidebar__collapse--open` `app-sidebar__header` `app-sidebar__item--active` `app-sidebar__title` |
 | `app-panel` | `app-panel__info-item` `app-panel__info-label` `app-panel__info-value` `app-panel--hidden` `app-panel--resizing` |
-| `stat` | `stat` `stat__label` `stat__value` `stat--bad` `stat--ok` |
 | `doc-list` | `doc-list__progress` `doc-list__summary` `doc-list__title` `doc-list__toolbar` |
-| `json-viewer` | `json-viewer` `json-viewer__body` `json-viewer__content` `json-viewer__footer` |
 | `bi-style-option` | `bi-style-option` `bi-style-option__desc` `bi-style-option__label` `bi-style-option--selected` |
-| `checkbox-list` | `checkbox-list` `checkbox-list__item` `checkbox-list__item--mono` |
-| `bi-indicator-general` | `bi-indicator-general__group--checkbox` `bi-indicator-general__group--full` `bi-indicator-general__group--wide` |
-| `d401-tree` | `d401-tree` `d401-tree__btn--active` `d401-tree__toggle--disabled` |
-| `proj-detail` | `proj-detail__section--full` `proj-detail__source-item--muted` `proj-detail__value--muted` |
-| `plugins-dot` | `plugins-dot` `plugins-dot--off` `plugins-dot--on` |
-| `a007-link-card` | `a007-link-card__status` `a007-link-card__status--empty` `a007-link-card__status--linked` |
-| `field-flag` | `field-flag` `field-flag--no` `field-flag--yes` |
-| `windows-dropdown` | `windows-dropdown__close` `windows-dropdown__count` `windows-dropdown__item--active` |
+| `json-viewer` | `json-viewer` `json-viewer__body` `json-viewer__content` `json-viewer__footer` |
 | `datasets` | `datasets__job-bar--pulsing` `datasets__row--disabled` `datasets__snapshot--own` |
+| `bi-indicator-general` | `bi-indicator-general__group--checkbox` `bi-indicator-general__group--full` `bi-indicator-general__group--wide` |
+| `checkbox-list` | `checkbox-list` `checkbox-list__item` `checkbox-list__item--mono` |
+| `a007-link-card` | `a007-link-card__status` `a007-link-card__status--empty` `a007-link-card__status--linked` |
+| `plugins-dot` | `plugins-dot` `plugins-dot--off` `plugins-dot--on` |
+| `d401-tree` | `d401-tree` `d401-tree__btn--active` `d401-tree__toggle--disabled` |
 | `indicator-detail` | `indicator-detail__about` `indicator-detail__value` `indicator-detail__value-row` |
-| `badge` | `badge__icon` `badge__text` |
-| `drilldown-drawer` | `drilldown-drawer__filters` `drilldown-drawer__footer` |
+| `proj-detail` | `proj-detail__section--full` `proj-detail__source-item--muted` `proj-detail__value--muted` |
+| `field-flag` | `field-flag` `field-flag--no` `field-flag--yes` |
 | `login` | `login__footer-text` `login--maintenance` |
-| `bi-viewspec` | `bi-viewspec__preview-frame` `bi-viewspec__style-grid` |
-| `chat-tree` | `chat-tree__dir--active` `chat-tree__row--open` |
-| `favorite-list` | `favorite-list__editor` `favorite-list__editor-actions` |
-| `data-matrix-wrapper` | `data-matrix-wrapper--framed` `data-matrix-wrapper--tall` |
-| `picker` | `picker__item--selected` `picker__row--selected` |
-| `thaw-table-cell-layout` | `thaw-table-cell-layout` `thaw-table-cell-layout__content` |
-| `page` | `page__tab--active` `page--narrow` |
-| `app-header` | `app-header__center` `app-header__icon-btn` |
-| `dsc-dim-toggle` | `dsc-dim-toggle` `dsc-dim-toggle--active` |
-| `thaw-table-header-cell` | `thaw-table-header-cell` `thaw-table-header-cell__button` |
 | `input-actions` | `input-actions` `input-actions--single` |
+| `bi-viewspec` | `bi-viewspec__preview-frame` `bi-viewspec__style-grid` |
+| `thaw-table-cell-layout` | `thaw-table-cell-layout` `thaw-table-cell-layout__content` |
+| `chat-tree` | `chat-tree__dir--active` `chat-tree__row--open` |
+| `drilldown-drawer` | `drilldown-drawer__filters` `drilldown-drawer__footer` |
+| `badge` | `badge__icon` `badge__text` |
+| `favorite-list` | `favorite-list__editor` `favorite-list__editor-actions` |
+| `app-header` | `app-header__center` `app-header__icon-btn` |
+| `picker` | `picker__item--selected` `picker__row--selected` |
 | `schema-chip` | `schema-chip` `schema-chip--active` |
 | `indicator-dashboard` | `indicator-dashboard__filters` `indicator-dashboard__sets` |
+| `page` | `page__tab--active` `page--narrow` |
+| `dsc-dim-toggle` | `dsc-dim-toggle` `dsc-dim-toggle--active` |
+| `thaw-table-header-cell` | `thaw-table-header-cell` `thaw-table-header-cell__button` |
 | `status` | `status--error` `status--ok` |
-| `cm-scroller` | `cm-scroller` |
-| `ind-picker` | `ind-picker__row--already` |
-| `bi-llm-panel` | `bi-llm-panel--open` |
-| `field-id` | `field-id` |
-| `bg-secondary` | `bg-secondary` |
-| `thaw-table-header` | `thaw-table-header` |
-| `form-grid` | `form-grid--simple` |
+| `data-matrix-wrapper` | `data-matrix-wrapper--framed` `data-matrix-wrapper--tall` |
 | `chat-workspace` | `chat-workspace__plan-step--done` |
+| `schema-table-name` | `schema-table-name` |
+| `form-grid` | `form-grid--simple` |
+| `bi-llm-panel` | `bi-llm-panel--open` |
 | `schema-fields-tab` | `schema-fields-tab` |
-| `summary-item` | `summary-item` |
+| `validation-panel` | `validation-panel` |
+| `thaw-table-header` | `thaw-table-header` |
+| `bg-secondary` | `bg-secondary` |
+| `bi-indicator-dataspec` | `bi-indicator-dataspec__stats` |
+| `field-id` | `field-id` |
+| `ind-picker` | `ind-picker__row--already` |
+| `task-type-registry` | `task-type-registry__chevron--expanded` |
 | `function-select` | `function-select` |
 | `gap-md` | `gap-md` |
-| `schema-table-name` | `schema-table-name` |
-| `num` | `num` |
+| `summary-item` | `summary-item` |
+| `thaw-config-provider` | `thaw-config-provider` |
 | `json-preview` | `json-preview` |
-| `task-type-registry` | `task-type-registry__chevron--expanded` |
-| `th-w-14p` | `th-w-14p` |
 | `cm-editor` | `cm-editor` |
+| `th-w-14p` | `th-w-14p` |
+| `cm-scroller` | `cm-scroller` |
 | `th-w-15p` | `th-w-15p` |
 | `schema-browser-main` | `schema-browser-main` |
-| `thaw-config-provider` | `thaw-config-provider` |
-| `bi-indicator-dataspec` | `bi-indicator-dataspec__stats` |
+| `num` | `num` |
 | `input-with-actions` | `input-with-actions` |
 | `schema-browser-side` | `schema-browser-side` |
 | `validation-summary` | `validation-summary` |
@@ -847,105 +845,104 @@ deleting - a class may be referenced from an asset `.html` or a plugin bundle.
 | `schema-id` | `schema-id` |
 | `thaw-button` | `thaw-button` |
 | `thaw-table-row` | `thaw-table-row` |
-| `drill-th` | `drill-th--sortable` |
-| `schema-sql-tab` | `schema-sql-tab` |
-| `header-left` | `header-left` |
-| `badge-group` | `badge-group` |
 | `error-item` | `error-item` |
-| `field-row` | `field-row` |
-| `field` | `field__label` |
-| `validation-panel` | `validation-panel` |
-| `schema-browser-header` | `schema-browser-header` |
-| `placeholder` | `placeholder__title` |
+| `schema-sql-tab` | `schema-sql-tab` |
 | `llm-tools` | `llm-tools__row--active` |
-| `text-warning` | `text-warning` |
-| `card-errors` | `card-errors` |
-| `field-name` | `field-name` |
-| `badge-auto` | `badge-auto` |
-| `config-created` | `config-created` |
-| `validation-empty` | `validation-empty` |
+| `badge-group` | `badge-group` |
+| `header-left` | `header-left` |
+| `placeholder` | `placeholder__title` |
+| `field` | `field__label` |
+| `field-row` | `field-row` |
+| `schema-browser-header` | `schema-browser-header` |
 | `bi-timeline` | `bi-timeline__panel` |
-| `thaw-table` | `thaw-table` |
+| `badge-auto` | `badge-auto` |
+| `text-warning` | `text-warning` |
+| `drill-th` | `drill-th--sortable` |
+| `field-name` | `field-name` |
+| `card-errors` | `card-errors` |
 | `spec-list` | `spec-list--compact` |
-| `doc-filters` | `doc-filters` |
-| `text-negative` | `text-negative` |
+| `validation-empty` | `validation-empty` |
+| `config-created` | `config-created` |
+| `thaw-table` | `thaw-table` |
+| `badge-custom` | `badge-custom` |
 | `thaw-card` | `thaw-card` |
 | `gap-lg` | `gap-lg` |
-| `badge-custom` | `badge-custom` |
-| `header-right` | `header-right` |
-| `form-actions-center` | `form-actions-center` |
-| `thaw-input` | `thaw-input__input` |
-| `date-input` | `date-input` |
-| `card-warnings` | `card-warnings` |
-| `bg-surface` | `bg-surface` |
-| `thaw-tab` | `thaw-tab` |
-| `schema-test-tab` | `schema-test-tab` |
-| `modal-actions-top` | `modal-actions-top` |
-| `filters-row` | `filters-row` |
 | `schema-picker-select` | `schema-picker-select` |
 | `raw-storage` | `raw-storage__list-value--warn` |
-| `config-updated` | `config-updated` |
-| `sql-header-actions` | `sql-header-actions` |
+| `card-warnings` | `card-warnings` |
+| `thaw-input` | `thaw-input__input` |
+| `date-input` | `date-input` |
+| `doc-filters` | `doc-filters` |
+| `text-negative` | `text-negative` |
+| `filters-row` | `filters-row` |
+| `schema-test-tab` | `schema-test-tab` |
+| `modal-actions-top` | `modal-actions-top` |
+| `td-w-10p` | `td-w-10p` |
+| `sg-type-sans` | `sg-type-sans` |
 | `totals-row` | `totals-row` |
-| `noise-pattern` | `noise-pattern` |
-| `windows-list` | `windows-list__item--active` |
+| `tabs-art` | `tabs-art__tab--hover` |
+| `sql-header-actions` | `sql-header-actions` |
+| `bg-surface` | `bg-surface` |
+| `thaw-tab` | `thaw-tab` |
+| `status-invalid` | `status-invalid` |
 | `td-w-35p` | `td-w-35p` |
 | `field-type` | `field-type` |
-| `status-invalid` | `status-invalid` |
-| `modal-header` | `modal-header__left` |
-| `card-meta` | `card-meta` |
-| `tabs-art` | `tabs-art__tab--hover` |
-| `schema-name-link` | `schema-name-link` |
-| `excel-importer` | `excel-importer__import-btn` |
-| `warning-item` | `warning-item` |
-| `text-error` | `text-error` |
-| `thaw-textarea` | `thaw-textarea__textarea` |
-| `td-w-15p` | `td-w-15p` |
-| `details-grid` | `details-grid--2col` |
 | `toolbar` | `toolbar` |
 | `dv-drawer` | `dv-drawer__list` |
+| `excel-importer` | `excel-importer__import-btn` |
+| `modal-header` | `modal-header__left` |
+| `schema-name-link` | `schema-name-link` |
+| `noise-pattern` | `noise-pattern` |
+| `windows-list` | `windows-list__item--active` |
+| `details-grid` | `details-grid--2col` |
+| `thaw-textarea` | `thaw-textarea__textarea` |
+| `td-w-15p` | `td-w-15p` |
+| `header-right` | `header-right` |
+| `form-actions-center` | `form-actions-center` |
+| `config-name` | `config-name` |
 | `thaw-badge` | `thaw-badge` |
 | `button` | `button--info` |
-| `config-name` | `config-name` |
-| `sg-type-sans` | `sg-type-sans` |
-| `header-center` | `header-center` |
-| `plugins-link` | `plugins-link--muted` |
-| `bi-viewspec-editor` | `bi-viewspec-editor` |
-| `sql-code` | `sql-code` |
+| `warning-item` | `warning-item` |
+| `text-error` | `text-error` |
+| `td-w-20p` | `td-w-20p` |
 | `font-semibold` | `font-semibold` |
-| `status-valid` | `status-valid` |
-| `sql-display` | `sql-display` |
+| `bi-viewspec-editor` | `bi-viewspec-editor` |
+| `card-meta` | `card-meta` |
+| `schema-settings-tab` | `schema-settings-tab` |
+| `sql-code` | `sql-code` |
+| `btn` | `btn--ghost` |
 | `loading-placeholder` | `loading-placeholder` |
 | `td-w-46p` | `td-w-46p` |
-| `btn` | `btn--ghost` |
+| `header-center` | `header-center` |
+| `plugins-link` | `plugins-link--muted` |
 | `nomenclature-picker` | `nomenclature-picker__row--selected` |
 | `summary-box` | `summary-box` |
 | `font-bold` | `font-bold` |
 | `schema-list-header` | `schema-list-header` |
 | `text-link` | `text-link` |
-| `navigator` | `navigator__view-btn--active` |
-| `schema-settings-tab` | `schema-settings-tab` |
 | `th-w-35p` | `th-w-35p` |
-| `th-w-10p` | `th-w-10p` |
+| `navigator` | `navigator__view-btn--active` |
 | `input-action-btn` | `input-action-btn` |
-| `general-info` | `general-info__grid` |
-| `thaw-table-cell` | `thaw-table-cell` |
+| `th-w-10p` | `th-w-10p` |
+| `config-updated` | `config-updated` |
+| `role-select` | `role-select` |
 | `config-description` | `config-description` |
 | `text-success` | `text-success` |
-| `role-select` | `role-select` |
-| `td-w-20p` | `td-w-20p` |
-| `td-w-10p` | `td-w-10p` |
-| `gap-sm` | `gap-sm` |
-| `gldim-tree` | `gldim-tree__btn--active` |
-| `month-selector` | `month-selector` |
-| `cm-focused` | `cm-focused` |
-| `data-matrix` | `data-matrix__num` |
-| `dashboard-filters` | `dashboard-filters` |
-| `card-status` | `card-status` |
-| `bi-preview` | `bi-preview__empty-hint` |
 | `plugin-data-mode` | `plugin-data-mode__button--active` |
 | `info-message` | `info-message` |
+| `month-selector` | `month-selector` |
+| `gap-sm` | `gap-sm` |
+| `gldim-tree` | `gldim-tree__btn--active` |
+| `general-info` | `general-info__grid` |
+| `thaw-table-cell` | `thaw-table-cell` |
+| `bi-preview` | `bi-preview__empty-hint` |
+| `dashboard-filters` | `dashboard-filters` |
+| `card-status` | `card-status` |
+| `status-valid` | `status-valid` |
+| `sql-display` | `sql-display` |
+| `modal` | `modal__actions` |
 | `field-db-column` | `field-db-column` |
 | `d406-na` | `d406-na` |
-| `modal` | `modal__actions` |
+| `cm-focused` | `cm-focused` |
+| `data-matrix` | `data-matrix__num` |
 

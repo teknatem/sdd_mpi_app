@@ -166,7 +166,7 @@ mod tests {
     /// Прямое воспроизведение против ЖИВОЙ БД: до фикса SUM(qty) пропадал (только product_name).
     /// #[ignore] — требует локальный app.db; путь берётся из APP_DB_PATH, чтобы тест не был
     /// привязан к конкретной машине. Запуск:
-    /// `$env:APP_DB_PATH="F:/data/leptos_marketplace_1/app.db"; cargo test ... -- --ignored --nocapture`
+    /// `$env:APP_DB_PATH="F:/data/sdd_mpi_app/app.db"; cargo test ... -- --ignored --nocapture`
     #[tokio::test]
     #[ignore]
     async fn live_db_aggregate_column_present() {

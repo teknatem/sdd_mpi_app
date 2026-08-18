@@ -7,7 +7,7 @@ tags: [ui, design, forms, thaw, leptos]
 
 # Runbook: Details Form Design Pattern
 
-Standard design pattern for read-only detail forms in the Leptos Marketplace project.
+Standard design pattern for read-only detail forms in the Integrator (MPI) project.
 
 ## Structure
 

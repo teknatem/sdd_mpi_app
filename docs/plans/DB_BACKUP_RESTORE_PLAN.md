@@ -64,7 +64,7 @@ region         = "ru-central1"
 prefix         = "app-db/"                             # ключи: app-db/<instance>/app_<UTC>_<sha>.db.gz
 # access_key_id / secret_key — из env (YC_S3_ACCESS_KEY_ID / YC_S3_SECRET_KEY)
 # --- disk ---
-disk_dir       = "F:/data/leptos_marketplace_1/backups"
+disk_dir       = "F:/data/sdd_mpi_app/backups"
 # --- общее ---
 retention_keep = 14                                    # keep-N: хранить N последних копий
 restore_on_empty = false                               # bootstrap нового инстанса из последнего бэкапа
@@ -170,5 +170,5 @@ Manifest (JSON) рядом с каждым бэкапом (ключевое ду
 
 ## Связанные документы
 
-- `TAURI_CLIENT_PLAN.md` — тонкий клиент (там тоже мультибэкенд/нативные интеграции).
+- тонкий клиент SDD Desktop (репо `F:\dev\sdd_desktop`, там тоже мультибэкенд/нативные интеграции).
 - Memory: `db-backup-restore-plan.md`, `plugin-s3-distribution.md`, `working-database-path.md`.

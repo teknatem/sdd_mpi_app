@@ -143,8 +143,11 @@ JSON-режиме остаются измеримым результатом и 
 
 ### Архивировать
 
-- `aggregate-standard.md`: старые `api/server/app`, `_aggregate.toml`,
-  несуществующие `aggregate-gen` и `aggregate-validator`;
+- ~~`aggregate-standard.md`: старые `api/server/app`, `_aggregate.toml`,
+  несуществующие `aggregate-gen` и `aggregate-validator`;~~ **удалён 2026-08-18** —
+  не в архив, а насовсем: документ описывал структуру, которой в коде нет ни одного
+  файла, а живую замену дают `architecture.toml` (правила) и `F:\dev\sdd\SDD.md`
+  (метод). Содержимое доступно в истории git;
 - `aggregate-structure-final.md`: исторический проект структуры, частично
   заменённый metadata-системой и исполняемым стандартом.
 

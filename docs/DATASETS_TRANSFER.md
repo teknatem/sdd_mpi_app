@@ -50,7 +50,7 @@ scope `sys_datasets`).
 ### Конфиг
 
 ```toml
-[data]     root  = "F:/data/leptos_marketplace_1"   # единственный путь в основном режиме
+[data]     root  = "F:/data/sdd_mpi_app"   # единственный путь в основном режиме
 [instance] id = "prod-01"  label = "Рабочий"  env = "production"   # production|staging|dev
 [datasets] keep_per_instance = 10  max_bundle_mb = 256  attachments_enabled = false
 ```

@@ -2,7 +2,7 @@
 -- Тестовые данные: BI Индикаторы (a024_bi_indicator)
 -- ============================================================
 -- Запуск:
---   sqlite3 "F:/data/leptos_marketplace_1/app.db" < scripts/test_data_a024_bi_indicator.sql
+--   sqlite3 "F:/data/sdd_mpi_app/app.db" < scripts/test_data_a024_bi_indicator.sql
 -- Или через API:
 --   POST /api/a024-bi-indicator/testdata
 -- ============================================================

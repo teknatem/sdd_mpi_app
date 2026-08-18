@@ -63,7 +63,7 @@ Naming:
 2. **IMMEDIATELY create actual files** in the filesystem:
    - Create necessary directories if they don't exist
    - Write each file using the Write tool
-   - Use absolute paths from workspace root (f:\dev\leptos_marketplace_1\)
+   - Use absolute paths from workspace root (f:\dev\sdd_mpi_app\)
 3. **Verify files are created** by listing directories
 4. **Use current year** (2025) in dates, not 2024
 

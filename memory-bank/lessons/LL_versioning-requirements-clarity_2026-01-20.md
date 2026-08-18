@@ -100,4 +100,4 @@ When hearing ambiguous terms:
 
 ## References
 - [[2026-01-20_session-debrief_llm-artifact-implementation|Session Debrief]]
-- [[RB_add-new-aggregate-ddd-vsa_v1|Runbook: Adding New Aggregate]]
+- [[RB_add-new-aggregate-sdd_v1|Runbook: Adding New Aggregate]]

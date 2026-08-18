@@ -56,7 +56,7 @@
 | [ADR-0003](ADR-0003-scheduled-tasks-architecture.md) | Планировщик задач: `TaskRegistry`, tokio-воркер, логи в JSON-файлы вне БД | accepted |
 | [ADR-0004](ADR-0004-modal-stack-standard.md) | Единый стандарт модалок: `ModalStackService` + `ModalFrame` | accepted |
 | [ADR-0005](ADR-0005-frontend-app-shell-tabs-structure.md) | Структура каркаса фронта: `app.rs` → `app_shell.rs` → `layout/tabs/` | accepted |
-| [ADR-0006](ADR-0006-vsa-system-naming.md) | Именование `system`-модулей в VSA (без префикса `sys_`) | accepted |
+| [ADR-0006](ADR-0006-vsa-system-naming.md) | Именование `system`-модулей (VSA — прежнее имя метода, ныне SDD) (без префикса `sys_`) | accepted |
 | [ADR-0007](ADR-0007-api-structure-separation.md) | Разделение API: `api/` (бизнес) и `system/api/` (системный) | accepted |
 | [ADR-0008](ADR-0008-sql-preview-on-demand.md) | SQL-превью генерируется по запросу, а не хранится в конфиге | accepted |
 | [ADR-0009](ADR-0009-access-control.md) | Управление доступом: `is_admin` override + `primary_role` + матрица scope, default deny | accepted |

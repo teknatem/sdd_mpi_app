@@ -48,7 +48,6 @@
   [`thaw-ui-standard.md`](architecture/thaw-ui-standard.md),
   [`document-general-ledger-tab-standard.md`](architecture/document-general-ledger-tab-standard.md)
 - **Слои и объекты**: [`domain-layer-architecture.md`](architecture/domain-layer-architecture.md),
-  [`aggregate-standard.md`](architecture/aggregate-standard.md),
   [`aggregate-structure-final.md`](architecture/aggregate-structure-final.md),
   [`metadata-system.md`](architecture/metadata-system.md) (см. ADR-0001),
   [`data-view-system.md`](architecture/data-view-system.md),
@@ -64,7 +63,7 @@
 
 | Задача | Runbook |
 |---|---|
-| Новый агрегат `a0XX` | [`RB_add-new-aggregate-ddd-vsa_v1.md`](runbooks/RB_add-new-aggregate-ddd-vsa_v1.md) |
+| Новый агрегат `a0XX` | [`RB_add-new-aggregate-sdd_v1.md`](runbooks/RB_add-new-aggregate-sdd_v1.md) |
 | Миграция БД | [`RB_db-migration-workflow_v1.md`](runbooks/RB_db-migration-workflow_v1.md) |
 | Добавить метаданные агрегату | [`RB__metadata-add-to-aggregate__v1.md`](runbooks/RB__metadata-add-to-aggregate__v1.md) |
 | Новое регламентное задание | [`RB__scheduled-tasks-implementation__v1.md`](runbooks/RB__scheduled-tasks-implementation__v1.md) |

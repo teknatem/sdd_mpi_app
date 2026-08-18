@@ -2,8 +2,8 @@
 # Creates timestamped backups of the database
 
 # Рабочие данные лежат вне репозитория (см. [database].path в config.toml)
-$DataRoot = "F:\data\leptos_marketplace_1"
-$DbPath = "$DataRoot\app.db"
+$DataRoot = "F:\data\sdd_mpi_app"
+$DbPath = "$DataRoot\db\app.db"
 $BackupDir = "$DataRoot\backups"
 $Timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $BackupPath = "$BackupDir\app_backup_$Timestamp.db"

@@ -1,15 +1,15 @@
 ---
 type: runbook
 version: 1
-topic: Adding New Aggregate in DDD/VSA Architecture
+topic: Adding New Aggregate in DDD/SDD Architecture
 date: 2026-01-20
 tags: [ddd, vsa, aggregate, architecture, leptos, rust]
 ---
 
-# Runbook: Adding New Aggregate (DDD/VSA)
+# Runbook: Adding New Aggregate (DDD/SDD)
 
 ## Purpose
-Step-by-step procedure for adding a new aggregate to the Leptos Marketplace project following Domain-Driven Design and Vertical Slice Architecture patterns.
+Step-by-step procedure for adding a new aggregate to the Integrator (MPI) project following Domain-Driven Design and Slice-Driven Design (SDD) patterns.
 
 ## Prerequisites
 - Understanding of DDD concepts (aggregates, entities, value objects)

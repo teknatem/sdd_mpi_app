@@ -53,8 +53,11 @@
 
 | План | Статус |
 |---|---|
-| [plans/TAURI_CLIENT_PLAN.md](plans/TAURI_CLIENT_PLAN.md) | не начато — Tauri в репозитории нет |
 | [plans/DB_BACKUP_RESTORE_PLAN.md](plans/DB_BACKUP_RESTORE_PLAN.md) | заменён «Наборами данных»; перенос БД — их фаза 2 |
+
+План тонкого клиента отсюда удалён: он был устаревшей копией. Клиент — отдельный
+продукт **SDD Desktop** со своим репозиторием `F:\dev\sdd_desktop`, живой план —
+`TAURI_CLIENT_PLAN.md` там. Для MPI клиент это обычный браузер (см. `F:\dev\sdd\CONTRACTS.md`).
 
 ## `_archive/`
 

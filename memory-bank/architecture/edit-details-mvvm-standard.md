@@ -1,6 +1,6 @@
 # EditDetails MVVM Standard
 
-Стандарт для **редактируемых** форм details в проекте Leptos Marketplace.
+Стандарт для **редактируемых** форм details в проекте Integrator (MPI).
 
 > **Область действия.** Этот документ дополняет `detail-page-standard.md`
 > (просмотровые detail-страницы) частью про редактирование: ViewModel с

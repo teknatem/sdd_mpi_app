@@ -1,6 +1,13 @@
 # CLAUDE.md
 
-Гид для Claude Code по проекту **leptos_marketplace_1** — десктопная система управления маркетплейсами (1С:УТ 11, Wildberries, Ozon, Yandex Market) на Rust/Leptos.
+Гид для Claude Code по проекту **Integrator (MPI)** — десктопная система управления маркетплейсами (1С:УТ 11, Wildberries, Ozon, Yandex Market) на Rust/Leptos. Каталог репозитория — `sdd_mpi_app`.
+
+> **Экосистема.** MPI — приложение экосистемы SDD в `F:\dev`: `sdd_studio` (анализатор),
+> `sdd_desktop` (тонкий клиент), `sdd` (канон — имена, метод, схема манифеста, контракты).
+> Разрешённых связей ровно две, обе со Studio: он читает `architecture.toml` и пишет
+> `.vsa_designer/`, откуда `gen_code_metrics.ps1` берёт число findings. Полный список —
+> `F:\dev\sdd\CONTRACTS.md`. В memory-bank и исходники соседних репо не ходим: это
+> защита контекста, а не гигиена.
 
 > **Источник истины — код.** При расхождениях приоритет:
 > `код` > `CONTEXT.md` > авто-память > `memory-bank/` > `docs/`.
@@ -319,9 +326,9 @@ GL — скелет финансовой модели. Поверх неё ко�
 - **Миграции БД** — SQL-файлы `migrations/NNNN_имя.sql`, применяются автоматически при старте бэкенда (`shared/data/migration_runner.rs`, трекинг по checksum). Новая миграция = следующий номер.
 - Soft delete (`is_deleted`); сложные поля хранятся JSON-ом в БД.
 - Фронт: `spawn_local` для async, `RwSignal` для состояния; per-page CSS в `static/pages/<page>.css` под корневым классом страницы (см. memory `per-page-css-convention`).
-- Боевая БД и knowledge — вне репозитория: `F:/data/leptos_marketplace_1/` (пути в `config.toml`).
+- Боевая БД и knowledge — вне репозитория: `F:/data/sdd_mpi_app/` (пути в `config.toml`).
   Диск F: отдан под проекты: `F:\dev\<проект>` — репозитории, `F:\data\<проект>` — рабочие данные.
-  Файл БД — `F:/data/leptos_marketplace_1/db/app.db` (~3 ГБ), knowledge — соседний `knowledge/`.
+  Файл БД — `F:/data/sdd_mpi_app/db/app.db` (~3 ГБ), knowledge — соседний `knowledge/`.
   **Никогда не запускай `sqlite3 app.db` из рабочего каталога** — sqlite молча создаст пустышку,
   и дальше всё «пустое». Всегда абсолютный путь.
 - **Все данные — под одним корнем `[data].root`**: это единственный путь в конфиге в
@@ -366,7 +373,7 @@ GL — скелет финансовой модели. Поверх неё ко�
     разменянного. Конвенции кодирования — в `code-standards/`, не в ADR.
   - `architecture/` — **UI-стандарты** (detail-страницы, списки, таблицы, модалки, CSS).
     Самый большой раздел; сюда идти за «как должна выглядеть страница», а не грепать код.
-  - `runbooks/` — пошаговые сценарии повторяющихся задач: `RB_add-new-aggregate-ddd-vsa_v1`
+  - `runbooks/` — пошаговые сценарии повторяющихся задач: `RB_add-new-aggregate-sdd_v1`
     (новый агрегат), `RB_db-migration-workflow_v1` (миграция),
     `RB__metadata-add-to-aggregate__v1` (метаданные). Загляни **до** того, как делать вручную.
   - `lessons/`, `known-issues/` — грабли Leptos/Thaw/Rust; много записей конца 2025 — сверяйся с кодом.

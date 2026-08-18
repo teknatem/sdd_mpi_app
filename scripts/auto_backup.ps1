@@ -2,8 +2,8 @@
 # This creates a backup only if database has changed since last backup
 
 # Рабочие данные лежат вне репозитория (см. [database].path в config.toml)
-$DataRoot = "F:\data\leptos_marketplace_1"
-$DbPath = "$DataRoot\app.db"
+$DataRoot = "F:\data\sdd_mpi_app"
+$DbPath = "$DataRoot\db\app.db"
 $BackupDir = "$DataRoot\backups"
 $LatestBackup = "$BackupDir\app_latest.db"
 

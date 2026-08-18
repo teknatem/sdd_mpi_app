@@ -73,19 +73,19 @@ Read: config.toml
 **Логика разрешения пути:**
 
 - Основной режим: секции `[database]` нет, есть `[data].root` → база лежит в
-  `<root>/db/app.db` (путь абсолютный, например `F:/data/leptos_marketplace_1/db/app.db`).
+  `<root>/db/app.db` (путь абсолютный, например `F:/data/sdd_mpi_app/db/app.db`).
 - Отклонение: задан `[database].path` — использовать его как есть (он обязан быть
   абсолютным; относительный путь приложение отвергает при старте).
 
 Если `config.toml` не найден или ни одна из настроек не задана — БД найти нельзя,
 спроси путь у пользователя.
 
-Боевая БД лежит вне репозитория: `F:/data/leptos_marketplace_1/app.db`. Проверь реальное
+Боевая БД лежит вне репозитория: `F:/data/sdd_mpi_app/app.db`. Проверь реальное
 существование файла перед запросами:
 
 ```powershell
 # Проверить что файл существует
-Test-Path "F:/data/leptos_marketplace_1/app.db"
+Test-Path "F:/data/sdd_mpi_app/app.db"
 # Если нет — искать в корне данных
 Get-ChildItem -Recurse -Filter "app.db" -Path "F:\data" -ErrorAction SilentlyContinue | Select-Object FullName
 ```

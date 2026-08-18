@@ -94,7 +94,7 @@ ps aux | grep -E "backend|trunk|cargo"
 
 ```powershell
 # 1. Navigate to project root
-cd f:\dev\leptos_marketplace_1
+cd f:\dev\sdd_mpi_app
 
 # 2. Stop trunk serve (Ctrl+C in its terminal)
 
@@ -128,7 +128,7 @@ trunk serve
 # - Ctrl+C in backend terminal (or stop debugging)
 
 # 2. Navigate to project root
-cd f:\dev\leptos_marketplace_1
+cd f:\dev\sdd_mpi_app
 
 # 3. Full cargo clean
 cargo clean
@@ -162,7 +162,7 @@ cargo build --target=wasm32-unknown-unknown --manifest-path crates/frontend/Carg
 # 1. Stop ALL processes immediately
 
 # 2. Navigate to project root
-cd f:\dev\leptos_marketplace_1
+cd f:\dev\sdd_mpi_app
 
 # 3. Remove debug artifacts manually (largest first)
 Remove-Item -Path "target\wasm32-unknown-unknown\debug" -Recurse -Force -ErrorAction SilentlyContinue
@@ -343,7 +343,7 @@ if ($percentFree -lt 10) {
 ```toml
 [build]
 # Move target to larger drive
-target-dir = "D:/rust-target/leptos_marketplace_1"
+target-dir = "D:/rust-target/sdd_mpi_app"
 ```
 
 ---

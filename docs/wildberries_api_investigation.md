@@ -212,7 +212,7 @@ Logs are written to:
 
 ### Step 1: Run Backend
 ```powershell
-cd C:\dev\rust\marketplace\leptos_marketplace_1
+cd F:\dev\sdd_mpi_app
 cargo run --bin backend
 ```
 
