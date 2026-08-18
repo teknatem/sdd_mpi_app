@@ -1,6 +1,6 @@
 //! ViewModel for YM Order details
 
-use super::model::*;
+use super::api::*;
 use leptos::prelude::*;
 use std::collections::HashMap;
 use wasm_bindgen_futures::spawn_local;

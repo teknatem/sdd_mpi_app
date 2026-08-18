@@ -1,4 +1,4 @@
-use super::model::{self, ConnectionMPFormDto};
+use super::api::{self, ConnectionMPFormDto};
 use contracts::domain::a006_connection_mp::ConnectionTestResult;
 use leptos::prelude::*;
 use std::rc::Rc;
@@ -85,7 +85,7 @@ impl ConnectionMPDetailsVm {
         let organization_name = self.organization_name;
 
         wasm_bindgen_futures::spawn_local(async move {
-            match model::fetch_by_id(id).await {
+            match api::fetch_by_id(id).await {
                 Ok(conn) => {
                     let marketplace_id = conn.marketplace_id.clone();
                     let organization_ref = conn.organization_ref.clone();
@@ -93,13 +93,13 @@ impl ConnectionMPDetailsVm {
                     form.set(ConnectionMPFormDto::from(conn));
 
                     // Загрузить информацию о маркетплейсе
-                    if let Ok(mp_info) = model::fetch_marketplace_info(&marketplace_id).await {
+                    if let Ok(mp_info) = api::fetch_marketplace_info(&marketplace_id).await {
                         marketplace_name.set(mp_info.name);
                         marketplace_code.set(mp_info.code);
                     }
 
                     // Загрузить название организации по UUID
-                    match model::fetch_organization_name(&organization_ref).await {
+                    match api::fetch_organization_name(&organization_ref).await {
                         Ok(name) if !name.is_empty() => organization_name.set(name),
                         _ => organization_name.set(organization_ref),
                     }
@@ -125,7 +125,7 @@ impl ConnectionMPDetailsVm {
         let error = self.error;
 
         wasm_bindgen_futures::spawn_local(async move {
-            match model::save_form(&dto).await {
+            match api::save_form(&dto).await {
                 Ok(()) => (on_saved_cb)(()),
                 Err(e) => error.set(Some(e)),
             }
@@ -154,7 +154,7 @@ impl ConnectionMPDetailsVm {
         let error = self.error;
 
         wasm_bindgen_futures::spawn_local(async move {
-            match model::test_connection(&dto).await {
+            match api::test_connection(&dto).await {
                 Ok(result) => {
                     test_result.set(Some(result));
                     is_testing.set(false);
@@ -188,7 +188,7 @@ impl ConnectionMPDetailsVm {
         let error = self.error;
 
         wasm_bindgen_futures::spawn_local(async move {
-            match model::fetch_seller_info(&dto).await {
+            match api::fetch_seller_info(&dto).await {
                 Ok(result) => {
                     seller_info_result.set(Some(result));
                     is_fetching_info.set(false);

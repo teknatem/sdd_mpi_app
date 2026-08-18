@@ -206,6 +206,8 @@
   --color-error-200: rgba(244, 67, 54, 0.30);
   --color-btn-primary-text: #ffffff;
   --color-warning-50: #ffecb3;
+  --color-warning-100: rgba(255, 167, 38, 0.18);
+  --color-warning-200: rgba(255, 167, 38, 0.30);
   --color-warning-500: #ffa726;
   --color-warning-600: #fb8c00;
   --color-warning-700: #f57f17;

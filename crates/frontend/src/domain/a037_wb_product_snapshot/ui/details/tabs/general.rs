@@ -1,6 +1,6 @@
 //! General tab - document, links, totals and technical info.
 
-use super::super::model::{fmt_date, fmt_dt, fmt_money};
+use super::super::api::{fmt_date, fmt_dt, fmt_money};
 use super::super::view_model::WbProductSnapshotDetailsVm;
 use crate::shared::components::card_animated::CardAnimated;
 use leptos::prelude::*;

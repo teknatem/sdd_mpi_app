@@ -1,4 +1,4 @@
-//! LLM Chat Details - Model (API functions)
+//! LLM Chat Details - API Layer
 
 use super::view_model::FileInfo;
 use crate::shared::api_utils::api_base;

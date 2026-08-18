@@ -67,8 +67,23 @@ const PLUGIN_DATAVIEW_HINTS: &[(&str, &str)] = &[(
      cart_conv_pct|order_conv_pct|buyout_pct).",
 )];
 
+/// Ключ вкладки страницы «Метрики проекта».
+const METRICS_PAGE_KEY: &str = "sys_metrics";
+
 /// Разобрать ключ вкладки в ссылку на страницу. Зеркалит правила tabs/registry.rs.
 fn parse_page_key(key: &str) -> PageRef {
+    // Метрики проекта: не агрегат и не отчёт, но единственная страница, чей
+    // смысл целиком в числах. Без собственного типа она падала в `other` и
+    // уезжала в чат одним лишь ключом вкладки — консультировать было не по чему.
+    if key == METRICS_PAGE_KEY {
+        return PageRef {
+            page_type: "system_metrics",
+            kind: None,
+            entity_index: None,
+            entity_id: None,
+        };
+    }
+
     // Дрилдаун-сессии
     if key.starts_with("drilldown__") || key.starts_with("gl_drilldown__") {
         let session = key.splitn(2, "__").nth(1).unwrap_or("").to_string();
@@ -277,6 +292,23 @@ pub async fn build_for_page_key_with_session(
         }
     }
 
+    // Метрики проекта. Срез собирается общим кодом с инструментом
+    // `get_project_metrics`, чтобы числа в контексте и в ответе инструмента не
+    // разошлись; текст для диалога — только то, что перешло порог.
+    let mut metrics_text: Option<String> = None;
+    if pr.page_type == "system_metrics" {
+        match crate::system::metrics::latest().await {
+            Ok(data) => {
+                ctx["metrics"] = crate::system::metrics::llm_view::summary(&data);
+                metrics_text = Some(crate::system::metrics::llm_view::rendered_text(&data));
+            }
+            Err(e) => {
+                tracing::warn!("context: не удалось прочитать метрики проекта: {e}");
+                ctx["metrics"] = json!({ "error": e.to_string() });
+            }
+        }
+    }
+
     // Описание сущности и список FK-полей из метаданных.
     let mut entity_name: Option<String> = None;
     let mut entity_desc: Option<String> = None;
@@ -431,6 +463,10 @@ pub async fn build_for_page_key_with_session(
     if let Some(lbl) = &identity_label {
         text.push_str(&format!("Объект: {}\n", lbl));
     }
+    if let Some(metrics) = &metrics_text {
+        text.push('\n');
+        text.push_str(metrics);
+    }
     if pr.page_type == "plugin" {
         if let Some(t) = &plugin_title {
             text.push_str(&format!("Плагин: {}\n", t));
@@ -496,5 +532,40 @@ pub async fn build_for_page_key_with_session(
         entity_id: pr.entity_id,
         context_json: ctx,
         rendered_text: text,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metrics_page_gets_its_own_type() {
+        // Пока `sys_metrics` падал в `other`, в чат уезжал один ключ вкладки:
+        // консультировать по состоянию приложения было не по чему.
+        let pr = parse_page_key(METRICS_PAGE_KEY);
+        assert_eq!(pr.page_type, "system_metrics");
+        assert!(pr.entity_index.is_none());
+    }
+
+    #[test]
+    fn regular_pages_keep_their_types() {
+        assert_eq!(parse_page_key("a015_wb_orders").page_type, "aggregate_list");
+        assert_eq!(
+            parse_page_key("a015_wb_orders_details_42").page_type,
+            "aggregate"
+        );
+        // Списки проекций и агрегатов делят один тип; `report` — только деталь p9XX.
+        assert_eq!(
+            parse_page_key("p903_wb_finance_report").page_type,
+            "aggregate_list"
+        );
+        assert_eq!(
+            parse_page_key("p903_wb_finance_report_details_7").page_type,
+            "report"
+        );
+        assert_eq!(parse_page_key("d407_llm_quality").page_type, "dashboard");
+        assert_eq!(parse_page_key("plugin__abc").page_type, "plugin");
+        assert_eq!(parse_page_key("sys_settings").page_type, "other");
     }
 }

@@ -1,6 +1,6 @@
 //! Lines Tab - Return line items with sortable table
 
-use super::super::model::{LineDto, TABLE_ID_LINES};
+use super::super::api::{LineDto, TABLE_ID_LINES};
 use crate::shared::list_utils::{get_sort_class, get_sort_indicator};
 use leptos::prelude::*;
 use std::cmp::Ordering;

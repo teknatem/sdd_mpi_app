@@ -6,6 +6,18 @@
 # предыдущая дублированная карта проекта была удалена именно поэтому. Здесь —
 # один источник, который читают и люди, и инструменты.
 #
+# Файл ИСПОЛНЯЕТСЯ. `tools/check_architecture.ps1` читает раздел [[rules]] и
+# сверяет с ним дерево исходников; `tools/gen_code_metrics.ps1` записывает
+# число нарушений в `arch.naming_violations`, а храповик `check_health.ps1`
+# не даёт ему расти. До появления валидатора этот файл был декларацией — ровно
+# в том положении, в каком тихо умер naming-conventions.md (см. Цель 2).
+#
+# Как заводить новое правило: добавить блок [[rules]] ниже. Скрипт — движок
+# для типов проверок, сами правила живут здесь. Если правило не должно
+# применяться к конкретному месту — у него есть `waivers` с обязательным `why`.
+# Отключать правило, чтобы пройти проверку, нельзя: waiver записывает причину,
+# удаление правила её теряет.
+#
 # Чего здесь НЕТ намеренно:
 #   * перечня конкретных объектов (a012, p904, dv001…) — он в ARCHITECTURE.md,
 #     который генерируется из кода и потому всегда точен. Список, введённый
@@ -18,11 +30,13 @@
 # Дата замера — в [meta].
 
 [meta]
-schema_version = 1
+schema_version = 2
 measured_at = "2026-08-17"
-measured_commit = "3751843"
+measured_commit = "c3e73f1"
 # Как перепроверить числа в [roles.*]: посчитать файлы по ролям в срезах
 # соответствующего вида. Расхождение = либо код уехал, либо файл устарел.
+# Обязательные роли (100 %) проверяет валидатор — они не могут разойтись молча;
+# доли опциональных ролей — справочные, их сверяют глазами при правке файла.
 
 # ---------------------------------------------------------------------------
 # Слои и их статус
@@ -63,7 +77,7 @@ usecase      = { prefix = "u", pattern = "u\\d{3}_", range = [501, 999] }
 projection   = { prefix = "p", pattern = "p9\\d{2}_", range = [900, 999] }
 dashboard    = { prefix = "d", pattern = "d4\\d{2}_", range = [400, 499] }
 data_scheme  = { prefix = "ds", pattern = "ds\\d{2}_", range = [1, 99] }
-data_view    = { prefix = "dv", pattern = "dv\\d{3}", range = [1, 999] }
+data_view    = { prefix = "dv", pattern = "dv\\d{3}_", range = [1, 999] }
 task         = { prefix = "task", pattern = "task\\d{3}_", range = [1, 999] }
 
 # ---------------------------------------------------------------------------
@@ -81,6 +95,7 @@ optional = ["representation.rs", "posting.rs", "change_token.rs", "llm.md"]
 # representation.rs 14/43 — нужен только тем, кто участвует в drilldown.
 # posting.rs 11/43 — только у документов, которые проводятся в Главную книгу.
 # change_token.rs 4/43 — только там, где нужна инвалидация кэша фронта.
+# llm.md 7/43 — заметки для LLM у тех срезов, где домен неочевиден.
 
 [roles.aggregate.contracts]
 required = ["mod.rs", "aggregate.rs", "metadata.json", "metadata_gen.rs"]  # 43/43
@@ -90,7 +105,24 @@ optional = []
 
 [roles.aggregate.frontend]
 required = ["mod.rs"]              # 43/43
-optional = ["ui"]                  # 41/43 — см. [deviations.a034_a035]
+optional = ["ui"]                  # 41/43 — см. [deviations.a034_a035_no_ui_dir]
+
+# Под-роли страницы агрегата. Именно здесь копился самый массовый разнобой:
+# слой HTTP-доступа звался `model.rs` в domain и `api.rs` во всех остальных
+# слоях фронта, а главный компонент — то `page.rs`, то `view.rs`. Приведено
+# к единой триаде 2026-08-17; возврат старых имён ловит правило
+# `fe_details_retired_names`.
+[roles.aggregate.frontend.details]
+required = ["mod.rs"]                                    # 38/38
+optional = ["api.rs", "view_model.rs", "page.rs", "tabs"]
+# api.rs 22/38 · view_model.rs 22/38 · page.rs 24/38 · tabs/ 14/38.
+# Триада api+view_model+page — стандарт MVVM для страницы со вкладками;
+# простым страницам хватает mod.rs + page.rs.
+
+[roles.aggregate.frontend.list]
+required = ["mod.rs"]              # 39/39
+optional = ["state.rs", "widget.rs"]
+# state.rs 28/39 — вынесенное состояние списка; у остальных оно внутри mod.rs.
 
 [roles.projection.backend]
 required = ["mod.rs", "repository.rs"]                          # 17/17
@@ -98,28 +130,60 @@ optional = ["service.rs", "builder.rs", "general_ledger_builder.rs", "representa
 # builder.rs — построение самой проекции; general_ledger_builder.rs — отдельная
 # роль (проводки в ГК), не синоним. Раньше первая называлась двумя именами
 # (builder.rs / projection_builder.rs); приведено к builder.rs.
+# service.rs 12/17 · builder.rs 7/17 · остальные по 2/17.
+
+[roles.projection.contracts]
+required = ["mod.rs"]                                           # 17/17
+optional = ["dto.rs", "metadata.json", "metadata_gen.rs"]
+# dto.rs 16/17, metadata.* 17/17 у проекций (у general_ledger своя раскладка).
 
 [roles.usecase.backend]
 required = ["mod.rs", "executor.rs", "progress_tracker.rs"]     # 8/8
-optional = ["processors", "api"]
+optional = ["processors", "docs", "llm.md"]
+# processors/ 3/8. docs/ 2/8 — описания внешних API маркетплейсов рядом с
+# клиентом, который их вызывает. Каталог назывался `api/`, что читалось как
+# роль кода (ср. api.rs фронтового usecase); переименован 2026-08-17.
+# Клиент внешнего API — <vendor>_api_client.rs, 6/8 (у u505 и u508 его нет:
+# они не ходят наружу).
 
 [roles.usecase.frontend]
 required = ["mod.rs", "view.rs", "api.rs"]                      # 8/8
 optional = []
 # Было api.rs (5) / ops.rs (3) для одной и той же роли. Приведено к api.rs.
 
+[roles.dashboard.frontend]
+required = ["mod.rs"]              # 8/8
+optional = ["api.rs", "ui", "ui.rs"]
+# api.rs 7/8. ui/ против ui.rs — раскладка, а не имя роли, см.
+# [conventions.module_layout]. Бэкенд-часть есть только у d400 —
+# см. [deviations.frontend_only_dashboards].
+
+[roles.data_view.backend]
+required = ["mod.rs", "metadata.json"]    # 8/8
+optional = ["llm.md"]                     # 2/8
+# metadata.json несёт `id` — он обязан совпадать с именем каталога, это
+# проверяет правило `dv_dir_matches_metadata`.
+
+[roles.data_scheme.backend]
+required = ["mod.rs"]              # 3/3
+optional = []
+# metadata.json у ds-схем нет: их описание живёт в самом mod.rs.
+
 # ---------------------------------------------------------------------------
 # Разделяемое ядро: имена, которые НЕ являются сущностями
 # ---------------------------------------------------------------------------
 # Каталог внутри слоя-среза, но без индекса. Инструмент, считающий их
 # агрегатами, получает мусорные метрики и ложные findings.
+#
+# Имя одно — `common`. Раньше их было два (`common` в contracts, `shared` во
+# фронте), и файл легализовал оба, то есть фиксировал разнобой вместо того,
+# чтобы его снять. Приведено к `common` 2026-08-17.
 
 [shared_kernel]
-names = ["common", "shared"]
+names = ["common"]
 paths = [
   "crates/*/src/domain/common",
   "crates/*/src/usecases/common",
-  "crates/*/src/usecases/shared",
 ]
 
 # ---------------------------------------------------------------------------
@@ -159,6 +223,11 @@ file_lines_hub  = 2000   # выше этого файл перестаёт бы�
 # появляется, когда они заводятся (или заведомо появятся: ui/list/, ui/details/
 # держат каталог ради позиционной роли имени).
 # Приводить одну форму к другой смысла нет — это выбор раскладки, а не имя роли.
+#
+# Единственное исключение — как раз позиционные `ui/list` и `ui/details`: имя
+# там несёт роль, а не только адрес, поэтому форма каталога обязательна и её
+# проверяет правило `fe_positional_ui_dirs`. Этим же правилом закрыт a043,
+# у которого были плоские ui/details.rs и ui/list.rs.
 both_forms_valid = true
 
 [conventions.api_paths]
@@ -172,6 +241,24 @@ both_forms_valid = true
 # недавних и однозначно связывает путь со срезом.
 unified = false
 preferred_for_new = "/api/aNNN/<name>"
+
+[conventions.doc_corpora]
+# kebab-case у части `.md` — НЕ разнобой, и приводить его к snake_case нельзя.
+# В этих каталогах имя файла является идентификатором ДАННЫХ, а не модуля:
+#   * crates/backend/skills/*.md — seed-каталог навыков. `skills.rs` пишет
+#     `relative_path` во внешний каталог [llm] skills_path при старте;
+#     переименование файла создаст дубль в боевых данных.
+#   * crates/backend/src/usecases/*/docs/*.md — статьи базы знаний.
+#     `knowledge_base.rs` использует основу имени как `id` статьи
+#     (id: "wb-api-overview"), и он же попадает в каталог `app/` боевых данных.
+# Правило `rust_snake_case` поэтому смотрит только на `.rs`.
+#
+# Snake_case остаётся нормой для `.md`, которые к данным не относятся:
+# `llm.md` рядом с кодом, prompts/, shared/llm/docs/.
+kebab_case_paths = [
+  "crates/backend/skills/**",
+  "crates/backend/src/usecases/*/docs/**",
+]
 
 # ---------------------------------------------------------------------------
 # Осознанные отклонения
@@ -235,3 +322,203 @@ import_nomenclature в executor.rs, скопировать вручную»), т
 Метрика code.orphan_files держит их число от роста.
 """
 intentional = false
+
+# ===========================================================================
+# Правила валидатора
+# ===========================================================================
+# Читает tools/check_architecture.ps1. Скрипт реализует ТИПЫ проверок, здесь
+# живут сами правила — поэтому новое правило добавляется правкой этого файла,
+# без изменения кода валидатора.
+#
+# Поля:
+#   id          короткое имя, попадает в отчёт и в диагностику
+#   type        тип проверки (см. список типов в шапке check_architecture.ps1)
+#   severity    "error" — считается гейтом; "warn" — только печатается
+#   scope       glob каталогов, к которым правило применяется
+#   exempt      globs, которые правило пропускает молча (структурные исключения)
+#   waivers     [{ path, why }] — точечные разрешения; `why` обязателен
+#
+# Разница exempt и waivers: exempt — «правило сюда не относится по смыслу»
+# (общее ядро не является срезом), waiver — «относится, но мы осознанно
+# разрешили вот здесь и вот почему». Второе видно в отчёте по -ShowWaived.
+
+# --- Обязательные роли ------------------------------------------------------
+
+[[rules]]
+id = "be_aggregate_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/backend/src/domain/a*"
+files = ["mod.rs", "repository.rs", "service.rs"]
+
+[[rules]]
+id = "co_aggregate_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/contracts/src/domain/a*"
+files = ["mod.rs", "aggregate.rs", "metadata.json", "metadata_gen.rs"]
+
+[[rules]]
+id = "fe_aggregate_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/frontend/src/domain/a*"
+files = ["mod.rs"]
+
+[[rules]]
+id = "be_projection_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/backend/src/projections/p*"
+files = ["mod.rs", "repository.rs"]
+
+[[rules]]
+id = "be_usecase_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/backend/src/usecases/u*"
+files = ["mod.rs", "executor.rs", "progress_tracker.rs"]
+
+[[rules]]
+id = "fe_usecase_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/frontend/src/usecases/u*"
+files = ["mod.rs", "view.rs", "api.rs"]
+
+[[rules]]
+id = "be_data_view_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/backend/src/data_view/dv*"
+files = ["mod.rs", "metadata.json"]
+
+# --- Одна роль — одно имя ---------------------------------------------------
+# Ровно то, ради чего файл получил зубы: переименования 2026-08-17 держатся
+# правилами, а не памятью. Без этих трёх блоков старое имя вернётся первым же
+# copy-paste со старого среза, и никто этого не заметит.
+
+[[rules]]
+id = "fe_details_retired_names"
+type = "forbidden_filename"
+severity = "error"
+scope = "crates/frontend/src/domain/*/ui/details"
+files = ["model.rs", "view.rs"]
+use_instead = "api.rs (HTTP-доступ) и page.rs (компонент страницы)"
+
+[[rules]]
+id = "fe_usecase_retired_names"
+type = "forbidden_filename"
+severity = "error"
+scope = "crates/frontend/src/usecases/u*"
+files = ["ops.rs"]
+use_instead = "api.rs"
+
+[[rules]]
+id = "be_projection_retired_names"
+type = "forbidden_filename"
+severity = "error"
+scope = "crates/backend/src/projections/p*"
+files = ["projection_builder.rs"]
+use_instead = "builder.rs"
+
+[[rules]]
+id = "fe_positional_ui_dirs"
+type = "forbidden_filename"
+severity = "error"
+scope = "crates/frontend/src/domain/*/ui"
+files = ["list.rs", "details.rs"]
+use_instead = "каталог list/ или details/ с mod.rs — имя там несёт роль, см. [conventions.module_layout]"
+
+# --- Индексы в именах каталогов ---------------------------------------------
+
+[[rules]]
+id = "domain_dir_names"
+type = "dir_name_pattern"
+severity = "error"
+scope = "crates/*/src/domain"
+pattern = "^a\\d{3}_[a-z0-9_]+$"
+exempt = ["crates/*/src/domain/common"]
+
+[[rules]]
+id = "projection_dir_names"
+type = "dir_name_pattern"
+severity = "error"
+scope = "crates/*/src/projections"
+pattern = "^p9\\d{2}_[a-z0-9_]+$"
+exempt = ["crates/*/src/projections/general_ledger"]
+
+[[rules]]
+id = "usecase_dir_names"
+type = "dir_name_pattern"
+severity = "error"
+scope = "crates/*/src/usecases"
+pattern = "^u5\\d{2}_[a-z0-9_]+$"
+exempt = ["crates/*/src/usecases/common"]
+
+[[rules]]
+id = "dashboard_dir_names"
+type = "dir_name_pattern"
+severity = "error"
+scope = "crates/*/src/dashboards"
+pattern = "^d4\\d{2}_[a-z0-9_]+$"
+
+[[rules]]
+id = "data_view_dir_names"
+type = "dir_name_pattern"
+severity = "error"
+scope = "crates/backend/src/data_view"
+pattern = "^dv\\d{3}_[a-z0-9_]+$"
+# Каталоги звались просто dv001…dv008 — единственное семейство индексов без
+# имени, и притом metadata.json внутри уже нёс полное имя. Переименованы
+# 2026-08-17; правило не даёт завести следующий dv без имени.
+
+[[rules]]
+id = "data_scheme_dir_names"
+type = "dir_name_pattern"
+severity = "error"
+scope = "crates/backend/src/data_schemes"
+pattern = "^ds\\d{2}_[a-z0-9_]+$"
+
+[[rules]]
+id = "task_file_names"
+type = "dir_name_pattern"
+severity = "warn"
+scope = "crates/backend/src/system/tasks/managers"
+pattern = "^task\\d{3}_[a-z0-9_]+$"
+# severity=warn, потому что каталогов там нет вовсе — правило держит место
+# под будущую проверку имён файлов task0NN и сейчас ничего не находит.
+
+# --- Имя каталога против собственных метаданных ------------------------------
+
+[[rules]]
+id = "dv_dir_matches_metadata"
+type = "dir_matches_metadata_id"
+severity = "error"
+scope = "crates/backend/src/data_view/dv*"
+# Только data_view: у агрегатов и проекций metadata.json описывает поля
+# сущности и поля `id` в нём нет — проверять там нечего.
+
+# --- Регистр имён -----------------------------------------------------------
+
+[[rules]]
+id = "rust_snake_case"
+type = "snake_case_files"
+severity = "error"
+scope = "crates/*/src"
+# Только .rs. Про `.md` см. [conventions.doc_corpora]: там имя файла —
+# идентификатор данных, и kebab-case является нормой, а не долгом.
+
+# --- Пути, которые компилятор не проверяет -----------------------------------
+
+[[rules]]
+id = "kb_source_path_sync"
+type = "embedded_doc_path_sync"
+severity = "error"
+file = "crates/backend/src/shared/llm/knowledge_base.rs"
+include_prefix = "crates/backend/src/shared/llm"
+# EmbeddedKnowledgeSource пишет путь документа ДВАЖДЫ: include_str!(..), который
+# проверяет rustc, и source_path: "..", который является просто строкой.
+# Переименуй каталог — вторая молча протухнет: статья продолжит работать, но
+# будет указывать на несуществующий исходник. Единственная проверка здесь,
+# которая ловит то, что компилятор поймать не может.

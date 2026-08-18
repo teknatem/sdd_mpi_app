@@ -1,4 +1,4 @@
-//! LLM Agent Details - Model Layer
+//! LLM Agent Details - API Layer
 //!
 //! DTOs and API functions for LLM Agent details
 

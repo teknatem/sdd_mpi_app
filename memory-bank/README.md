@@ -22,8 +22,15 @@
 индекс — в [`decisions/README.md`](decisions/README.md). Это самый ухоженный раздел, читай
 его конвенцию как образец.
 
-### `architecture/` — стандарты UI и слоёв (16 файлов)
+### `architecture/` — стандарты UI и слоёв (21 файл)
 Крупнейший раздел. Сюда идти за «как должна выглядеть страница», прежде чем грепать код.
+
+- **Программы и планы**: [`ARCHITECTURE_EVOLUTION_PROGRAM.md`](architecture/ARCHITECTURE_EVOLUTION_PROGRAM.md),
+  [`ARCHITECTURE_MODERNIZATION_PLAN.md`](architecture/ARCHITECTURE_MODERNIZATION_PLAN.md),
+  [`ARCHITECTURE_STANDARD_HARDENING_PLAN.md`](architecture/ARCHITECTURE_STANDARD_HARDENING_PLAN.md).
+  Предложения по будущей унификации инструкций разных AI-инструментов вынесены отдельно в
+  [`AGENT_DOCUMENTATION_OPTIMIZATION_PROPOSAL.md`](architecture/AGENT_DOCUMENTATION_OPTIMIZATION_PROPOSAL.md)
+  и не являются поручением на миграцию.
 
 - **⭐ Норматив UI**: [`ui-standard.md`](architecture/ui-standard.md) — единственный
   нормативный документ фронта: нумерованные правила UI-0XX с пометкой, кто их проверяет.

@@ -1,7 +1,7 @@
 // Временный файл для нового метода import_nomenclature
 // Этот код будет скопирован в executor.rs
 
-use super::{progress_tracker::ProgressTracker, ut_odata_client::UtODataClient};
+use super::{progress_tracker::ProgressTracker, ut_api_client::UtODataClient};
 use crate::domain::a004_nomenclature;
 use anyhow::Result;
 

@@ -1,6 +1,6 @@
 //! ViewModel for BiDashboard details form (EditDetails MVVM Standard)
 
-use super::model::{self, BiDashboardSaveDto};
+use super::api::{self, BiDashboardSaveDto};
 use leptos::prelude::*;
 
 #[derive(Clone)]
@@ -84,7 +84,7 @@ impl BiDashboardDetailsVm {
         leptos::task::spawn_local(async move {
             vm.loading.set(true);
             vm.error.set(None);
-            match model::fetch_by_id(&id).await {
+            match api::fetch_by_id(&id).await {
                 Ok(raw) => {
                     vm.from_raw(raw);
                 }
@@ -196,7 +196,7 @@ impl BiDashboardDetailsVm {
             vm.success.set(None);
 
             let dto = vm.to_dto();
-            match model::save_dashboard(dto).await {
+            match api::save_dashboard(dto).await {
                 Ok(new_id) => {
                     if vm.id.get_untracked().is_none() {
                         vm.id.set(Some(new_id));

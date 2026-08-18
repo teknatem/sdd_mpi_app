@@ -1,4 +1,4 @@
-//! LLM Connection Details - Model Layer
+//! LLM Connection Details - API Layer
 //!
 //! DTOs and API functions for LLM Connection details
 

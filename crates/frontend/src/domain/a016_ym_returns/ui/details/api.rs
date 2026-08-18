@@ -1,4 +1,4 @@
-//! Yandex Market Returns Details - Model Layer
+//! Yandex Market Returns Details - API Layer
 //!
 //! DTOs and API functions for YM returns details
 

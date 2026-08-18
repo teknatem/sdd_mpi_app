@@ -1,5 +1,5 @@
 use super::api::OPS;
-use crate::usecases::shared::{ImportPage, ImportUseCase};
+use crate::usecases::common::{ImportPage, ImportUseCase};
 use leptos::prelude::*;
 
 #[component]

@@ -1,6 +1,6 @@
 //! Projections Tab - Sales data (p904) projections
 
-use super::super::model::TABLE_ID_PROJECTIONS;
+use super::super::api::TABLE_ID_PROJECTIONS;
 use crate::shared::list_utils::{get_sort_class, get_sort_indicator};
 use leptos::prelude::*;
 use std::cmp::Ordering;

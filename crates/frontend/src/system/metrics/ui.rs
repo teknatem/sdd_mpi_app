@@ -9,11 +9,15 @@
 //! метриками, что перешли порог, и только под ним — полный разбор по группам.
 //! Это форма «выделение»: одна вещь громкая, остальные тихие.
 //!
+//! Полсотни плиток — это ещё и объём, по которому надо уметь ходить, поэтому
+//! к раскладке добавлены три механизма навигации: поиск по подстроке, липкие
+//! сворачиваемые заголовки групп и кнопка передачи всего снимка в AI-чат.
+//!
 //! Ни подписей, ни порогов, ни порядка плиток страница не знает: всё приходит с
 //! бэкенда из `METRIC_CATALOG`. Добавить метрику — правка каталога, здесь не
 //! нужно менять ничего.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use contracts::system::metrics::{
     DetailTable, MetricSnapshotDto, MetricStatus, MetricValueDto, ProjectMetricsDto,
@@ -21,10 +25,15 @@ use contracts::system::metrics::{
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use crate::domain::a018_llm_chat::ui::launch::launch_chat_with_context;
+use crate::layout::global_context::AppGlobalContext;
+use crate::shared::components::meta_strip::{MetaItem, MetaSection, MetaStrip};
 use crate::shared::components::page_header::PageHeader;
+use crate::shared::components::search_box::SearchBox;
 use crate::shared::components::table::number_format::format_number_with_decimals;
 use crate::shared::components::viz::sparkline::MIN_POINTS;
 use crate::shared::components::viz::{DeltaChip, Meter, Sparkline, StatTile};
+use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;
 use crate::shared::page_standard::PAGE_CAT_DASHBOARD;
 
@@ -32,6 +41,21 @@ use super::api;
 
 /// Сколько снимков тянем на спарклайн.
 const SERIES_LIMIT: u64 = 60;
+
+/// Сколько последних точек показывает обычная плитка.
+///
+/// Весь ряд на полоске шириной ~240 px даёт отсчёт каждые 4 px — точки
+/// сливаются в пунктир и перестают быть отсчётами. Крупный график получает
+/// ряд целиком: там места хватает.
+const TILE_POINTS: usize = 24;
+
+/// Ключ, под которым состояние свёрнутых групп переживает уход с вкладки.
+const COLLAPSED_STATE_KEY: &str = "sys_metrics_collapsed_groups";
+
+/// Вопрос, с которого начинается разбор метрик в чате.
+const AI_PROMPT: &str = "Разбери метрики проекта: что сейчас требует внимания, что ухудшилось \
+                         с прошлого снимка и за что взяться в первую очередь. Коротко, по \
+                         пунктам, с приоритетом.";
 
 /// Ряды спарклайнов: значения и отметки времени снимков, ключ — код метрики.
 /// Время нужно ховеру: число без привязки к моменту ни о чём не говорит.
@@ -72,8 +96,29 @@ fn detail_group(code: &str) -> &str {
     }
 }
 
+/// Подходит ли метрика под поисковый запрос.
+///
+/// Ищем ровно по тому, что видно на экране, плюс по ключу: `code.lines.total`
+/// набирается быстрее русской подписи, а на этой странице ключи у пользователя
+/// перед глазами — они же в режиме «Цифрами».
+fn metric_matches(metric: &MetricValueDto, group_label: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    let haystack = format!(
+        "{} {} {} {} {}",
+        metric.label,
+        metric.key,
+        metric.unit,
+        metric.hint.clone().unwrap_or_default(),
+        group_label,
+    )
+    .to_lowercase();
+    haystack.contains(needle)
+}
+
 /// Плитка метрики со всеми слотами: дельта, шкала порогов, тренд.
-fn tile(metric: &MetricValueDto, series: &Series, lead: bool) -> AnyView {
+fn tile(metric: &MetricValueDto, series: &Series) -> AnyView {
     let precision = metric.precision;
     let format_value =
         Callback::new(move |(value,): (f64,)| format_number_with_decimals(value, precision));
@@ -88,6 +133,17 @@ fn tile(metric: &MetricValueDto, series: &Series, lead: bool) -> AnyView {
             />
         }
         .into_any()
+    });
+
+    let (mut points, mut labels) = series.get(&metric.key).cloned().unwrap_or_default();
+    if points.len() > TILE_POINTS {
+        points = points.split_off(points.len() - TILE_POINTS);
+        if labels.len() > TILE_POINTS {
+            labels = labels.split_off(labels.len() - TILE_POINTS);
+        }
+    }
+    let trend = (points.len() >= MIN_POINTS).then(|| {
+        view! { <Sparkline points=points labels=labels format_value=format_value /> }.into_any()
     });
 
     // Шкала — только там, где каталог задал пороги: без них ей не от чего
@@ -109,11 +165,6 @@ fn tile(metric: &MetricValueDto, series: &Series, lead: bool) -> AnyView {
         _ => None,
     };
 
-    let (points, labels) = series.get(&metric.key).cloned().unwrap_or_default();
-    let trend = (points.len() >= MIN_POINTS).then(|| {
-        view! { <Sparkline points=points labels=labels format_value=format_value /> }.into_any()
-    });
-
     view! {
         <StatTile
             label=metric.label.clone()
@@ -121,7 +172,6 @@ fn tile(metric: &MetricValueDto, series: &Series, lead: bool) -> AnyView {
             unit=metric.unit.clone()
             status=metric.status
             hint=metric.hint.clone().unwrap_or_default()
-            lead=lead
             delta=delta
             meter=meter
             trend=trend
@@ -265,6 +315,10 @@ fn NumbersView(values: Vec<MetricValueDto>) -> impl IntoView {
     }
 }
 
+/// Паспорт снимка: чем собрано и когда.
+///
+/// Восемь пар подряд не читаются — глазу не за что зацепиться, чтобы отделить
+/// «чем собрано» от «когда собрано». Секции возвращают эту границу.
 #[component]
 fn Passport(snapshot: MetricSnapshotDto, previous: Option<String>) -> impl IntoView {
     let commit = snapshot
@@ -281,26 +335,22 @@ fn Passport(snapshot: MetricSnapshotDto, previous: Option<String>) -> impl IntoV
         .unwrap_or_else(|| "нет".to_string());
 
     view! {
-        <div class="sys-metrics__passport">
-            <PassportItem label="Версия" value=snapshot.app_version.clone() />
-            <PassportItem label="Коммит" value=commit />
-            <PassportItem label="Профиль" value=snapshot.build_profile.clone() />
-            <PassportItem label="Схема БД" value=snapshot.schema_version.to_string() />
-            <PassportItem label="Метрики кода от" value=code_stamp />
-            <PassportItem label="Снимок" value=short_stamp(&snapshot.captured_at) />
-            <PassportItem label="Предыдущий" value=previous_stamp />
-            <PassportItem label="Сбор" value=format!("{} мс", snapshot.collect_ms) />
-        </div>
-    }
-}
-
-#[component]
-fn PassportItem(label: &'static str, value: String) -> impl IntoView {
-    view! {
-        <div class="sys-metrics__passport-item">
-            <span class="sys-metrics__passport-label">{label}</span>
-            <span class="sys-metrics__passport-value">{value}</span>
-        </div>
+        <MetaStrip>
+            <MetaSection label="Сборка">
+                <MetaItem label="Версия" value=snapshot.app_version.clone() />
+                <MetaItem label="Коммит" value=commit mono=true />
+                <MetaItem label="Профиль" value=snapshot.build_profile.clone() />
+            </MetaSection>
+            <MetaSection label="Данные">
+                <MetaItem label="Схема БД" value=snapshot.schema_version.to_string() />
+                <MetaItem label="Метрики кода от" value=code_stamp />
+            </MetaSection>
+            <MetaSection label="Снимок">
+                <MetaItem label="Текущий" value=short_stamp(&snapshot.captured_at) />
+                <MetaItem label="Предыдущий" value=previous_stamp />
+                <MetaItem label="Сбор" value=format!("{} мс", snapshot.collect_ms) />
+            </MetaSection>
+        </MetaStrip>
     }
 }
 
@@ -310,7 +360,7 @@ fn AttentionBlock(metrics: Vec<MetricValueDto>, series: Series) -> impl IntoView
     if metrics.is_empty() {
         return view! {
             <section class="sys-metrics__attention sys-metrics__attention--clear">
-                <h2 class="sys-metrics__group-title">"Требует внимания"</h2>
+                <h2 class="sys-metrics__block-title">"Требует внимания"</h2>
                 <div class="sys-metrics__state">
                     "Ни одна метрика не перешла порог. Дальше — полный разбор по группам."
                 </div>
@@ -323,26 +373,21 @@ fn AttentionBlock(metrics: Vec<MetricValueDto>, series: Series) -> impl IntoView
     view! {
         <section class="sys-metrics__attention">
             <div class="sys-metrics__attention-head">
-                <h2 class="sys-metrics__group-title">"Требует внимания"</h2>
+                <h2 class="sys-metrics__block-title">"Требует внимания"</h2>
                 <span class="sys-metrics__attention-count">
                     {format!("{count} из всех показателей за порогом")}
                 </span>
             </div>
+            // Ровная сетка: порядок здесь уже несёт приоритет (тяжёлые сверху),
+            // а укрупнять первую плитку оказалось нечем — тренд на 28 px не
+            // становится содержательнее оттого, что вокруг него больше места.
+            // Разбор одной метрики — отдельный экран, а не растянутая плитка.
             <div class="sys-metrics__bento">
                 {metrics
                     .iter()
-                    .enumerate()
-                    .map(|(index, metric)| {
-                        // Первая — самая тяжёлая — плитка крупнее остальных:
-                        // иначе «выделение» превращается в ещё одну ровную сетку.
-                        let lead = index == 0;
-                        let item_class = if lead {
-                            "sys-metrics__bento-item sys-metrics__bento-item--lead"
-                        } else {
-                            "sys-metrics__bento-item"
-                        };
+                    .map(|metric| {
                         view! {
-                            <div class=item_class>{tile(metric, &series, lead)}</div>
+                            <div class="sys-metrics__bento-item">{tile(metric, &series)}</div>
                         }
                     })
                     .collect_view()}
@@ -352,14 +397,50 @@ fn AttentionBlock(metrics: Vec<MetricValueDto>, series: Series) -> impl IntoView
     .into_any()
 }
 
+/// Сводка статусов группы для свёрнутого состояния.
+///
+/// Свёрнутая группа обязана сообщать, что внутри что-то не так, — иначе
+/// сворачивание превращается в способ спрятать проблему.
+fn group_summary(metrics: &[MetricValueDto]) -> (usize, usize) {
+    let bad = metrics
+        .iter()
+        .filter(|m| matches!(m.status, MetricStatus::Bad))
+        .count();
+    let warn = metrics
+        .iter()
+        .filter(|m| matches!(m.status, MetricStatus::Warn))
+        .count();
+    (bad, warn)
+}
+
 #[component]
 pub fn ProjectMetricsPage() -> impl IntoView {
+    let ctx = use_context::<AppGlobalContext>().expect("AppGlobalContext not found");
+
     let data = RwSignal::new(None::<ProjectMetricsDto>);
     let series = RwSignal::new(Series::new());
     let loading = RwSignal::new(false);
     let collecting = RwSignal::new(false);
     let numbers_mode = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
+    let query = RwSignal::new(String::new());
+
+    // Храним именно свёрнутые группы: пустое состояние значит «всё раскрыто»,
+    // то есть свежая страница показывает всё, а не прячет всё.
+    let collapsed = RwSignal::new(
+        ctx.get_form_state(COLLAPSED_STATE_KEY)
+            .and_then(|value| serde_json::from_value::<HashSet<String>>(value).ok())
+            .unwrap_or_default(),
+    );
+
+    // Состояние переживает уход с вкладки: свернув девять групп из десяти,
+    // пользователь настроил себе рабочий вид и не должен собирать его заново.
+    Effect::new(move |_| {
+        let snapshot = collapsed.get();
+        if let Ok(value) = serde_json::to_value(&snapshot) {
+            ctx.set_form_state(COLLAPSED_STATE_KEY.to_string(), value);
+        }
+    });
 
     let load = move || {
         loading.set(true);
@@ -412,6 +493,38 @@ pub fn ProjectMetricsPage() -> impl IntoView {
         });
     };
 
+    // Счётчик считается отдельно от блока плиток: он реактивен по `query`, но
+    // сидит в статическом тулбаре, поэтому перерисовывается только сам.
+    let visible_count = move || -> String {
+        let Some(response) = data.get() else {
+            return String::new();
+        };
+        let needle = query.get().trim().to_lowercase();
+        let shown = response
+            .values
+            .iter()
+            .filter(|item| {
+                let label = response
+                    .groups
+                    .iter()
+                    .find(|group| group.code == item.group)
+                    .map(|group| group.label.as_str())
+                    .unwrap_or("");
+                metric_matches(item, label, &needle)
+            })
+            .count();
+        format!("Показано {shown} из {}", response.values.len())
+    };
+
+    let ask_ai = move || {
+        launch_chat_with_context(
+            ctx,
+            "sys_metrics".to_string(),
+            "Метрики проекта".to_string(),
+            Some(AI_PROMPT.to_string()),
+        );
+    };
+
     Effect::new(move |_| {
         load();
     });
@@ -426,6 +539,9 @@ pub fn ProjectMetricsPage() -> impl IntoView {
                 title="Метрики проекта"
                 subtitle="Снимок при каждом запуске бэкенда; сканирований при открытии нет"
             >
+                <button class="button button--primary" on:click=move |_| ask_ai()>
+                    "Спросить AI"
+                </button>
                 <button
                     class="button button--ghost"
                     on:click=move |_| numbers_mode.update(|value| *value = !*value)
@@ -479,13 +595,48 @@ pub fn ProjectMetricsPage() -> impl IntoView {
                         error
                             .get()
                             .map(|message| {
-                                view! {
-                                    <div class="sys-metrics__state sys-metrics__state--error">
-                                        {message}
-                                    </div>
-                                }
+                                view! { <div class="alert alert--error">{message}</div> }
                             })
                     }}
+
+                    // Тулбар живёт вне реактивного блока с плитками: тот блок
+                    // читает `query`, и если бы поле поиска рисовалось внутри,
+                    // оно пересоздавалось бы на каждый введённый символ и
+                    // теряло фокус.
+                    <Show when=move || {
+                        data.get().map(|d| d.snapshot.is_some()).unwrap_or(false)
+                            && !numbers_mode.get()
+                    }>
+                        <div class="sys-metrics__toolbar">
+                            <SearchBox
+                                query=query
+                                placeholder="Поиск по названию, ключу и группе"
+                            />
+                            <button
+                                class="button button--ghost"
+                                on:click=move |_| collapsed.set(HashSet::new())
+                            >
+                                "Развернуть все"
+                            </button>
+                            <button
+                                class="button button--ghost"
+                                on:click=move |_| {
+                                    collapsed
+                                        .set(
+                                            data
+                                                .get()
+                                                .map(|d| {
+                                                    d.groups.iter().map(|g| g.code.clone()).collect()
+                                                })
+                                                .unwrap_or_default(),
+                                        )
+                                }
+                            >
+                                "Свернуть все"
+                            </button>
+                            <span class="sys-metrics__count">{move || visible_count()}</span>
+                        </div>
+                    </Show>
 
                     {move || {
                         if loading.get() && data.get().is_none() {
@@ -514,10 +665,33 @@ pub fn ProjectMetricsPage() -> impl IntoView {
 
                         let points = series.get();
                         let details = response.details.clone();
+                        let needle = query.get().trim().to_lowercase();
+                        let searching = !needle.is_empty();
 
-                        // Порог перешли — наверх, по убыванию тяжести.
-                        let mut attention: Vec<MetricValueDto> = response
+                        // Подпись группы участвует в поиске, поэтому нужна рядом
+                        // с каждой метрикой.
+                        let group_label = |code: &str| -> String {
+                            response
+                                .groups
+                                .iter()
+                                .find(|g| g.code == code)
+                                .map(|g| g.label.clone())
+                                .unwrap_or_default()
+                        };
+
+                        let visible: Vec<MetricValueDto> = response
                             .values
+                            .iter()
+                            .filter(|item| {
+                                metric_matches(item, &group_label(&item.group), &needle)
+                            })
+                            .cloned()
+                            .collect();
+
+                        // Порог перешли — наверх, по убыванию тяжести. Блок
+                        // внимания подчиняется поиску наравне с остальными:
+                        // иначе отфильтрованная страница противоречит счётчику.
+                        let mut attention: Vec<MetricValueDto> = visible
                             .iter()
                             .filter(|item| {
                                 matches!(item.status, MetricStatus::Bad | MetricStatus::Warn)
@@ -530,44 +704,134 @@ pub fn ProjectMetricsPage() -> impl IntoView {
                             .groups
                             .iter()
                             .map(|group| {
-                                let metrics: Vec<MetricValueDto> = response
-                                    .values
+                                let metrics: Vec<MetricValueDto> = visible
                                     .iter()
                                     .filter(|item| item.group == group.code)
                                     .cloned()
                                     .collect();
-                                let tables: Vec<DetailTable> = details
-                                    .iter()
-                                    .filter(|table| detail_group(&table.code) == group.code)
-                                    .cloned()
-                                    .collect();
+                                // Детализации привязаны к группе, а не к метрике,
+                                // и при активном поиске только шумят.
+                                let tables: Vec<DetailTable> = if searching {
+                                    Vec::new()
+                                } else {
+                                    details
+                                        .iter()
+                                        .filter(|table| detail_group(&table.code) == group.code)
+                                        .cloned()
+                                        .collect()
+                                };
                                 if metrics.is_empty() && tables.is_empty() {
                                     return ().into_any();
                                 }
+
+                                let code = group.code.clone();
+                                let code_for_toggle = code.clone();
+                                // При активном поиске группы раскрыты
+                                // принудительно: иначе найденное прячется за
+                                // свёрнутым заголовком.
+                                // `Signal`, а не замыкание: значение читают и
+                                // шеврон, и `<Show>`, а замыкание не `Copy`.
+                                let is_open = Signal::derive(move || {
+                                    searching || !collapsed.get().contains(&code)
+                                });
+                                let count = metrics.len();
+                                let (bad, warn) = group_summary(&metrics);
                                 let points = points.clone();
+
                                 view! {
                                     <section class="sys-metrics__group">
-                                        <h2 class="sys-metrics__group-title">
-                                            {group.label.clone()}
-                                        </h2>
-                                        <div class="sys-metrics__tiles">
-                                            {metrics
-                                                .iter()
-                                                .map(|metric| tile(metric, &points, false))
-                                                .collect_view()}
-                                        </div>
-                                        {tables
-                                            .into_iter()
-                                            .map(|table| view! { <DetailTableView table=table /> })
-                                            .collect_view()}
+                                        <button
+                                            class="sys-metrics__group-head"
+                                            on:click=move |_| {
+                                                collapsed
+                                                    .update(|set| {
+                                                        if !set.remove(&code_for_toggle) {
+                                                            set.insert(code_for_toggle.clone());
+                                                        }
+                                                    })
+                                            }
+                                        >
+                                            <span class=move || {
+                                                // Строкой, а не `class:`: реестр
+                                                // UI видит классы только в
+                                                // строковых литералах.
+                                                if is_open.get() {
+                                                    "sys-metrics__chevron \
+                                                     sys-metrics__chevron--expanded"
+                                                } else {
+                                                    "sys-metrics__chevron"
+                                                }
+                                            }>
+                                                {icon("chevron-right")}
+                                            </span>
+                                            <span class="sys-metrics__group-title">
+                                                {group.label.clone()}
+                                            </span>
+                                            <span class="sys-metrics__group-count">
+                                                {format!("{count}")}
+                                            </span>
+                                            {(bad > 0)
+                                                .then(|| {
+                                                    view! {
+                                                        <span class="badge badge--error">
+                                                            {format!("{bad} за порогом")}
+                                                        </span>
+                                                    }
+                                                })}
+                                            {(warn > 0)
+                                                .then(|| {
+                                                    view! {
+                                                        <span class="badge badge--warning">
+                                                            {format!("{warn} внимание")}
+                                                        </span>
+                                                    }
+                                                })}
+                                        </button>
+                                        <Show when=move || is_open.get()>
+                                            <div class="sys-metrics__group-body">
+                                                <div class="sys-metrics__tiles">
+                                                    {metrics
+                                                        .iter()
+                                                        .map(|metric| tile(metric, &points))
+                                                        .collect_view()}
+                                                </div>
+                                                {tables
+                                                    .clone()
+                                                    .into_iter()
+                                                    .map(|table| {
+                                                        view! { <DetailTableView table=table /> }
+                                                    })
+                                                    .collect_view()}
+                                            </div>
+                                        </Show>
                                     </section>
                                 }
                                     .into_any()
                             })
                             .collect_view();
 
+                        let empty = visible.is_empty();
+
                         view! {
-                            <AttentionBlock metrics=attention series=points.clone() />
+                            {(!searching)
+                                .then(|| {
+                                    view! {
+                                        <AttentionBlock
+                                            metrics=attention.clone()
+                                            series=points.clone()
+                                        />
+                                    }
+                                })}
+
+                            {empty
+                                .then(|| {
+                                    view! {
+                                        <div class="sys-metrics__state">
+                                            "Ни одна метрика не подошла под запрос."
+                                        </div>
+                                    }
+                                })}
+
                             {groups}
                         }
                             .into_any()
@@ -581,6 +845,25 @@ pub fn ProjectMetricsPage() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use contracts::system::metrics::MetricDirection;
+
+    fn metric(key: &str, label: &str, group: &str) -> MetricValueDto {
+        MetricValueDto {
+            key: key.to_string(),
+            label: label.to_string(),
+            group: group.to_string(),
+            unit: "шт".to_string(),
+            value: 1.0,
+            precision: 0,
+            direction: MetricDirection::Lower,
+            status: MetricStatus::Neutral,
+            warn: None,
+            bad: None,
+            previous: None,
+            delta: None,
+            hint: None,
+        }
+    }
 
     #[test]
     fn severity_puts_thresholds_first() {
@@ -604,5 +887,41 @@ mod tests {
         assert_eq!(short_stamp("2026-08-15T05:41:35.896+00:00"), "15.08 05:41");
         // Не-RFC строку возвращаем как есть, а не роняем страницу.
         assert_eq!(short_stamp("непонятно"), "непонятно");
+    }
+
+    #[test]
+    fn search_finds_metric_by_label_key_and_group() {
+        // Подпись намеренно без литерального вызова: метрика `smells.unwrap`
+        // считает вхождения текстом и посчитала бы собственную тестовую строку.
+        let item = metric("code.unwrap.total", "Вызовы unwrap", "code");
+        assert!(metric_matches(&item, "Размер кода", "unwrap"));
+        assert!(metric_matches(&item, "Размер кода", "code."));
+        assert!(metric_matches(&item, "Размер кода", "размер"));
+        assert!(!metric_matches(&item, "Размер кода", "миграц"));
+    }
+
+    #[test]
+    fn empty_query_keeps_everything() {
+        let item = metric("db.wal_mb", "WAL", "db");
+        assert!(metric_matches(&item, "База данных", ""));
+    }
+
+    #[test]
+    fn collapsed_set_semantics_default_to_expanded() {
+        // Пустое множество свёрнутых = всё раскрыто: свежая страница показывает
+        // содержимое, а не прячет его.
+        let collapsed: HashSet<String> = HashSet::new();
+        assert!(!collapsed.contains("code"));
+    }
+
+    #[test]
+    fn group_summary_counts_only_thresholds() {
+        let mut bad_metric = metric("a", "A", "code");
+        bad_metric.status = MetricStatus::Bad;
+        let mut warn_metric = metric("b", "B", "code");
+        warn_metric.status = MetricStatus::Warn;
+        let ok_metric = metric("c", "C", "code");
+        let (bad, warn) = group_summary(&[bad_metric, warn_metric, ok_metric]);
+        assert_eq!((bad, warn), (1, 1));
     }
 }

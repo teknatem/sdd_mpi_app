@@ -3,7 +3,7 @@
 //! Семантика периода — по `backend/src/usecases/u502_import_from_ozon/executor.rs`
 //! и `backend/src/shared/marketplaces/ozon/ozon_api_client.rs`.
 
-use crate::usecases::shared::{ImportOp, OpGroup, PeriodKind};
+use crate::usecases::common::{ImportOp, OpGroup, PeriodKind};
 
 pub const OPS: &[ImportOp] = &[
     ImportOp {

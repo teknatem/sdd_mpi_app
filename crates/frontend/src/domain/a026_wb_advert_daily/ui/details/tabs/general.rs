@@ -1,6 +1,6 @@
 //! General tab - document, links, metrics and technical info.
 
-use super::super::model::{fmt_advert_id, fmt_date, fmt_dt, fmt_money};
+use super::super::api::{fmt_advert_id, fmt_date, fmt_dt, fmt_money};
 use super::super::view_model::WbAdvertDailyDetailsVm;
 use crate::shared::components::card_animated::CardAnimated;
 use leptos::prelude::*;

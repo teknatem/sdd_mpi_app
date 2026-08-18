@@ -1,4 +1,4 @@
-use crate::domain::a020_wb_promotion::ui::details::model::PromotionNomenclatureDto;
+use crate::domain::a020_wb_promotion::ui::details::api::PromotionNomenclatureDto;
 use crate::domain::a020_wb_promotion::ui::details::view_model::WbPromotionDetailsVm;
 use leptos::prelude::*;
 use thaw::*;

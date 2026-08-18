@@ -1,9 +1,9 @@
-mod model;
-mod view;
+mod api;
+mod page;
 mod view_model;
 
 use leptos::prelude::*;
-pub use view::MarketplaceProductDetails;
+pub use page::MarketplaceProductDetails;
 
 #[component]
 pub fn MarketplaceProductDetailsTab(

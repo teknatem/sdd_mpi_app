@@ -188,6 +188,8 @@
   --color-btn-primary-text: #ffffff;
   --header-noise-opacity: 0;
   --color-warning-50: #fffbeb;
+  --color-warning-100: rgba(245, 158, 11, 0.18);
+  --color-warning-200: rgba(245, 158, 11, 0.30);
   --color-warning-500: #f59e0b;
   --color-warning-600: #d97706;
   --color-warning-700: #b45309;

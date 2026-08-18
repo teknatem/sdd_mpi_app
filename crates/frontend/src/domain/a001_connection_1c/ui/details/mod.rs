@@ -1,3 +1,3 @@
-mod view;
+mod page;
 
-pub use view::Connection1CDetails;
+pub use page::Connection1CDetails;

@@ -11,7 +11,7 @@ use crate::shared::icons::icon;
 use crate::shared::list_utils::{get_sort_class, get_sort_indicator};
 use crate::shared::page_frame::PageFrame;
 use crate::shared::table_utils::init_column_resize;
-use crate::usecases::shared::{client, ImportUseCase};
+use crate::usecases::common::{client, ImportUseCase};
 use contracts::domain::a006_connection_mp::aggregate::ConnectionMP;
 use contracts::domain::common::AggregateId;
 use gloo_net::http::Request;

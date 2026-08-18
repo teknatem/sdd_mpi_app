@@ -147,14 +147,14 @@
 
 | Code | Description | Docs |
 |------|-------------|------|
-| `dv001` | DataView: Продажи (2 периода) | ✓ |
-| `dv002` | DataView: WB рекламные расходы по номенклатуре (2 периода) |  |
-| `dv003` | DataView: MP order line KPI (2 periods) |  |
-| `dv004` | DataView: General ledger turnovers KPI (2 periods) | ✓ |
-| `dv005` | DataView: GL account view totals (2 periods) |  |
-| `dv006` | DataView: ratio of two BI indicators. |  |
-| `dv007` | DataView: ratio of two GL turnover formulas, expressed in percent. |  |
-| `dv008` | DataView: WB sales funnel (2 periods) |  |
+| `dv001_revenue` | dv001 — DataView: Продажи (2 периода) | ✓ |
+| `dv002_wb_advert_by_items` | dv002 - DataView: WB рекламные расходы по номенклатуре (2 периода) |  |
+| `dv003_mp_order_line_turnovers` | dv003 - DataView: MP order line KPI (2 periods) |  |
+| `dv004_general_ledger_turnovers` | dv004 - DataView: General ledger turnovers KPI (2 periods) | ✓ |
+| `dv005_gl_account_view_total` | dv005 - DataView: GL account view totals (2 periods) |  |
+| `dv006_indicator_ratio_percent` | dv006 - DataView: ratio of two BI indicators. |  |
+| `dv007_gl_turnover_ratio_percent` | dv007 - DataView: ratio of two GL turnover formulas, expressed in percent. |  |
+| `dv008_wb_sales_funnel` | dv008 - DataView: WB sales funnel (2 periods) |  |
 
 ## Quality checks
 

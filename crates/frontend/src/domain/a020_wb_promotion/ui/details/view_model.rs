@@ -1,4 +1,4 @@
-use super::model::*;
+use super::api::*;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 

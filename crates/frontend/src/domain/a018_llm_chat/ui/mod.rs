@@ -1,6 +1,7 @@
 pub mod context_details;
 pub mod details;
 pub mod header_button;
+pub mod launch;
 pub mod list;
 pub mod skills_list;
 pub mod tools_list;

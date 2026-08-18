@@ -1,6 +1,6 @@
 //! Attribution tab ("Атрибуция") - found a015 orders per nm, with cost allocation tree.
 
-use super::super::model::{
+use super::super::api::{
     fmt_date, fmt_expense_share, fmt_money, should_show_linked_group, should_show_linked_order,
     LINKED_ORDERS_COLUMN_WIDTHS_KEY, LINKED_ORDERS_TABLE_ID,
 };

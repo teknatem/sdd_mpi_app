@@ -47,9 +47,6 @@ pub fn StatTile(
     /// Пояснение под значением: откуда цифра.
     #[prop(optional, into)]
     hint: String,
-    /// Крупный вариант для ведущего блока bento-раскладки.
-    #[prop(optional)]
-    lead: bool,
     // Слоты объявлены через `default = None`, а не `optional`: у `optional`
     // макрос Leptos разворачивает `Option` сам и требует на месте вызова уже
     // развёрнутое значение, а вызывающему коду удобнее отдавать `Option`
@@ -64,11 +61,7 @@ pub fn StatTile(
     #[prop(default = None)]
     trend: Option<AnyView>,
 ) -> impl IntoView {
-    let class = format!(
-        "stat-tile {}{}",
-        tile_modifier(status),
-        if lead { " stat-tile--lead" } else { "" }
-    );
+    let class = format!("stat-tile {}", tile_modifier(status));
 
     let mark = status_mark(status).map(|(modifier, glyph, caption)| {
         view! {
@@ -81,9 +74,16 @@ pub fn StatTile(
 
     let has_foot = mark.is_some() || !hint.is_empty();
 
+    // Точка статуса — единственное цветное пятно на карточке. Красить всю
+    // поверхность нельзя: когда за порогом два десятка плиток, цветными
+    // становятся все, и выделение перестаёт выделять.
+    let dot = (!matches!(status, MetricStatus::Neutral))
+        .then(|| view! { <span class="stat-tile__dot" aria-hidden="true"></span> });
+
     view! {
         <div class=class>
             <div class="stat-tile__head">
+                {dot}
                 <span class="stat-tile__label">{label}</span>
             </div>
             <div class="stat-tile__value">

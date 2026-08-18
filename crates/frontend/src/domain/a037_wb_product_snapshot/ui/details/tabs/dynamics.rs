@@ -4,7 +4,7 @@
 //! (product + feedback, 0..5). Categorical colours are the validated palette slots
 //! 1 (blue) and 2 (aqua); last-value labels satisfy the relief rule for aqua.
 
-use super::super::model::{fmt_date, SeriesPointDto};
+use super::super::api::{fmt_date, SeriesPointDto};
 use super::super::view_model::WbProductSnapshotDetailsVm;
 use crate::shared::components::card_animated::CardAnimated;
 use leptos::prelude::*;

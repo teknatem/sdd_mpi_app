@@ -5,7 +5,7 @@
 //! лениво из `/api/a018-llm-chat/message/:message_id/tool-trace` при открытии
 //! боковой панели деталей.
 
-use super::model::fetch_tool_trace;
+use super::api::fetch_tool_trace;
 use crate::shared::clipboard::copy_to_clipboard;
 use crate::shared::icons::icon;
 use contracts::domain::a018_llm_chat::aggregate::ToolTraceEntry;

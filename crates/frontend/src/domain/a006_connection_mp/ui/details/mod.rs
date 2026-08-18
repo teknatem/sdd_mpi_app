@@ -1,4 +1,4 @@
-pub mod model;
+pub mod api;
 pub mod page;
 pub mod tabs;
 pub mod view_model;

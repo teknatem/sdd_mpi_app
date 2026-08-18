@@ -8,7 +8,7 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use super::model::answer_intake_question;
+use super::api::answer_intake_question;
 use crate::shared::icons::icon;
 use contracts::domain::a018_llm_chat::workspace::{ChatWorkspaceView, IntakeQuestion};
 

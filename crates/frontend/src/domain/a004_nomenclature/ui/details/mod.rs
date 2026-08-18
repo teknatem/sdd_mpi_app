@@ -1,7 +1,7 @@
 //! Nomenclature Details UI Module (EditDetails MVVM Standard)
 //!
 //! Structure:
-//! - model.rs: API functions (fetch, save, delete) + DTOs
+//! - api.rs: API functions (fetch, save, delete) + DTOs
 //! - view_model.rs: ViewModel with RwSignal fields, commands, validation
 //! - page.rs: Main component (thin wrapper with tab routing)
 //! - tabs/: UI components for each tab
@@ -10,8 +10,8 @@
 //!   - barcodes.rs: Barcodes table
 //! - dimension_input.rs: Custom dimension input with dropdown
 
+mod api;
 mod dimension_input;
-mod model;
 mod page;
 mod tabs;
 mod view_model;

@@ -3,7 +3,7 @@
 //! Contains all form fields as individual RwSignals for THAW two-way binding,
 //! nested data (barcodes), UI state, and commands.
 
-use super::model::{
+use super::api::{
     self, DealerPriceDto, DimensionValuesResponse, KitComponentInfo, KitVariantInfo,
     NomenclatureBarcodeDto,
 };
@@ -198,7 +198,7 @@ impl NomenclatureDetailsVm {
     pub fn load_dimension_options(&self) {
         let dimension_options = self.dimension_options;
         leptos::task::spawn_local(async move {
-            match model::fetch_dimension_values().await {
+            match api::fetch_dimension_values().await {
                 Ok(data) => dimension_options.set(Some(data)),
                 Err(_) => dimension_options.set(None),
             }
@@ -213,7 +213,7 @@ impl NomenclatureDetailsVm {
         this.id.set(Some(id.clone()));
 
         leptos::task::spawn_local(async move {
-            match model::fetch_by_id(id.clone()).await {
+            match api::fetch_by_id(id.clone()).await {
                 Ok(item) => {
                     this.from_aggregate(&item);
                     this.loading.set(false);
@@ -238,7 +238,7 @@ impl NomenclatureDetailsVm {
         let this_barcodes = self.clone();
         let nom_id_barcodes = nom_id.clone();
         leptos::task::spawn_local(async move {
-            match model::fetch_barcodes_count(nom_id_barcodes).await {
+            match api::fetch_barcodes_count(nom_id_barcodes).await {
                 Ok(count) => this_barcodes.barcodes_count.set(count),
                 Err(_) => this_barcodes.barcodes_count.set(0),
             }
@@ -254,7 +254,7 @@ impl NomenclatureDetailsVm {
             Some(base_ref)
         };
         leptos::task::spawn_local(async move {
-            match model::fetch_dealer_prices_count(nom_id_prices, base_ref_option).await {
+            match api::fetch_dealer_prices_count(nom_id_prices, base_ref_option).await {
                 Ok(count) => this_prices.dealer_prices_count.set(count),
                 Err(_) => this_prices.dealer_prices_count.set(0),
             }
@@ -263,7 +263,7 @@ impl NomenclatureDetailsVm {
         let this_production = self.clone();
         let nom_id_production = nom_id.clone();
         leptos::task::spawn_local(async move {
-            match model::fetch_production_costs(&nom_id_production).await {
+            match api::fetch_production_costs(&nom_id_production).await {
                 Ok(items) => this_production.production_costs_count.set(items.len()),
                 Err(_) => this_production.production_costs_count.set(0),
             }
@@ -272,7 +272,7 @@ impl NomenclatureDetailsVm {
         // Load orders count
         let this_orders = self.clone();
         leptos::task::spawn_local(async move {
-            match model::fetch_nomenclature_orders(&nom_id, DEFAULT_ORDERS_DAYS).await {
+            match api::fetch_nomenclature_orders(&nom_id, DEFAULT_ORDERS_DAYS).await {
                 Ok(items) => this_orders.orders_count.set(items.len()),
                 Err(_) => this_orders.orders_count.set(0),
             }
@@ -293,7 +293,7 @@ impl NomenclatureDetailsVm {
         this.barcodes_loading.set(true);
 
         leptos::task::spawn_local(async move {
-            match model::fetch_barcodes_by_nomenclature(nom_id).await {
+            match api::fetch_barcodes_by_nomenclature(nom_id).await {
                 Ok(data) => {
                     this.barcodes.set(data.barcodes);
                     this.barcodes_count.set(data.total_count);
@@ -331,7 +331,7 @@ impl NomenclatureDetailsVm {
         };
 
         leptos::task::spawn_local(async move {
-            match model::fetch_dealer_prices_by_nomenclature(nom_id, base_ref_option).await {
+            match api::fetch_dealer_prices_by_nomenclature(nom_id, base_ref_option).await {
                 Ok(data) => {
                     this.dealer_prices_count.set(data.len());
                     this.dealer_prices.set(data);
@@ -362,7 +362,7 @@ impl NomenclatureDetailsVm {
         this.production_costs_loading.set(true);
 
         leptos::task::spawn_local(async move {
-            match model::fetch_production_costs(&nom_id).await {
+            match api::fetch_production_costs(&nom_id).await {
                 Ok(items) => {
                     this.production_costs_count.set(items.len());
                     this.production_costs.set(items);
@@ -393,7 +393,7 @@ impl NomenclatureDetailsVm {
         this.orders_loading.set(true);
 
         leptos::task::spawn_local(async move {
-            match model::fetch_nomenclature_orders(&nom_id, DEFAULT_ORDERS_DAYS).await {
+            match api::fetch_nomenclature_orders(&nom_id, DEFAULT_ORDERS_DAYS).await {
                 Ok(items) => {
                     this.orders_count.set(items.len());
                     this.orders.set(items);
@@ -426,7 +426,7 @@ impl NomenclatureDetailsVm {
         let dto = this.to_dto();
 
         leptos::task::spawn_local(async move {
-            match model::save_form(dto).await {
+            match api::save_form(dto).await {
                 Ok(new_id) => {
                     // Update ID if it was a new record
                     if this.id.get().is_none() {
@@ -591,7 +591,7 @@ impl NomenclatureDetailsVm {
                 let this = self.clone();
                 let base_ref_clone = base_ref.clone();
                 leptos::task::spawn_local(async move {
-                    match model::fetch_base_nomenclature_info(&base_ref_clone).await {
+                    match api::fetch_base_nomenclature_info(&base_ref_clone).await {
                         Ok(info) => {
                             this.base_nomenclature_name.set(info.name);
                             this.base_nomenclature_article.set(info.article);
@@ -613,7 +613,7 @@ impl NomenclatureDetailsVm {
             let this = self.clone();
             let alternative_ref_clone = alternative_ref.clone();
             leptos::task::spawn_local(async move {
-                match model::fetch_base_nomenclature_info(&alternative_ref_clone).await {
+                match api::fetch_base_nomenclature_info(&alternative_ref_clone).await {
                     Ok(info) => {
                         this.alternative_cost_source_name.set(info.name);
                         this.alternative_cost_source_article.set(info.article);
@@ -635,12 +635,12 @@ impl NomenclatureDetailsVm {
             let kit_variant_ref_clone = kit_variant_ref.clone();
             self.kit_components_loading.set(true);
             leptos::task::spawn_local(async move {
-                match model::fetch_kit_variant_info(&kit_variant_ref_clone).await {
+                match api::fetch_kit_variant_info(&kit_variant_ref_clone).await {
                     Ok(info) => this.kit_variant_info.set(Some(info)),
                     Err(_) => this.kit_variant_info.set(None),
                 }
 
-                match model::fetch_kit_components(&kit_variant_ref_clone).await {
+                match api::fetch_kit_components(&kit_variant_ref_clone).await {
                     Ok(items) => this.kit_components.set(items),
                     Err(_) => this.kit_components.set(Vec::new()),
                 }

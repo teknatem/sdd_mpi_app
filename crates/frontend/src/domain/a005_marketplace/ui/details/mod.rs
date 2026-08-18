@@ -1,13 +1,13 @@
 //! Marketplace Details UI Module
 //!
 //! Simplified MVVM pattern implementation:
-//! - model.rs: API functions (fetch, save)
+//! - api.rs: API functions (fetch, save)
 //! - view_model.rs: ViewModel with commands and state management
-//! - view.rs: Leptos component (pure UI)
+//! - page.rs: Leptos component (pure UI)
 
-mod model;
-mod view;
+mod api;
+mod page;
 mod view_model;
 
-pub use view::MarketplaceDetails;
+pub use page::MarketplaceDetails;
 pub use view_model::MarketplaceDetailsViewModel;

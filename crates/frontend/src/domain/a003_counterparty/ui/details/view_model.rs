@@ -1,4 +1,4 @@
-use super::model;
+use super::api;
 use contracts::domain::a003_counterparty::aggregate::CounterpartyDto;
 use contracts::domain::common::AggregateId;
 use leptos::prelude::*;
@@ -42,7 +42,7 @@ impl CounterpartyDetailsViewModel {
 
         let this = self.clone();
         leptos::task::spawn_local(async move {
-            match super::model::fetch_by_id(existing_id).await {
+            match super::api::fetch_by_id(existing_id).await {
                 Ok(item) => {
                     this.form.update(|f| {
                         f.id = Some(item.base.id.as_string());
@@ -67,7 +67,7 @@ impl CounterpartyDetailsViewModel {
             let dto = this.form.get();
             let on_saved_cb = on_saved.clone();
             leptos::task::spawn_local(async move {
-                match model::save_form(dto).await {
+                match api::save_form(dto).await {
                     Ok(_) => on_saved_cb(()),
                     Err(e) => this.error.set(Some(e)),
                 }

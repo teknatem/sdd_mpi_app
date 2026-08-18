@@ -1,6 +1,6 @@
 //! Changes tab ("Изменения") - позиции с изменившимся рейтингом/оценкой vs предыдущий снимок.
 
-use super::super::model::{fmt_ratio, RatingChangeDto};
+use super::super::api::{fmt_ratio, RatingChangeDto};
 use super::super::view_model::WbProductSnapshotDetailsVm;
 use crate::shared::components::card_animated::CardAnimated;
 use leptos::prelude::*;

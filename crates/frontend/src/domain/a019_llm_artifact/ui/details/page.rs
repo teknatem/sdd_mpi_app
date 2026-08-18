@@ -1,6 +1,6 @@
 //! LLM Artifact Details - View Component
 
-use super::model::{fetch_artifact, update_artifact, LlmArtifactDto};
+use super::api::{fetch_artifact, update_artifact, LlmArtifactDto};
 use super::view_model::LlmArtifactDetailsVm;
 use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;

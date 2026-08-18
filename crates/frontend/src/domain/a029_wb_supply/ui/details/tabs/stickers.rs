@@ -1,6 +1,6 @@
 //! Stickers tab — select rows, then batch-download from WB API
 
-use super::super::model::{fetch_stickers_for_ids, NomenclatureInfo, StickerDto, SupplyOrderDto};
+use super::super::api::{fetch_stickers_for_ids, NomenclatureInfo, StickerDto, SupplyOrderDto};
 use super::super::view_model::WbSupplyDetailsVm;
 use crate::layout::global_context::AppGlobalContext;
 use leptos::prelude::*;

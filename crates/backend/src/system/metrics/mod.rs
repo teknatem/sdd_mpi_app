@@ -17,6 +17,7 @@
 pub mod catalog;
 pub mod codebase;
 pub mod collector;
+pub mod llm_view;
 pub mod repository;
 pub mod service;
 

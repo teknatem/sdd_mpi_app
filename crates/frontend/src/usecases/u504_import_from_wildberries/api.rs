@@ -5,7 +5,7 @@
 //! `backend/src/usecases/u504_import_from_wildberries/executor.rs` и
 //! `backend/src/shared/marketplaces/wildberries/api_client.rs`.
 
-use crate::usecases::shared::{ImportOp, OpGroup, PeriodKind};
+use crate::usecases::common::{ImportOp, OpGroup, PeriodKind};
 
 pub const OPS: &[ImportOp] = &[
     ImportOp {

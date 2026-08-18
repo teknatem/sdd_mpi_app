@@ -1,6 +1,6 @@
 //! ViewModel for WB Supply details
 
-use super::model::*;
+use super::api::*;
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use wasm_bindgen_futures::spawn_local;

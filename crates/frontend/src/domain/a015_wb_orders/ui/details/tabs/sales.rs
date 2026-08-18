@@ -1,6 +1,6 @@
 //! Sales tab - linked WB sales by document_no
 
-use super::super::model::WbSalesListItemDto;
+use super::super::api::WbSalesListItemDto;
 use super::super::view_model::WbOrdersDetailsVm;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::components::card_animated::CardAnimated;

@@ -1,7 +1,7 @@
 pub mod state;
 
 use self::state::create_state;
-use super::details::model::fmt_csv_decimal;
+use super::details::api::fmt_csv_decimal;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::api_utils::api_base;
 use crate::shared::components::close_page_button::ClosePageButton;
@@ -13,7 +13,7 @@ use crate::shared::icons::icon;
 use crate::shared::list_utils::{get_sort_class, get_sort_indicator};
 use crate::shared::page_frame::PageFrame;
 use crate::shared::table_utils::init_column_resize;
-use crate::usecases::shared::{client, ImportUseCase};
+use crate::usecases::common::{client, ImportUseCase};
 use chrono::NaiveDate;
 use contracts::domain::a006_connection_mp::aggregate::ConnectionMP;
 use contracts::domain::a036_wb_sales_funnel_daily::aggregate::WbSalesFunnelDailyMetrics;

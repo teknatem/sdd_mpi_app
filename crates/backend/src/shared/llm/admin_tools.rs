@@ -79,6 +79,34 @@ pub fn admin_tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "get_project_metrics".into(),
+            description: "Метрики проекта: последний снимок состояния кодовой базы и экземпляра \
+                          с порогами, дельтами к предыдущему запуску и направлением \
+                          («больше — лучше» или наоборот). Покрывает размер кода, стоимость \
+                          сборки, домен, границы и контракты, тесты, UI-стандарт, базу данных, \
+                          качество данных, целостность доступа и активность. \
+                          Используй для разбора «на что обратить внимание» и «что ухудшилось». \
+                          Метрики кода вшиты в сборку pre-commit хуком и обновляются только с \
+                          новым коммитом — их неизменность не означает застой работы."
+                .into(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "keys": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Ключи метрик (например 'code.lines.total'). Пусто — все."
+                    },
+                    "history": {
+                        "type": "integer",
+                        "description": "Сколько последних снимков вернуть рядом со значением. \
+                                        Требует непустой keys. 0 или пусто — только текущий срез. \
+                                        Максимум 200."
+                    }
+                }
+            }),
+        },
+        ToolDefinition {
             name: "get_data_integrity_report".into(),
             description: "Отчёт о целостности данных: количество записей в основных таблицах, \
                           наличие \"осиротевших\" связей, дубликаты ключей. \
@@ -133,8 +161,65 @@ pub async fn execute_admin_tool(name: &str, arguments: &str) -> serde_json::Valu
             list_background_jobs(status_filter, limit).await
         }
         "get_data_integrity_report" => get_data_integrity_report().await,
+        "get_project_metrics" => {
+            let keys: Vec<String> = args
+                .get("keys")
+                .and_then(|v| v.as_array())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let history = args
+                .get("history")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0)
+                .clamp(0, 200) as u64;
+            get_project_metrics(keys, history).await
+        }
         _ => serde_json::json!({ "error": format!("Unknown admin tool: '{}'", name) }),
     }
+}
+
+/// Снимок метрик проекта, при необходимости — с историей по выбранным ключам.
+///
+/// Срез собирается тем же кодом, что и контекст страницы `sys_metrics`
+/// (`system::metrics::llm_view`): иначе модель получала бы разные числа в
+/// зависимости от того, пришли метрики контекстом или запросом инструмента.
+async fn get_project_metrics(keys: Vec<String>, history: u64) -> serde_json::Value {
+    let data = match crate::system::metrics::latest().await {
+        Ok(data) => data,
+        Err(e) => return serde_json::json!({ "error": format!("Не удалось прочитать метрики: {e}") }),
+    };
+
+    let mut result = crate::system::metrics::llm_view::summary(&data);
+
+    // Фильтр по ключам применяем к срезу, а не к запросу: пороги и паспорт
+    // нужны в любом случае, иначе отобранные значения не с чем сопоставить.
+    if !keys.is_empty() {
+        if let Some(values) = result.get_mut("values").and_then(|v| v.as_array_mut()) {
+            values.retain(|item| {
+                item.get("key")
+                    .and_then(|k| k.as_str())
+                    .map(|k| keys.iter().any(|want| want == k))
+                    .unwrap_or(false)
+            });
+        }
+    }
+
+    if history > 0 && !keys.is_empty() {
+        match crate::system::metrics::series(&keys, history).await {
+            Ok(rows) => result["history"] = serde_json::json!(rows),
+            Err(e) => result["history_error"] = serde_json::json!(e.to_string()),
+        }
+    } else if history > 0 {
+        result["history_error"] =
+            serde_json::json!("История требует непустой список keys: ряды по всем метрикам сразу не отдаются.");
+    }
+
+    result
 }
 
 async fn check_system_health(hours: u64) -> serde_json::Value {

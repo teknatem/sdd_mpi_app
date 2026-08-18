@@ -26,6 +26,7 @@ pub const KNOWN_INTENTS: &[&str] = &[
     "quality_check",               // просмотр/запуск проверок качества
     "quality_check_dev",           // создание/изменение MJS-проверки качества
     "sys_admin",                   // системная диагностика
+    "app_health",                  // разбор метрик проекта: техдолг, пороги, тренды
     "kb_curation",                 // работа с базой знаний
     "mailbox",                     // чтение/отправка почты
     "support",                     // обращение в поддержку: сбой, пожелание, тикет
@@ -87,6 +88,7 @@ fn classifier_system_prompt() -> String {
          - quality_check: посмотреть каталог/результаты или запустить существующую проверку качества данных.\n\
          - quality_check_dev: создать, изменить или опубликовать исполняемую MJS-проверку качества данных.\n\
          - sys_admin: состояние системы, производительность, фоновые задачи, целостность данных.\n\
+         - app_health: метрики проекта и кодовой базы — техдолг, пороги, что ухудшилось между сборками, на что обратить внимание в состоянии приложения.\n\
          - kb_curation: работа с базой знаний — прочитать/исправить статью, тикет правки.\n\
          - mailbox: почта — прочитать входящие письма, найти письмо, ответить или отправить письмо.\n\
          - support: обращение по работе самой программы — что-то не работает/ошибка/сломалось, просьба доработать или идея по улучшению, просьба завести тикет/заявку.\n\
@@ -164,7 +166,9 @@ pub fn intent_to_agent_type(intent: &str) -> AgentType {
         "kb_curation" => AgentType::KbAdmin,
         // Разработчик один: и плагины, и поддержка пользователей (навык `support`).
         "plugin_dev" | "quality_check_dev" | "support" => AgentType::PluginAdmin,
-        "sys_admin" => AgentType::SystemAdmin,
+        // Разбор метрик проекта — та же специализация, что и системная диагностика:
+        // отдельный навык, но не отдельный сотрудник.
+        "sys_admin" | "app_health" => AgentType::SystemAdmin,
         "sales_query" => AgentType::SalesAnalyst,
         "marketing_query" => AgentType::Marketer,
         "marketplace_funnel_analysis" => AgentType::Marketer,
@@ -318,6 +322,16 @@ fn rule_based(message: &str, seed_agent_type: &AgentType) -> IntentResult {
         && any(&["созда", "добав", "сдела", "построй"])
     {
         return IntentResult::new("bi_authoring", 0.45, "rules");
+    }
+    // Метрики проекта — раньше системной диагностики: та ловит «здоров» и «задач»
+    // и утащила бы к себе разбор техдолга. Слово «метрик» само по себе не подходит:
+    // «метрики продаж» — это аналитика, поэтому нужен ещё и признак проекта.
+    if any(&["техдолг", "технический долг", "метрики проекта", "метрик проекта"])
+        || (any(&["метрик", "показател"])
+            && any(&["проект", "кода", "кодовой базы", "приложени"]))
+        || (any(&["состояни", "здоров"]) && any(&["проект", "приложени", "кодовой базы"]))
+    {
+        return IntentResult::new("app_health", 0.6, "rules");
     }
     if any(&[
         "здоров",
@@ -580,6 +594,39 @@ mod tests {
         let result =
             quick_intent_result("Какой у нас процент выкупа?", &AgentType::BusinessAnalyst);
         assert_eq!(result.intent, "marketing_query");
+    }
+
+    #[test]
+    fn metrics_review_does_not_land_in_system_diagnostics() {
+        // Вопрос, который страница метрик задаёт за пользователя.
+        assert_eq!(
+            quick_intent_result(
+                "Разбери метрики проекта: что сейчас требует внимания, что ухудшилось \
+                 с прошлого снимка и за что взяться в первую очередь.",
+                &AgentType::CoordinatorAdmin
+            )
+            .intent,
+            "app_health"
+        );
+        assert_eq!(
+            quick_intent_result("Посмотри техдолг", &AgentType::SystemAdmin).intent,
+            "app_health"
+        );
+        // Системная диагностика по-прежнему своя: правило метрик стоит раньше и
+        // не должно перехватывать вопросы про фоновые задачи.
+        assert_eq!(
+            quick_intent_result(
+                "Проверь состояние фоновых задач за сутки",
+                &AgentType::SystemAdmin
+            )
+            .intent,
+            "sys_admin"
+        );
+        // «Метрики продаж» — аналитика, а не состояние приложения.
+        assert_ne!(
+            quick_intent_result("Покажи метрики продаж за июль", &AgentType::SalesAnalyst).intent,
+            "app_health"
+        );
     }
 
     #[test]

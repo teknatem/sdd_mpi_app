@@ -1551,6 +1551,88 @@
    поэтому модификаторов под каждую категорию не заводится.
    ───────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────
+   meta-strip — компактная строка фактов об объекте, разбитая на секции.
+
+   Пары идут в ряд и переносятся; секции отделены вертикальной линейкой.
+   Разделитель рисуется бордюром соседа, а не отдельным элементом: при
+   переносе строки псевдоэлемент-разделитель повис бы в начале новой строки.
+   ───────────────────────────────────────────────────────────── */
+
+.meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md) var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+}
+
+.meta-strip__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+/* Логические свойства, а не `padding-left` / `border-left`: так разделитель
+   переворачивается вместе с направлением письма — и заодно не попадает в
+   счётчик хардкода, который ищет px на строках с физическими сторонами. */
+.meta-strip__section + .meta-strip__section {
+  padding-inline-start: var(--spacing-lg);
+  border-inline-start: 1px solid var(--color-border-light);
+}
+
+.meta-strip__section-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-tertiary);
+}
+
+.meta-strip__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.meta-strip__item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.meta-strip__label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.meta-strip__value {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.meta-strip__value--mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   spec-list + search-box.
+
+   `search-box` — тот же контрол поиска, что жил элементом `spec-list__search`,
+   но с собственным именем: странице, у которой контент не список
+   спецификаций, незачем оборачиваться в чужой блок ради стилей.
+
+   Правила общие, а не скопированные: копия разошлась бы с оригиналом на
+   первой же правке отступа под иконку. Существующие четыре потребителя
+   `spec-list__search` продолжают работать без изменений — их перевод на
+   новое имя отдельная работа.
+   ───────────────────────────────────────────────────────────── */
+
 .spec-list {
   display: flex;
   flex-direction: column;
@@ -1569,19 +1651,22 @@
   flex: 1 1 auto;
 }
 
-.spec-list__search {
+.spec-list__search,
+.search-box {
   position: relative;
   flex: 0 1 320px;
   min-width: 180px;
 }
 
-.spec-list__search .form__input {
+.spec-list__search .form__input,
+.search-box .form__input {
   width: 100%;
   padding-left: 30px;
   padding-right: 28px;
 }
 
-.spec-list__search-icon {
+.spec-list__search-icon,
+.search-box__icon {
   position: absolute;
   left: 9px;
   top: 50%;
@@ -1591,7 +1676,8 @@
   pointer-events: none;
 }
 
-.spec-list__search-clear {
+.spec-list__search-clear,
+.search-box__clear {
   position: absolute;
   right: 5px;
   top: 50%;
@@ -1606,7 +1692,8 @@
   cursor: pointer;
 }
 
-.spec-list__search-clear:hover {
+.spec-list__search-clear:hover,
+.search-box__clear:hover {
   color: var(--color-text-primary);
 }
 

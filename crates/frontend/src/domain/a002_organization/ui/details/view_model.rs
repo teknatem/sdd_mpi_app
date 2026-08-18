@@ -1,4 +1,4 @@
-use super::model;
+use super::api;
 use contracts::domain::a002_organization::aggregate::OrganizationDto;
 use contracts::domain::common::AggregateId;
 use leptos::prelude::*;
@@ -48,7 +48,7 @@ impl OrganizationDetailsViewModel {
         let form = self.form;
         let error = self.error;
         wasm_bindgen_futures::spawn_local(async move {
-            let result = model::fetch_by_id(existing_id).await;
+            let result = api::fetch_by_id(existing_id).await;
             if let Err(e) = result {
                 error.set(Some(format!("Ошибка загрузки: {}", e)));
                 return;
@@ -81,7 +81,7 @@ impl OrganizationDetailsViewModel {
         let on_saved_cb = on_saved.clone();
         let error = self.error;
         wasm_bindgen_futures::spawn_local(async move {
-            match model::save_form(&current).await {
+            match api::save_form(&current).await {
                 Ok(()) => (on_saved_cb)(()),
                 Err(e) => error.set(Some(e)),
             }

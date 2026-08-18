@@ -214,7 +214,16 @@ foreach ($f in $rsFiles) {
         [void]$runtimeVars.Add($m.Groups[1].Value)
     }
 
-    foreach ($m in [regex]::Matches($txt, '"([^"\\]*(?:\\.[^"\\]*)*)"')) {
+    # `\\[\s\S]` and not `\\.`: the dot does not match a newline, so a Rust
+    # string continuation (a `\` as the last character of a line) ended the
+    # literal early under LF and did not under CRLF — the escape swallowed the
+    # `\r` but never a bare `\n`. Every quote after such a literal then paired
+    # up shifted by one, and whole blocks of classes flipped between "used" and
+    # "dead" depending on how the developer's working copy happened to be
+    # checked out. That made the ui.* metrics a property of the checkout rather
+    # than of the code; a018_llm_chat, which has several continued prompt
+    # strings, was the file that exposed it.
+    foreach ($m in [regex]::Matches($txt, '"([^"\\]*(?:\\[\s\S][^"\\]*)*)"')) {
         $lit = $m.Groups[1].Value
         if ($lit -eq '') { continue }
 

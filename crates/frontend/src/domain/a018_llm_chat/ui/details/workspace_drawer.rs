@@ -13,7 +13,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use thaw::*;
 
-use super::model::{fetch_workspace_file, save_workspace_file, set_active_activity};
+use super::api::{fetch_workspace_file, save_workspace_file, set_active_activity};
 use contracts::domain::a018_llm_chat::workspace::{ChatFile, ChatWorkspaceView};
 
 /// Человекочитаемая подпись живого документа — уходит в tooltip, чтобы в дереве

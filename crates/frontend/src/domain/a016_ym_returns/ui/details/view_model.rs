@@ -1,6 +1,6 @@
 //! ViewModel for YM Returns details (MVVM Standard, mirrors a015_wb_orders)
 
-use super::model::*;
+use super::api::*;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 

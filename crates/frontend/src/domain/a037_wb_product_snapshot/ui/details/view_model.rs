@@ -1,6 +1,6 @@
 //! ViewModel for WB Product Snapshot details.
 
-use super::model::*;
+use super::api::*;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::list_utils::sort_list;
 use leptos::prelude::*;

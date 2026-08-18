@@ -158,7 +158,6 @@
       могла переопределить масштаб блока, не переписывая правила.
       `--meter-track-radius` — половина высоты трека: `--radius-full` это 50%,
       на полосе он даёт эллипс. */
-   --font-size-hero: 2.2rem;
    --meter-track-height: 6px;
    --meter-track-radius: 3px;
    --sparkline-height: 28px;

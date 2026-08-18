@@ -5,7 +5,7 @@
 //! таблица с мини-фильтром и сортировкой, выбор разрешённых моделей (чекбокс) и основной
 //! модели (звёздочка) прямо в строках.
 
-use super::model::{fetch_connection, fetch_models_from_api, save_connection, test_connection};
+use super::api::{fetch_connection, fetch_models_from_api, save_connection, test_connection};
 use super::view_model::{model_provider, LlmConnectionDetailsVm, ModelSortCol};
 use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;

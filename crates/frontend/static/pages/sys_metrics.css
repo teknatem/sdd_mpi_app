@@ -2,8 +2,9 @@
    Стили страницы «Метрики проекта» (sys_metrics).
 
    Скоуп — корневой класс `.sys-metrics`. Плитка, дельта, метр и спарклайн
-   приехали из `themes/core/viz.css`, скин таблиц — из `.table__data`; здесь
-   осталась только раскладка страницы.
+   приехали из `themes/core/viz.css`, паспорт — из `meta-strip`, поиск — из
+   `search-box`, скин таблиц — из `.table__data`; здесь осталась только
+   раскладка страницы.
 
    Каркас `.page__header` / `.page__content` не переопределяем (UI-014): всё,
    что нужно этой странице, живёт на собственной обёртке `__body`.
@@ -12,7 +13,7 @@
 .sys-metrics {
     /* Геометрия раскладки, под которую токенов нет по смыслу: это размеры
        конкретных гридов, а не шаг общей шкалы. */
-    --sys-metrics-tile-min: 15rem;
+    --sys-metrics-tile-min: 16rem;
     --sys-metrics-bento-min: 22rem;
 }
 
@@ -21,7 +22,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-xl);
     padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
     overflow-y: auto;
 }
@@ -33,39 +34,28 @@
     max-width: 60rem;
 }
 
-/* ---- passport -------------------------------------------------------- */
+/* ---- toolbar --------------------------------------------------------- */
 
-.sys-metrics .sys-metrics__passport {
+.sys-metrics .sys-metrics__toolbar {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: var(--spacing-md);
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius-lg);
-    background: var(--card-bg);
+    flex-wrap: wrap;
 }
 
-.sys-metrics .sys-metrics__passport-item {
-    display: flex;
-    flex-direction: column;
-}
-
-.sys-metrics .sys-metrics__passport-label {
-    font-size: var(--font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+.sys-metrics .sys-metrics__count {
+    margin-left: auto;
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
-}
-
-.sys-metrics .sys-metrics__passport-value {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 /* ---- attention: ведущий блок ------------------------------------------
-   Смысл блока — неровность. Первая плитка занимает две колонки и две строки,
-   остальные встают вокруг; ровная сетка здесь всё сломала бы обратно. */
+   Блок выделен положением и заголовком, а не размером плиток. Попытка
+   укрупнить первую не сработала дважды: при полоске тренда в 28 px растянутая
+   плитка оставалась наполовину пустой, а полноразмерный график с сеткой и
+   порогами перегружал карточку, которой полагается читаться за секунду.
+   Развёрнутый разбор одной метрики — задача отдельного экрана. */
 
 .sys-metrics .sys-metrics__attention {
     display: flex;
@@ -85,11 +75,17 @@
     color: var(--color-text-tertiary);
 }
 
+.sys-metrics .sys-metrics__block-title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
 .sys-metrics .sys-metrics__bento {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--sys-metrics-bento-min), 1fr));
     grid-auto-rows: min-content;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md);
 }
 
 /* Элемент сетки — обёртка страницы, а не сама плитка: `stat-tile` живёт в
@@ -105,25 +101,15 @@
     min-width: 0;
 }
 
-.sys-metrics .sys-metrics__bento-item--lead {
-    grid-column: span 2;
-    grid-row: span 2;
-}
-
-/* На узком экране «две колонки» превращаются в переполнение. */
-@media (max-width: 60rem) {
-    .sys-metrics .sys-metrics__bento-item--lead {
-        grid-column: span 1;
-        grid-row: span 1;
-    }
-}
-
 .sys-metrics .sys-metrics__attention--clear .sys-metrics__state {
     border-style: solid;
     border-color: var(--color-success);
 }
 
-/* ---- groups and tiles ------------------------------------------------ */
+/* ---- groups and tiles ------------------------------------------------
+   Заголовок группы липкий: на десяти группах он уезжает за верх экрана, и
+   плитки теряют принадлежность — по экрану остаётся ровная стена без
+   объяснения, что это за показатели. */
 
 .sys-metrics .sys-metrics__group {
     display: flex;
@@ -131,16 +117,60 @@
     gap: var(--spacing-sm);
 }
 
+.sys-metrics .sys-metrics__group-head {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-sm) 0;
+    border: none;
+    /* Логическое свойство: линейка под заголовком переворачивается вместе с
+       направлением письма, и px-хардкод не числится отступом. */
+    border-block-end: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sys-metrics .sys-metrics__group-head:hover .sys-metrics__group-title {
+    color: var(--color-primary);
+}
+
 .sys-metrics .sys-metrics__group-title {
-    margin: 0;
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
+}
+
+.sys-metrics .sys-metrics__group-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+
+.sys-metrics .sys-metrics__chevron {
+    display: inline-flex;
+    color: var(--color-text-secondary);
+    transition: transform var(--transition-fast);
+}
+
+.sys-metrics .sys-metrics__chevron--expanded {
+    transform: rotate(90deg);
+}
+
+.sys-metrics .sys-metrics__group-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
 }
 
 .sys-metrics .sys-metrics__tiles {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--sys-metrics-tile-min), 1fr));
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md);
 }
 
 /* ---- detail tables ---------------------------------------------------
@@ -148,9 +178,10 @@
    `tbody td`, поэтому размечать каждую ячейку не нужно. */
 
 .sys-metrics .sys-metrics__table-block {
-    border: 1px solid var(--card-border);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     background: var(--card-bg);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
 }
 
@@ -176,17 +207,14 @@
     color: var(--color-text-tertiary);
 }
 
-/* ---- states ---------------------------------------------------------- */
+/* ---- states ----------------------------------------------------------
+   Ошибка показывается общим `.alert--error`: у него уже есть мягкая заливка
+   и рамка в тон, а собственный красный текст на странице был лишним. */
 
 .sys-metrics .sys-metrics__state {
     padding: var(--spacing-md);
     font-size: var(--font-size-md);
     color: var(--color-text-secondary);
-    border: 1px dashed var(--card-border);
+    border: 1px dashed var(--color-border);
     border-radius: var(--radius-lg);
-}
-
-.sys-metrics .sys-metrics__state--error {
-    color: var(--color-error);
-    border-style: solid;
 }

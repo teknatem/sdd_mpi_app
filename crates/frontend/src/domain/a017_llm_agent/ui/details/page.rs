@@ -3,7 +3,7 @@
 //! Персона (имя, аватар, почта, специализация, обязанности, расписание) поверх
 //! технического подключения a038. Техника берётся из подключения, здесь не редактируется.
 
-use super::model::{fetch_agent, fetch_connections, fetch_employee_skills, save_agent};
+use super::api::{fetch_agent, fetch_connections, fetch_employee_skills, save_agent};
 use super::view_model::{ConnOption, LlmAgentDetailsVm, SkillItem};
 use crate::shared::icons::icon;
 use leptos::prelude::*;
@@ -69,7 +69,7 @@ pub fn LlmAgentDetails(
         let at = vm.agent_type.get();
         wasm_bindgen_futures::spawn_local(async move {
             if let Ok(resp) = fetch_employee_skills(&at).await {
-                let map = |v: Vec<super::model::SkillDto>| {
+                let map = |v: Vec<super::api::SkillDto>| {
                     v.into_iter()
                         .map(|s| SkillItem {
                             id: s.id,

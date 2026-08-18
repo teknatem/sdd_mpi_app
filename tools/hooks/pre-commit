@@ -55,7 +55,11 @@ fi
 # Last, and gated the same way the other two are: a docs-only commit does not
 # need a fresh measurement, and an unconditional run would put a diff in every
 # single commit. ~1s when it does run.
-if echo "$staged" | grep -Eq 'crates/|migrations/|memory-bank/|tools/gen_code_metrics\.ps1'; then
+# architecture.toml and its validator are in the trigger because the metrics run
+# is what measures conformance (arch.naming_violations). Adding a rule without
+# re-measuring would leave the ratchet comparing against a score from before the
+# rule existed.
+if echo "$staged" | grep -Eq 'crates/|migrations/|memory-bank/|tools/gen_code_metrics\.ps1|architecture\.toml|tools/check_architecture\.ps1'; then
   echo "[pre-commit] Regenerating codebase_metrics.json..."
   if powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/gen_code_metrics.ps1; then
     git add codebase_metrics.json

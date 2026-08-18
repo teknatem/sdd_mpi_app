@@ -1,6 +1,6 @@
 //! Lines tab ("Позиции") - per-product stocks and ratings snapshot with sorting and CSV export.
 
-use super::super::model::{fmt_money, fmt_ratio, LINES_COLUMN_WIDTHS_KEY, LINES_TABLE_ID};
+use super::super::api::{fmt_money, fmt_ratio, LINES_COLUMN_WIDTHS_KEY, LINES_TABLE_ID};
 use super::super::view_model::WbProductSnapshotDetailsVm;
 use crate::shared::components::card_animated::CardAnimated;
 use crate::shared::components::table::number_format::format_number_int;

@@ -512,6 +512,8 @@
     { "block": "sql-section-title", "layer": "core", "reason": "bootstrap" },
     { "block": "sql-string", "layer": "core", "reason": "bootstrap" },
     { "block": "sql-viewer-container", "layer": "core", "reason": "bootstrap" },
+    { "block": "search-box", "layer": "core", "reason": "Поиск по подстроке как самостоятельный блок: тот же контрол, что spec-list__search, но не требует оборачивать страницу в чужой блок ради стилей" },
+    { "block": "meta-strip", "layer": "core", "reason": "Компактная строка фактов об объекте (версия, коммит, время снимка), разбитая на секции с разделителями; заменила page-owned sys-metrics__passport" },
     { "block": "spec-list", "layer": "core", "reason": "Общий шаблон списка именованных пунктов (короткое имя + описание + характеристики + категория): тулбар с поиском и режимами, подсветка строки рамкой. Заменил ad-hoc разметку p903 и sys_task_type_registry." },
     { "block": "stack", "layer": "feature", "reason": "bootstrap" },
     { "block": "stat", "layer": "feature", "reason": "bootstrap" },

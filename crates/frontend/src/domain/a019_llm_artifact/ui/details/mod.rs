@@ -1,13 +1,13 @@
 //! LLM Artifact Details UI Module (MVVM Standard)
 //!
 //! Structure:
-//! - model.rs: DTOs and API functions
+//! - api.rs: DTOs and API functions
 //! - view_model.rs: LlmArtifactDetailsVm with RwSignals
-//! - view.rs: Main component LlmArtifactDetails
+//! - page.rs: Main component LlmArtifactDetails
 
-mod model;
-mod view;
+mod api;
+mod page;
 mod view_model;
 
-pub use view::LlmArtifactDetails;
+pub use page::LlmArtifactDetails;
 pub use view_model::LlmArtifactDetailsVm;

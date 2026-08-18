@@ -1,6 +1,6 @@
 //! Links tab - YM Payment Report records linked by order_id
 
-use super::super::model::YmPaymentReportLinkDto;
+use super::super::api::YmPaymentReportLinkDto;
 use super::super::view_model::YmOrderDetailsVm;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::components::card_animated::CardAnimated;

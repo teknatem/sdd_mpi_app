@@ -3,12 +3,12 @@
 //! Унифицирован с detail-страницами: PageFrame, page__header, page__content.
 //! Агент отображается по имени (agent_name из API), а не по UUID.
 
-use super::artifact_card::ArtifactCard;
-use super::model::{
+use super::api::{
     cancel_job, delete_chat, delete_pending_attachment, fetch_attachment_object_url, fetch_chat,
     fetch_chat_context, fetch_connection_model_capabilities, fetch_messages, fetch_workspace,
     poll_until_done, send_message, set_chat_model, set_rating, JobProgress, PollOutcome,
 };
+use super::artifact_card::ArtifactCard;
 use super::view_model::LlmChatDetailsVm;
 
 /// Предопределённое сообщение для кнопки «Диагностика»: модель разбирает текущий диалог
@@ -395,7 +395,7 @@ pub fn LlmChatDetails(id: String, on_close: Callback<()>) -> impl IntoView {
             move |(file, preview_url): (web_sys::File, Option<String>)| {
                 let chat_id = chat_id.clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    match super::model::upload_file(&chat_id, file).await {
+                    match super::api::upload_file(&chat_id, file).await {
                         Ok(mut file_info) => {
                             file_info.preview_url = preview_url;
                             vm.uploaded_files.update(|files| files.push(file_info));

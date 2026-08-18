@@ -1,7 +1,7 @@
 use super::{
     odata_models_counterparty::*, odata_models_kit_variant::*, odata_models_nomenclature::*,
     odata_models_organization::*, odata_models_purchase_of_goods::*,
-    progress_tracker::ProgressTracker, ut_odata_client::UtODataClient,
+    progress_tracker::ProgressTracker, ut_api_client::UtODataClient,
 };
 use crate::domain::{
     a001_connection_1c, a002_organization, a003_counterparty, a004_nomenclature, a022_kit_variant,

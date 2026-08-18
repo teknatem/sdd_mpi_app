@@ -7,14 +7,14 @@
 //! Несколько индикаторов дашборда с одинаковым DataView + контекстом не делают
 //! повторных запросов к БД.
 
-pub mod dv001;
-pub mod dv002;
-pub mod dv003;
-pub mod dv004;
-pub mod dv005;
-pub mod dv006;
-pub mod dv007;
-pub mod dv008;
+pub mod dv001_revenue;
+pub mod dv002_wb_advert_by_items;
+pub mod dv003_mp_order_line_turnovers;
+pub mod dv004_general_ledger_turnovers;
+pub mod dv005_gl_account_view_total;
+pub mod dv006_indicator_ratio_percent;
+pub mod dv007_gl_turnover_ratio_percent;
+pub mod dv008_wb_sales_funnel;
 pub mod filters;
 
 use std::collections::HashMap;
@@ -189,52 +189,106 @@ impl DataViewRegistry {
         };
 
         registry.register(
-            dv001::meta(),
-            |ctx| Box::pin(dv001::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv001::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv001::meta(), ctx)),
+            dv001_revenue::meta(),
+            |ctx| Box::pin(dv001_revenue::compute_scalar(ctx)),
+            |ctx, g, ids| Box::pin(dv001_revenue::compute_drilldown_multi(ctx, g, ids)),
+            |ctx| Box::pin(Self::static_capabilities(dv001_revenue::meta(), ctx)),
         );
         registry.register(
-            dv002::meta(),
-            |ctx| Box::pin(dv002::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv002::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv002::meta(), ctx)),
+            dv002_wb_advert_by_items::meta(),
+            |ctx| Box::pin(dv002_wb_advert_by_items::compute_scalar(ctx)),
+            |ctx, g, ids| {
+                Box::pin(dv002_wb_advert_by_items::compute_drilldown_multi(
+                    ctx, g, ids,
+                ))
+            },
+            |ctx| {
+                Box::pin(Self::static_capabilities(
+                    dv002_wb_advert_by_items::meta(),
+                    ctx,
+                ))
+            },
         );
         registry.register(
-            dv003::meta(),
-            |ctx| Box::pin(dv003::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv003::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv003::meta(), ctx)),
+            dv003_mp_order_line_turnovers::meta(),
+            |ctx| Box::pin(dv003_mp_order_line_turnovers::compute_scalar(ctx)),
+            |ctx, g, ids| {
+                Box::pin(dv003_mp_order_line_turnovers::compute_drilldown_multi(
+                    ctx, g, ids,
+                ))
+            },
+            |ctx| {
+                Box::pin(Self::static_capabilities(
+                    dv003_mp_order_line_turnovers::meta(),
+                    ctx,
+                ))
+            },
         );
         registry.register(
-            dv004::meta(),
-            |ctx| Box::pin(dv004::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv004::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(dv004::compute_drilldown_capabilities(ctx)),
+            dv004_general_ledger_turnovers::meta(),
+            |ctx| Box::pin(dv004_general_ledger_turnovers::compute_scalar(ctx)),
+            |ctx, g, ids| {
+                Box::pin(dv004_general_ledger_turnovers::compute_drilldown_multi(
+                    ctx, g, ids,
+                ))
+            },
+            |ctx| Box::pin(dv004_general_ledger_turnovers::compute_drilldown_capabilities(ctx)),
         );
         registry.register(
-            dv005::meta(),
-            |ctx| Box::pin(dv005::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv005::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv005::meta(), ctx)),
+            dv005_gl_account_view_total::meta(),
+            |ctx| Box::pin(dv005_gl_account_view_total::compute_scalar(ctx)),
+            |ctx, g, ids| {
+                Box::pin(dv005_gl_account_view_total::compute_drilldown_multi(
+                    ctx, g, ids,
+                ))
+            },
+            |ctx| {
+                Box::pin(Self::static_capabilities(
+                    dv005_gl_account_view_total::meta(),
+                    ctx,
+                ))
+            },
         );
         registry.register(
-            dv006::meta(),
-            |ctx| Box::pin(dv006::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv006::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv006::meta(), ctx)),
+            dv006_indicator_ratio_percent::meta(),
+            |ctx| Box::pin(dv006_indicator_ratio_percent::compute_scalar(ctx)),
+            |ctx, g, ids| {
+                Box::pin(dv006_indicator_ratio_percent::compute_drilldown_multi(
+                    ctx, g, ids,
+                ))
+            },
+            |ctx| {
+                Box::pin(Self::static_capabilities(
+                    dv006_indicator_ratio_percent::meta(),
+                    ctx,
+                ))
+            },
         );
         registry.register(
-            dv007::meta(),
-            |ctx| Box::pin(dv007::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv007::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv007::meta(), ctx)),
+            dv007_gl_turnover_ratio_percent::meta(),
+            |ctx| Box::pin(dv007_gl_turnover_ratio_percent::compute_scalar(ctx)),
+            |ctx, g, ids| {
+                Box::pin(dv007_gl_turnover_ratio_percent::compute_drilldown_multi(
+                    ctx, g, ids,
+                ))
+            },
+            |ctx| {
+                Box::pin(Self::static_capabilities(
+                    dv007_gl_turnover_ratio_percent::meta(),
+                    ctx,
+                ))
+            },
         );
         registry.register(
-            dv008::meta(),
-            |ctx| Box::pin(dv008::compute_scalar(ctx)),
-            |ctx, g, ids| Box::pin(dv008::compute_drilldown_multi(ctx, g, ids)),
-            |ctx| Box::pin(Self::static_capabilities(dv008::meta(), ctx)),
+            dv008_wb_sales_funnel::meta(),
+            |ctx| Box::pin(dv008_wb_sales_funnel::compute_scalar(ctx)),
+            |ctx, g, ids| Box::pin(dv008_wb_sales_funnel::compute_drilldown_multi(ctx, g, ids)),
+            |ctx| {
+                Box::pin(Self::static_capabilities(
+                    dv008_wb_sales_funnel::meta(),
+                    ctx,
+                ))
+            },
         );
 
         registry

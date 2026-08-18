@@ -2,7 +2,7 @@
 //!
 //! Contains reactive state, commands, and lazy loading logic.
 
-use super::model::*;
+use super::api::*;
 use crate::layout::global_context::AppGlobalContext;
 use contracts::general_ledger::GeneralLedgerEntryDto;
 use contracts::projections::p903_wb_finance_report::dto::WbFinanceReportDto;

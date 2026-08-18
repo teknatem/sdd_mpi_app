@@ -1,4 +1,4 @@
-use super::model;
+use super::api;
 use contracts::domain::a004_nomenclature::aggregate::Nomenclature;
 use contracts::domain::a005_marketplace::aggregate::Marketplace;
 use contracts::domain::a007_marketplace_product::aggregate::MarketplaceProductDto;
@@ -77,7 +77,7 @@ impl MarketplaceProductDetailsViewModel {
         let nomenclature_article = self.nomenclature_article;
 
         wasm_bindgen_futures::spawn_local(async move {
-            let result = model::fetch_by_id(existing_id).await;
+            let result = api::fetch_by_id(existing_id).await;
             if let Err(e) = result {
                 error.set(Some(format!("Ошибка загрузки: {}", e)));
                 return;
@@ -102,16 +102,16 @@ impl MarketplaceProductDetailsViewModel {
             };
             form.set(dto);
 
-            if let Ok(mp) = model::fetch_marketplace(&aggregate.marketplace_ref).await {
+            if let Ok(mp) = api::fetch_marketplace(&aggregate.marketplace_ref).await {
                 let resolved_marketplace_type = Self::resolve_marketplace_type(&mp);
                 marketplace_name.set(mp.base.description);
                 marketplace_type.set(resolved_marketplace_type);
             }
-            if let Ok(conn) = model::fetch_connection_mp(&aggregate.connection_mp_ref).await {
+            if let Ok(conn) = api::fetch_connection_mp(&aggregate.connection_mp_ref).await {
                 connection_name.set(conn.base.description);
             }
             if let Some(ref nom_id) = aggregate.nomenclature_ref {
-                if let Ok(nom) = model::fetch_nomenclature(nom_id).await {
+                if let Ok(nom) = api::fetch_nomenclature(nom_id).await {
                     nomenclature_name.set(nom.base.description);
                     nomenclature_code.set(nom.base.code);
                     nomenclature_article.set(nom.article);
@@ -131,7 +131,7 @@ impl MarketplaceProductDetailsViewModel {
         let on_saved_cb = on_saved.clone();
         let error = self.error;
         wasm_bindgen_futures::spawn_local(async move {
-            match model::save_form(&current).await {
+            match api::save_form(&current).await {
                 Ok(()) => (on_saved_cb)(()),
                 Err(e) => error.set(Some(e)),
             }
@@ -157,7 +157,7 @@ impl MarketplaceProductDetailsViewModel {
         let search_results = self.search_results;
 
         wasm_bindgen_futures::spawn_local(async move {
-            match model::search_nomenclature_by_article(&article).await {
+            match api::search_nomenclature_by_article(&article).await {
                 Ok(results) => match results.len() {
                     0 => {
                         error.set(Some(format!(
@@ -220,7 +220,7 @@ impl MarketplaceProductDetailsViewModel {
         let search_results = self.search_results;
 
         wasm_bindgen_futures::spawn_local(async move {
-            match model::search_nomenclature_by_barcode(&barcode).await {
+            match api::search_nomenclature_by_barcode(&barcode).await {
                 Ok(results) => match results.len() {
                     0 => {
                         error.set(Some(format!(

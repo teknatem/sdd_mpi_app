@@ -294,13 +294,13 @@ const EMBEDDED_LLM_DOCS: &[EmbeddedKnowledgeSource] = &[
     },
     EmbeddedKnowledgeSource {
         id: "data-view-dv001",
-        source_path: "crates/backend/src/data_view/dv001/llm.md",
-        raw: include_str!("../../data_view/dv001/llm.md"),
+        source_path: "crates/backend/src/data_view/dv001_revenue/llm.md",
+        raw: include_str!("../../data_view/dv001_revenue/llm.md"),
     },
     EmbeddedKnowledgeSource {
         id: "data-view-dv004",
-        source_path: "crates/backend/src/data_view/dv004/llm.md",
-        raw: include_str!("../../data_view/dv004/llm.md"),
+        source_path: "crates/backend/src/data_view/dv004_general_ledger_turnovers/llm.md",
+        raw: include_str!("../../data_view/dv004_general_ledger_turnovers/llm.md"),
     },
     EmbeddedKnowledgeSource {
         id: "general-ledger",
@@ -367,183 +367,183 @@ const EMBEDDED_LLM_DOCS: &[EmbeddedKnowledgeSource] = &[
     // эти эндпоинты вызывает.
     EmbeddedKnowledgeSource {
         id: "wb-api-overview",
-        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-overview.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-overview.md"),
+        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-overview.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-overview.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-connection",
-        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-connection.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-connection.md"),
+        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-connection.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-connection.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-content-cards",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-content-cards.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-content-cards.md"),
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-content-cards.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-content-cards.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-statistics-sales",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-statistics-sales.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-statistics-sales.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-statistics-sales.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-statistics-sales.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-statistics-orders",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-statistics-orders.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-statistics-orders.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-statistics-orders.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-statistics-orders.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-finance-report",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-finance-report.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-finance-report.md"),
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-finance-report.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-finance-report.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-tariffs-commission",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-tariffs-commission.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-tariffs-commission.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-tariffs-commission.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-tariffs-commission.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-prices",
-        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-prices.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-prices.md"),
+        source_path: "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-prices.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-prices.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-promotions",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-promotions.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-promotions.md"),
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-promotions.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-promotions.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-advert-campaigns",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-advert-campaigns.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-advert-campaigns.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-advert-campaigns.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-advert-campaigns.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-advert-fullstats",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-advert-fullstats.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-advert-fullstats.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-advert-fullstats.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-advert-fullstats.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-funnel-products",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-funnel-products.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-funnel-products.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-funnel-products.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-funnel-products.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-funnel-history",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-funnel-history.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-funnel-history.md"),
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-funnel-history.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-funnel-history.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-funnel-detail-report",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-funnel-detail-report.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-funnel-detail-report.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-funnel-detail-report.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-funnel-detail-report.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-search-analytics",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-search-analytics.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-search-analytics.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-search-analytics.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-search-analytics.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-marketplace-orders",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-marketplace-orders.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-marketplace-orders.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-marketplace-orders.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-marketplace-orders.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-marketplace-supplies",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-marketplace-supplies.md",
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-marketplace-supplies.md",
         raw: include_str!(
-            "../../usecases/u504_import_from_wildberries/api/wb-api-marketplace-supplies.md"
+            "../../usecases/u504_import_from_wildberries/docs/wb-api-marketplace-supplies.md"
         ),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-documents",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-documents.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-documents.md"),
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-documents.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-documents.md"),
     },
     EmbeddedKnowledgeSource {
         id: "wb-api-returns-claims",
         source_path:
-            "crates/backend/src/usecases/u504_import_from_wildberries/api/wb-api-returns-claims.md",
-        raw: include_str!("../../usecases/u504_import_from_wildberries/api/wb-api-returns-claims.md"),
+            "crates/backend/src/usecases/u504_import_from_wildberries/docs/wb-api-returns-claims.md",
+        raw: include_str!("../../usecases/u504_import_from_wildberries/docs/wb-api-returns-claims.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-overview",
-        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-overview.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-overview.md"),
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-overview.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-overview.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-campaigns",
-        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-campaigns.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-campaigns.md"),
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-campaigns.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-campaigns.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-offer-mappings",
         source_path:
-            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-offer-mappings.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-offer-mappings.md"),
+            "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-offer-mappings.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-offer-mappings.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-orders",
-        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-orders.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-orders.md"),
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-orders.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-orders.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-returns",
-        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-returns.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-returns.md"),
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-returns.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-returns.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-united-netting",
         source_path:
-            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-united-netting.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-united-netting.md"),
+            "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-united-netting.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-united-netting.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-goods-realization",
         source_path:
-            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-goods-realization.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-goods-realization.md"),
+            "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-goods-realization.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-goods-realization.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-shows-sales",
-        source_path: "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-shows-sales.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-shows-sales.md"),
+        source_path: "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-shows-sales.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-shows-sales.md"),
     },
     EmbeddedKnowledgeSource {
         id: "ym-api-reports-machinery",
         source_path:
-            "crates/backend/src/usecases/u503_import_from_yandex/api/ym-api-reports-machinery.md",
-        raw: include_str!("../../usecases/u503_import_from_yandex/api/ym-api-reports-machinery.md"),
+            "crates/backend/src/usecases/u503_import_from_yandex/docs/ym-api-reports-machinery.md",
+        raw: include_str!("../../usecases/u503_import_from_yandex/docs/ym-api-reports-machinery.md"),
     },
 ];
 

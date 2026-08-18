@@ -1,4 +1,4 @@
-use super::super::{model, view_model::NomenclatureDetailsVm};
+use super::super::{api, view_model::NomenclatureDetailsVm};
 use crate::domain::a004_nomenclature::ui::picker::{NomenclaturePicker, NomenclaturePickerItem};
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::components::card_animated::CardAnimated;
@@ -55,7 +55,7 @@ pub fn GeneralTab(vm: NomenclatureDetailsVm) -> impl IntoView {
 
             let vm = vm.clone();
             leptos::task::spawn_local(async move {
-                match model::fetch_base_nomenclature_info(&alternative_ref).await {
+                match api::fetch_base_nomenclature_info(&alternative_ref).await {
                     Ok(info) => {
                         vm.alternative_cost_source_name.set(info.name);
                         vm.alternative_cost_source_article.set(info.article);

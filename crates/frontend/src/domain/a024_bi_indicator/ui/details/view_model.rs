@@ -1,6 +1,6 @@
 //! ViewModel for BiIndicator details form (EditDetails MVVM Standard)
 
-use super::model::{self, BiIndicatorSaveDto, ComputedIndicatorValue};
+use super::api::{self, BiIndicatorSaveDto, ComputedIndicatorValue};
 use crate::shared::bi_card::{
     default_design_name, is_known_design, render_srcdoc, IndicatorCardParams,
 };
@@ -741,7 +741,7 @@ impl BiIndicatorDetailsVm {
         this.error.set(None);
 
         leptos::task::spawn_local(async move {
-            match model::fetch_by_id(&id).await {
+            match api::fetch_by_id(&id).await {
                 Ok(item) => {
                     this.from_raw(&item);
                     this.loading.set(false);
@@ -773,7 +773,7 @@ impl BiIndicatorDetailsVm {
         let dto = this.to_dto();
 
         leptos::task::spawn_local(async move {
-            match model::save_indicator(dto).await {
+            match api::save_indicator(dto).await {
                 Ok(new_id) => {
                     if this.id.get().is_none() {
                         this.id.set(Some(new_id));
@@ -821,7 +821,7 @@ impl BiIndicatorDetailsVm {
         let indicator_description = this.description.get();
 
         leptos::task::spawn_local(async move {
-            match model::generate_view(
+            match api::generate_view(
                 &prompt,
                 current_html.as_deref(),
                 current_css.as_deref(),
@@ -878,7 +878,7 @@ impl BiIndicatorDetailsVm {
         this.test_result.set(None);
 
         leptos::task::spawn_local(async move {
-            match model::compute_indicator_by_id(
+            match api::compute_indicator_by_id(
                 &uuid,
                 &ctx.date_from,
                 &ctx.date_to,

@@ -138,6 +138,11 @@ const EMBEDDED_SKILL_FILES: &[EmbeddedSkillSeed] = &[
         content: include_str!("../../../skills/agent-delegation.md"),
         assets: NO_EMBEDDED_ASSETS,
     },
+    EmbeddedSkillSeed {
+        relative_path: "app-health-review.md",
+        content: include_str!("../../../skills/app-health-review.md"),
+        assets: NO_EMBEDDED_ASSETS,
+    },
 ];
 
 // ─── Core: всегда активные инструменты ───────────────────────────────────────
@@ -1695,6 +1700,19 @@ mod tests {
         for expected in super::super::ticket_tools::TICKET_TOOL_NAMES {
             assert!(names.contains(*expected), "потерян инструмент {expected}");
         }
+    }
+
+    #[test]
+    fn app_health_skill_brings_the_metrics_tool() {
+        // Незнакомые имена инструментов выбрасываются из skill-файла молча:
+        // навык загрузится, а разбор метрик окажется без единственного
+        // инструмента, который эти метрики читает.
+        let tools = assemble_tools(&["app-health-review"]);
+        let names: HashSet<_> = tools.iter().map(|t| t.name.clone()).collect();
+        assert!(
+            names.contains("get_project_metrics"),
+            "навык разбора метрик потерял get_project_metrics"
+        );
     }
 
     #[test]

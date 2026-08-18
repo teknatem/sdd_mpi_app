@@ -1,6 +1,6 @@
 //! Orders tab - shipment sheet
 
-use super::super::model::{NomenclatureInfo, SupplyOrderDto};
+use super::super::api::{NomenclatureInfo, SupplyOrderDto};
 use super::super::view_model::WbSupplyDetailsVm;
 use crate::layout::global_context::AppGlobalContext;
 use leptos::prelude::*;

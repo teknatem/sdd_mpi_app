@@ -1,13 +1,13 @@
 //! LLM Agent Details UI Module (MVVM Standard)
 //!
 //! Structure:
-//! - model.rs: DTOs and API functions
+//! - api.rs: DTOs and API functions
 //! - view_model.rs: LlmAgentDetailsVm with RwSignals
-//! - view.rs: Main component LlmAgentDetails
+//! - page.rs: Main component LlmAgentDetails
 
-mod model;
-mod view;
+mod api;
+mod page;
 mod view_model;
 
-pub use view::LlmAgentDetails;
+pub use page::LlmAgentDetails;
 pub use view_model::LlmAgentDetailsVm;

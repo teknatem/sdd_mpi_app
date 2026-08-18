@@ -273,7 +273,7 @@ if (Test-Path $timingsPath) {
 }
 
 # ------------------------------------------------------- architecture findings
-# Output of the external code_grid_dashboard analyzer. The directory is
+# Output of the external SDD Studio analyzer (F:\dev\sdd_studio). The directory is
 # gitignored, so on a fresh clone this metric is simply absent rather than zero —
 # "not measured" and "nothing found" must not look alike.
 $diagPath = Join-Path $root '.vsa_designer/diagnostics.json'
@@ -409,6 +409,38 @@ if (Test-Path $uiPath) {
         }
     }
     Set-Metric 'ui.unregistered_blocks' $unregistered
+}
+
+# ------------------------------------------------- architecture.toml conformance
+# Delegated, not reimplemented: check_architecture.ps1 owns the rule engine and
+# architecture.toml owns the rules. This script only records the score, so that
+# the ratchet in check_health.ps1 can gate it like any other metric — a rule
+# violated today cannot quietly become normal tomorrow.
+#
+# Waived matches are counted separately and on purpose. A waiver is a legitimate
+# exception with a reason attached, but a growing pile of them is how a standard
+# hollows out, so the number is visible next to the violations rather than
+# folded into them.
+$archScript = Join-Path $PSScriptRoot 'check_architecture.ps1'
+if (Test-Path $archScript) {
+    try {
+        $archRaw = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $archScript -Json
+        $arch = ($archRaw | Out-String).Trim() | ConvertFrom-Json
+        Set-Metric 'arch.naming_violations' $arch.errors
+        Set-Metric 'arch.waived_rules' $arch.waived
+        if ($arch.violations.Count -gt 0) {
+            $details += [ordered]@{
+                code        = 'arch.violations'
+                label       = 'Нарушения architecture.toml'
+                value_label = ''
+                rows        = @($arch.violations | ForEach-Object {
+                    [ordered]@{ name = $_.path; value = 0.0; extra = "$($_.rule): $($_.message)" }
+                })
+            }
+        }
+    } catch {
+        Write-Warning "[metrics] check_architecture.ps1 failed, conformance not measured: $_"
+    }
 }
 
 # ------------------------------------------------------------------------- git

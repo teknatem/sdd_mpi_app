@@ -2,7 +2,7 @@
 //!
 //! Contains reactive state and commands.
 
-use super::model::*;
+use super::api::*;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::list_utils::sort_list;
 use leptos::prelude::*;
