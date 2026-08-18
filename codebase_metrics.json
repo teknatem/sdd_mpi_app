@@ -1,25 +1,25 @@
 {
-    "generated_at":  "2026-08-18T06:26:51Z",
-    "git_head":  "1e52490",
+    "generated_at":  "2026-08-18T07:11:21Z",
+    "git_head":  "a6e8aff",
     "metrics":  {
-                    "code.lines.backend":  191646,
-                    "tests.density.backend":  3.261,
-                    "code.lines.frontend":  172922,
+                    "code.lines.backend":  191374,
+                    "tests.density.backend":  3.266,
+                    "code.lines.frontend":  172563,
                     "tests.density.frontend":  0.278,
                     "code.lines.contracts":  58000,
                     "tests.density.contracts":  0.397,
-                    "code.lines.total":  422568,
-                    "code.files.total":  1770,
+                    "code.lines.total":  421937,
+                    "code.files.total":  1764,
                     "code.avg_lines":  239,
                     "code.files_over_1000":  61,
                     "code.files_over_2000":  11,
                     "code.max_file_lines":  6886,
                     "arch.crates":  3,
-                    "code.top10_share":  7.66,
+                    "code.top10_share":  7.67,
                     "tests.total":  696,
                     "smells.unwrap":  572,
                     "smells.todo_fixme":  7,
-                    "code.orphan_files":  6,
+                    "code.orphan_files":  0,
                     "api.untyped_handlers":  121,
                     "api.status_only_errors":  0,
                     "api.global_db_files":  183,
@@ -37,7 +37,7 @@
                     "build.trunk_wasmdev_edit_sec":  25.1,
                     "arch.vsa_findings":  45,
                     "arch.migrations":  218,
-                    "docs.memory_bank":  137,
+                    "docs.memory_bank":  136,
                     "docs.adr":  11,
                     "arch.ui_scopes":  67,
                     "arch.routes":  450,
@@ -48,20 +48,20 @@
                     "arch.tasks":  30,
                     "arch.data_views":  8,
                     "arch.docs_coverage":  15.8,
-                    "ui.block_roots":  584,
-                    "ui.dead_classes":  376,
+                    "ui.block_roots":  583,
+                    "ui.dead_classes":  373,
                     "ui.inline_styles":  4191,
                     "ui.hardcoded_hex":  381,
-                    "ui.raw_px":  1844,
+                    "ui.raw_px":  1830,
                     "ui.broken_tokens":  0,
-                    "ui.duplicate_blocks":  31,
+                    "ui.duplicate_blocks":  30,
                     "ui.unregistered_blocks":  0,
                     "arch.naming_violations":  0,
                     "arch.waived_rules":  0,
-                    "git.commits_total":  181,
-                    "git.commits_30d":  43,
-                    "git.added_30d":  146926,
-                    "git.deleted_30d":  22271
+                    "git.commits_total":  182,
+                    "git.commits_30d":  44,
+                    "git.added_30d":  146932,
+                    "git.deleted_30d":  22444
                 },
     "details":  [
                     {
@@ -108,37 +108,6 @@
                                      {
                                          "name":  "crates/backend/src/shared/llm/skills.rs",
                                          "value":  2050
-                                     }
-                                 ]
-                    },
-                    {
-                        "code":  "code.orphans",
-                        "label":  "Файлы вне дерева модулей",
-                        "value_label":  "Строк",
-                        "rows":  [
-                                     {
-                                         "name":  "crates/backend/src/shared/universal_dashboard/schema_registry.rs",
-                                         "value":  37
-                                     },
-                                     {
-                                         "name":  "crates/backend/src/usecases/u501_import_from_ut/executor_nomenclature.rs",
-                                         "value":  235
-                                     },
-                                     {
-                                         "name":  "crates/frontend/src/domain/a024_bi_indicator/ui/details/tabs/drill_spec.rs",
-                                         "value":  28
-                                     },
-                                     {
-                                         "name":  "crates/frontend/src/domain/a024_bi_indicator/ui/details/tabs/params.rs",
-                                         "value":  28
-                                     },
-                                     {
-                                         "name":  "crates/frontend/src/layout/top_header/windows_dropdown.rs",
-                                         "value":  128
-                                     },
-                                     {
-                                         "name":  "crates/frontend/src/shared/data/db.rs",
-                                         "value":  175
                                      }
                                  ]
                     }
