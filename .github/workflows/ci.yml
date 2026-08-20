@@ -8,7 +8,7 @@
 #
 # Runs on ubuntu even though development is on Windows: every check here is
 # platform-neutral, and the Linux runners are markedly faster. The parts that are
-# genuinely Windows-shaped (the live database under F:/data, restart_backend.ps1)
+# genuinely Windows-shaped (the live database under F:/data, run_backend.ps1)
 # are not exercised by CI at all — the tests that touch live data skip themselves
 # when the directory is absent.
 
@@ -80,7 +80,9 @@ jobs:
         run: cargo check -p backend
 
       - name: Check frontend (wasm)
-        run: cargo check -p frontend --target wasm32-unknown-unknown
+        # --profile wasm-dev — тот же профиль, что у Trunk.toml и у разработчика
+        # локально. Без него CI проверяет профиль, которым фронт никто не собирает.
+        run: cargo check -p frontend --target wasm32-unknown-unknown --profile wasm-dev
 
       - name: Test backend
         # Includes router_builds, which is the only place an axum path conflict

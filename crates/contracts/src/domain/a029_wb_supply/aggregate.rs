@@ -93,9 +93,9 @@ pub struct WbSupplyOrderRow {
     pub part_a: Option<i64>,
     /// Номер стикера (partB)
     pub part_b: Option<i64>,
-    /// UUID РЅРѕРјРµРЅРєР»Р°С‚СѓСЂС‹ 1РЎ (a004_nomenclature)
+    /// UUID номенклатуры 1С (a004_nomenclature)
     pub nomenclature_ref: Option<String>,
-    /// UUID Р±Р°Р·РѕРІРѕР№ РЅРѕРјРµРЅРєР»Р°С‚СѓСЂС‹ 1РЎ (a004_nomenclature)
+    /// UUID базовой номенклатуры 1С (a004_nomenclature)
     pub base_nomenclature_ref: Option<String>,
     /// Код цвета
     pub color_code: Option<String>,

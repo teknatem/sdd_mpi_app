@@ -19,7 +19,7 @@ Step-by-step guide for refactoring frontend pages to comply with BEM + Thaw UI s
 
 - [ ] Read `memory-bank/architecture/frontend-page-standards.md`
 - [ ] Identify target page file path
-- [ ] Ensure trunk serve is running for live testing
+- [ ] Знать команду пересборки фронта: `powershell -File tools/build_frontend.ps1` (вотчера нет, фронт на :3000)
 - [ ] Have reference implementation open for comparison
 
 ## Pre-Refactoring Phase

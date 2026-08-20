@@ -401,8 +401,8 @@ Invoke-RestMethod http://localhost:3000/api/a018-llm-chat/<id>/messages
 
 #### 8.4 UI Testing
 
-1. Restart backend: `cargo run --bin backend`
-2. Restart frontend: `trunk serve`
+1. Restart backend: `powershell -File tools/run_backend.ps1`
+2. Пересобрать фронт: `powershell -File tools/build_frontend.ps1` (всё на http://localhost:3000)
 3. Navigate to LLM Chat in UI
 4. Create new chat with model dropdown
 5. Send message and verify metadata display

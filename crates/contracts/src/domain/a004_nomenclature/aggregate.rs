@@ -4,7 +4,7 @@ use crate::domain::common::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// РќСѓР»РµРІРѕР№ UUID, РєРѕС‚РѕСЂС‹Р№ РЅРµ СЃС‡РёС‚Р°РµС‚СЃСЏ РєРѕСЂСЂРµРєС‚РЅРѕР№ СЃСЃС‹Р»РєРѕР№
+// Нулевой UUID, который не считается корректной ссылкой
 const ZERO_UUID: &str = "00000000-0000-0000-0000-000000000000";
 
 // ============================================================================
@@ -62,7 +62,7 @@ pub struct Nomenclature {
     #[serde(rename = "mpRefCount", default)]
     pub mp_ref_count: i32,
 
-    // РР·РјРµСЂРµРЅРёСЏ (РєР»Р°СЃСЃРёС„РёРєР°С†РёСЏ)
+    // РР·РјРµСЂРµРЅРёСЏ (классификация)
     #[serde(rename = "dim1Category", default)]
     pub dim1_category: String,
 
@@ -98,7 +98,7 @@ pub struct Nomenclature {
 }
 
 impl Nomenclature {
-    /// Р’С‹С‡РёСЃР»РµРЅРёРµ РїСЂРёР·РЅР°РєР° РїСЂРѕРёР·РІРѕРґРЅРѕР№ РЅРѕРјРµРЅРєР»Р°С‚СѓСЂС‹
+    /// Вычисление признака производной номенклатуры
     pub fn compute_is_derivative(&self) -> bool {
         self.base_nomenclature_ref
             .as_ref()
@@ -189,9 +189,9 @@ impl Nomenclature {
         self.is_folder = dto.is_folder;
         self.parent_id = dto.parent_id.clone();
         self.article = dto.article.clone().unwrap_or_default();
-        // mp_ref_count РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ С‚РѕР»СЊРєРѕ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїСЂРё СЃРѕРїРѕСЃС‚Р°РІР»РµРЅРёРё
+        // mp_ref_count обновляется только автоматически при сопоставлении
 
-        // РћР±РЅРѕРІР»РµРЅРёРµ РёР·РјРµСЂРµРЅРёР№
+        // Обновление измерений
         self.dim1_category = dto.dim1_category.clone().unwrap_or_default();
         self.dim2_line = dto.dim2_line.clone().unwrap_or_default();
         self.dim3_model = dto.dim3_model.clone().unwrap_or_default();
@@ -199,7 +199,7 @@ impl Nomenclature {
         self.dim5_sink = dto.dim5_sink.clone().unwrap_or_default();
         self.dim6_size = dto.dim6_size.clone().unwrap_or_default();
 
-        // РћР±РЅРѕРІР»РµРЅРёРµ РЅРѕРІС‹С… РїРѕР»РµР№
+        // Обновление новых полей
         if let Some(is_assembly) = dto.is_assembly {
             self.is_assembly = is_assembly;
         }
@@ -213,49 +213,49 @@ impl Nomenclature {
             self.kit_variant_ref = dto.kit_variant_ref.clone();
         }
 
-        // РРіРЅРѕСЂРёСЂСѓРµРј dto.is_derivative - РІС‹С‡РёСЃР»СЏРµРј Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РЅР° РѕСЃРЅРѕРІРµ base_nomenclature_ref
-        // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРёР№ РїРµСЂРµСЃС‡РµС‚ РїСЂРёР·РЅР°РєР° РїСЂРѕРёР·РІРѕРґРЅРѕР№ РЅРѕРјРµРЅРєР»Р°С‚СѓСЂС‹
+        // РРіРЅРѕСЂРёСЂСѓРµРј dto.is_derivative - вычисляем автоматически на основе base_nomenclature_ref
+        // Автоматический пересчет признака производной номенклатуры
         self.is_derivative = self.compute_is_derivative();
     }
 
     pub fn validate(&self) -> Result<(), String> {
         if self.base.description.trim().is_empty() {
-            return Err("РћРїРёСЃР°РЅРёРµ РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј".into());
+            return Err("Описание не может быть пустым".into());
         }
         if self.base.code.trim().is_empty() {
-            return Err("РљРѕРґ РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј".into());
+            return Err("Код не может быть пустым".into());
         }
 
-        // Р’Р°Р»РёРґР°С†РёСЏ РґР»РёРЅС‹ РёР·РјРµСЂРµРЅРёР№
+        // Валидация длины измерений
         if self.dim1_category.len() > 40 {
             return Err(
-                "РљР°С‚РµРіРѕСЂРёСЏ РЅРµ РґРѕР»Р¶РЅР° РїСЂРµРІС‹С€Р°С‚СЊ 40 СЃРёРјРІРѕР»РѕРІ"
+                "Категория не должна превышать 40 символов"
                     .into(),
             );
         }
         if self.dim2_line.len() > 40 {
             return Err(
-                "Р›РёРЅРµР№РєР° РЅРµ РґРѕР»Р¶РЅР° РїСЂРµРІС‹С€Р°С‚СЊ 40 СЃРёРјРІРѕР»РѕРІ".into(),
+                "Линейка не должна превышать 40 символов".into(),
             );
         }
         if self.dim3_model.len() > 80 {
             return Err(
-                "РњРѕРґРµР»СЊ РЅРµ РґРѕР»Р¶РЅР° РїСЂРµРІС‹С€Р°С‚СЊ 80 СЃРёРјРІРѕР»РѕРІ".into(),
+                "Модель не должна превышать 80 символов".into(),
             );
         }
         if self.dim4_format.len() > 40 {
             return Err(
-                "Р¤РѕСЂРјР°С‚ РЅРµ РґРѕР»Р¶РµРЅ РїСЂРµРІС‹С€Р°С‚СЊ 20 СЃРёРјРІРѕР»РѕРІ".into(),
+                "Формат не должен превышать 20 символов".into(),
             );
         }
         if self.dim5_sink.len() > 40 {
             return Err(
-                "Р Р°РєРѕРІРёРЅР° РЅРµ РґРѕР»Р¶РЅР° РїСЂРµРІС‹С€Р°С‚СЊ 40 СЃРёРјРІРѕР»РѕРІ".into(),
+                "Р Р°РєРѕРІРёРЅР° не должна превышать 40 символов".into(),
             );
         }
         if self.dim6_size.len() > 20 {
             return Err(
-                "Р Р°Р·РјРµСЂ РЅРµ РґРѕР»Р¶РµРЅ РїСЂРµРІС‹С€Р°С‚СЊ 20 СЃРёРјРІРѕР»РѕРІ".into(),
+                "Р Р°Р·РјРµСЂ не должен превышать 20 символов".into(),
             );
         }
 
@@ -307,11 +307,11 @@ impl AggregateRoot for Nomenclature {
     }
 
     fn element_name() -> &'static str {
-        "РќРѕРјРµРЅРєР»Р°С‚СѓСЂР°"
+        "Номенклатура"
     }
 
     fn list_name() -> &'static str {
-        "РќРѕРјРµРЅРєР»Р°С‚СѓСЂР°"
+        "Номенклатура"
     }
 
     fn origin() -> Origin {
@@ -340,7 +340,7 @@ pub struct NomenclatureDto {
     #[serde(rename = "mpRefCount", default)]
     pub mp_ref_count: i32,
 
-    // РР·РјРµСЂРµРЅРёСЏ (РєР»Р°СЃСЃРёС„РёРєР°С†РёСЏ)
+    // РР·РјРµСЂРµРЅРёСЏ (классификация)
     #[serde(rename = "dim1Category")]
     pub dim1_category: Option<String>,
     #[serde(rename = "dim2Line")]

@@ -36,7 +36,7 @@ Follow **Backend Checklist** in order:
 **Test API**: Use Postman or curl to verify before moving to frontend
 
 ```bash
-curl "http://localhost:8080/api/a015/wb-orders/list?limit=50&offset=0&sort_by=order_date&sort_desc=true"
+curl "http://localhost:3000/api/a015/wb-orders/list?limit=50&offset=0&sort_by=order_date&sort_desc=true"
 ```
 
 ### 3. Frontend State

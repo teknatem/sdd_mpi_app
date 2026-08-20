@@ -1994,7 +1994,7 @@ impl ImportExecutor {
             session_id,
             aggregate_index,
             Some(format!(
-                "Р”РЅРµРІРЅРѕР№ reconciliation {} - {} (API: 1 Р·Р°РїСЂРѕСЃ/РјРёРЅ)",
+                "Дневной reconciliation {} - {} (API: 1 запрос/мин)",
                 date_from.format("%Y-%m-%d"),
                 date_to.format("%Y-%m-%d")
             )),
@@ -2007,7 +2007,7 @@ impl ImportExecutor {
                 session_id,
                 aggregate_index,
                 Some(format!(
-                    "Р”Р°С‚Р° {}: Р·Р°РіСЂСѓР·РєР° Рё reconciliation",
+                    "Дата {}: загрузка и reconciliation",
                     current_date.format("%Y-%m-%d")
                 )),
             );

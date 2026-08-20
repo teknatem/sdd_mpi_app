@@ -4,7 +4,14 @@ manifest_path = "crates/frontend/Cargo.toml"
 target = "crates/frontend/index.html"
 dist = "dist"
 public_url = "/"
-watch = ["./crates/frontend"]
+# Профиль сборки задан здесь, а не флагом командной строки: `trunk serve` без
+# `--cargo-profile wasm-dev` молча собирал профилем `dev` (wasm 197 МБ против 66 МБ),
+# что стоило ~11 с постобработки на каждой сборке и держало второй набор артефактов
+# в target/wasm32-unknown-unknown/debug.
+cargo_profile = "wasm-dev"
+# ВНИМАНИЕ: этот ключ сильнее флага `--release` — `trunk build --release` соберёт
+# wasm-dev. Релизные пути обязаны передавать `--cargo-profile release` явно
+# (scripts/build-release.ps1, tools/build_frontend.ps1 -Release, CLAUDE.md).
 # Explicitly point to the workspace's target directory to fix artifact discovery.
 target_path = "target"
 # wasm-opt обрабатывает WASM после сборки. Уровень 0 убирает debug-секции
@@ -13,7 +20,8 @@ target_path = "target"
 # Если wasm-opt не установлен — закомментируйте строку ниже.
 # wasm_opt = ["-O0", "--strip-debug"]
 
-# Proxy API requests to the backend server during development.
-[[proxy]]
-backend = "http://localhost:3000/api/"
-uri = "/api/"
+# Прокси /api здесь НЕТ намеренно. Он был нужен, пока фронт жил на своём сервере
+# (`trunk serve --port 8080`) и ходил за API на чужой origin. Теперь `dist/`
+# раздаёт сам бэкенд через ServeDir, dev и прод работают на одном origin :3000 —
+# как и десктоп-клиент. Вотчер выведен из цикла (tools/build_frontend.ps1), так что
+# ключи `trunk serve` (`watch`, `[[proxy]]`) убраны отсюда вместе с ним.

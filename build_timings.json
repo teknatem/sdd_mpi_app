@@ -16,8 +16,10 @@
         "build.test_backend_sec": 14,
         "build.wasm_frontend_sec": 19.5,
         "build.bin_backend_sec": 14.1,
-        "build.trunk_dev_edit_sec": 35.9,
-        "build.trunk_wasmdev_edit_sec": 25.1
+        "build.trunk_dev_edit_sec": 30.8,
+        "build.trunk_wasmdev_edit_sec": 24.7
     },
-    "notes": "trunk full pipeline after editing one aggregate file: dev 35.9s vs wasm-dev 25.1s; no-change rebuild 11.8s vs 4.7s; wasm 196.98MB vs 66.41MB. Adopting wasm-dev costs one 359s rebuild of all 598 deps; do not alternate profiles."
+    "notes": "trunk build after editing one aggregate file: dev 30.8s vs wasm-dev 24.7s; no-change rebuild 11.7s vs 4.7s (cargo itself 0.2s in both - the rest is wasm-bindgen, which scales with artifact size: 197MB vs 66MB). Measured 2026-08-19 after moving the profile into Trunk.toml (cargo_profile = \"wasm-dev\"), so it now applies without a flag; the dev number is the baseline taken just before that change. CSS-only sync via tools/build_frontend.ps1 -CssOnly is 0s. Everything else in this file is from the 2026-08-17 run and still measured with the dev profile; the next full tools/measure_build.ps1 refreshes it under wasm-dev. Adopting wasm-dev cost one 305s rebuild; do not alternate profiles.",
+    "trunk_measured_at": "2026-08-19T14:00:00Z",
+    "trunk_git_head": "4611b1b"
 }

@@ -82,4 +82,24 @@ if echo "$staged" | grep -Eq 'crates/|migrations/|memory-bank/|tools/gen_code_me
   fi
 fi
 
+# ---- text encoding ------------------------------------------------------------
+# Второй шаг с зубами, и по той же причине, что и храповик: испорченную
+# кодировку компилятор не видит — строка остаётся валидной, просто вместо
+# "клиент" в ней написано "РєР»РёРµРЅС‚". Так в дереве накопилось 1234 таких
+# места, прежде чем кто-то посмотрел. Проверяются только файлы этого коммита,
+# поэтому шаг стоит миллисекунды.
+staged_text=$(echo "$staged" | grep -E '\.(rs|md|toml|json|sql|css|js|html|ps1|py)$')
+if [ -n "$staged_text" ]; then
+  if command -v python >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    if ! python tools/check_text_encoding.py $staged_text; then
+      echo "[pre-commit] Commit blocked: испорченная кодировка в файлах коммита." >&2
+      echo "[pre-commit] Починить:  python tools/check_text_encoding.py --fix" >&2
+      exit 1
+    fi
+  else
+    echo "[pre-commit] WARN: python не найден — проверка кодировки пропущена." >&2
+  fi
+fi
+
 exit 0

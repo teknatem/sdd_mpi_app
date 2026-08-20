@@ -75,13 +75,14 @@ Get-ChildItem -Path "target" -Recurse |
 # PowerShell
 Remove-Item -Path "target\wasm32-unknown-unknown" -Recurse -Force -ErrorAction SilentlyContinue
 
-# Then rebuild
-cargo build --target=wasm32-unknown-unknown --manifest-path crates/frontend/Cargo.toml
+# Then rebuild (профиль обязателен — иначе cargo заведёт второй набор wasm-артефактов
+# в target/wasm32-unknown-unknown/debug, ровно то, что мы только что удалили)
+powershell -File tools/build_frontend.ps1
 ```
 
 **Option 2: Full Clean** (When no processes are running)
 ```powershell
-# Stop all running processes first (backend, trunk serve)
+# Stop the backend first (tools/run_backend.ps1 снимает занятый backend.exe)
 cargo clean
 
 # Then rebuild both backend and frontend
@@ -132,8 +133,8 @@ Remove-Item -Path "target\debug" -Recurse -Force
 
 ## Workaround Limitations
 
-- **Selective cleanup** requires stopping `trunk serve` (it will auto-restart)
-- **Full cleanup** requires stopping both backend and frontend dev servers
+- **Selective cleanup** требует, чтобы сборка фронта не шла в этот момент (вотчера в цикле нет — сборка разовая, `tools/build_frontend.ps1`)
+- **Full cleanup** требует остановленного бэкенда: он держит `target\debug\backend.exe` и раздаёт `dist/` на :3000
 - **Large projects** may take 1-3 minutes to rebuild after cleanup
 
 ## Environment Specifics
@@ -171,7 +172,7 @@ Remove-Item -Path "target\debug" -Recurse -Force
 
 - Windows file locking when backend is running prevents full `cargo clean`
 - PowerShell path handling for cleanup commands
-- Trunk serve auto-restart after cleanup
+- Пересборка фронта после очистки — разовая команда `tools/build_frontend.ps1`, вотчера в цикле нет
 
 ## References
 

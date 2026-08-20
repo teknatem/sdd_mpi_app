@@ -1,11 +1,13 @@
-# Перезапуск dev-бэкенда.
+# Собрать и запустить dev-бэкенд.
 #
-# Запущенный backend.exe держит target\debug\backend.exe, из-за чего повторный
-# `cargo run -p backend` падает с "Access is denied (os error 5)". Скрипт
-# останавливает все запущенные экземпляры и запускает свежую сборку.
+# `cargo run -p backend` уже включает сборку, поэтому отдельной команды сборки
+# бэкенда нет. Скрипт нужен из-за одного: запущенный backend.exe держит
+# target\debug\backend.exe, и повторный `cargo run` падает с
+# "Access is denied (os error 5)". Здесь старый процесс снимается, дальше —
+# обычный `cargo run`.
 #
 # Использование (из корня репозитория):
-#   powershell -File tools/restart_backend.ps1
+#   powershell -File tools/run_backend.ps1
 
 $ErrorActionPreference = "Stop"
 

@@ -49,7 +49,10 @@ if (-not $SkipBuild) {
 if (-not $SkipBuild) {
     Write-Step "Building frontend (trunk, cargo profile $CargoProfile)"
     if ($CargoProfile -eq "release") {
-        trunk build --release
+        # Профиль передаётся явно: `--release` перебивается ключом cargo_profile
+        # из Trunk.toml (там стоит wasm-dev для dev-цикла) и молча собрал бы
+        # неоптимизированный wasm на 66 МБ под видом релиза.
+        trunk build --cargo-profile release
     } else {
         trunk build --cargo-profile $CargoProfile
     }

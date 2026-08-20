@@ -67,7 +67,7 @@ fn insecure_context_message() -> String {
 const CHROME_INSECURE_ORIGIN_FLAG: &str =
     "chrome://flags/#unsafely-treat-insecure-origin-as-secure";
 
-/// Текущий origin страницы (напр. `http://192.168.1.10:8080`) — его нужно вписать
+/// Текущий origin страницы (напр. `http://192.168.1.10:3000`) — его нужно вписать
 /// в список разрешённых в chrome-флаге.
 fn current_origin() -> String {
     web_sys::window()

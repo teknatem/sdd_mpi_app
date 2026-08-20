@@ -65,14 +65,42 @@
 
 ## Сборка и запуск
 
-Dev (два терминала, из корня):
+Dev (из корня):
 ```powershell
-cargo run -p backend          # Axum API на http://localhost:3000
-trunk serve --port 8080 --cargo-profile wasm-dev   # Leptos/WASM фронт на :8080 (проксирует API на :3000)
+cargo run -p backend                                  # Axum API + раздача dist/ на http://localhost:3000
+powershell -File tools/build_frontend.ps1             # сборка фронта в dist/ (один раз на пачку правок)
+powershell -File tools/build_frontend.ps1 -CssOnly    # только static/ → dist/, без cargo (0 с)
+powershell -File tools/build_frontend.ps1 -Client     # то же + поднять/обновить десктоп-клиент
 ```
 
+> **Вотчера в цикле нет.** `trunk serve` не отбрасывал правки, приходящие во время
+> сборки, — он ставил их в очередь, и пачка из пяти файлов превращалась в пять полных
+> прогонов по 25 с. Сборка запускается явно, одна на пачку. Фронт живёт на **:3000**
+> (бэкенд раздаёт `dist/` через `ServeDir`), отдельный сервер на :8080 и прокси `/api`
+> больше не нужны — dev и прод работают на одном origin, как и Tauri-клиент.
+> Профиль сборки задан в `Trunk.toml` (`cargo_profile = "wasm-dev"`), флагом его
+> передавать не надо и забыть его нельзя.
+> Вызов `trunk` напрямую из агентской оболочки падает на `NO_COLOR=1`
+> (он ждёт `true`/`false`) — скрипт это чинит сам.
+
+> **Десктоп-клиент в цикле** — `powershell -File tools/dev_client.ps1` (сборка + клиент)
+> или `-NoBuild` (только обновить окно). Клиент — `F:\dev\sdd_desktop`, фронт он не
+> бандлит: грузит `dist/` с бэкенда по профилю подключения, поэтому после сборки ему нужна
+> ровно перезагрузка страницы. Управление идёт по Chrome DevTools Protocol —
+> WebView2 открывает порт отладки по `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, правок в
+> оболочке это не требует и IPC главному окну не выдаёт. Окно **перезагружается**, а не
+> перезапускается: маршрут SPA и геометрия сохраняются. Скрипт заодно снимает ошибки
+> консоли (включая паники WASM), heap, число узлов DOM и время загрузки —
+> `target/build_log/client_last.json`. Порт слушает только 127.0.0.1 и включается
+> только этим скриптом: он даёт полный контроль над сессией с живым JWT.
+
+> **rust-analyzer вынесен в свой каталог сборки** (`.vscode/settings.json`,
+> `rust-analyzer.cargo.targetDir`). Cargo берёт на каталог сборки эксклюзивный лок, и
+> фоновая проверка на каждое сохранение вставала в очередь с `trunk build` и
+> `cargo run -p backend` («Blocking waiting for file lock on build directory»).
+
 > Уже запущенный backend.exe держит `target\debug\backend.exe` — повторный `cargo run`
-> падает с «Access is denied». Перезапуск: `powershell -File tools/restart_backend.ps1`
+> падает с «Access is denied». Перезапуск: `powershell -File tools/run_backend.ps1`
 > (останавливает процесс и запускает свежую сборку).
 
 > **Планировщик выключен**: в `config.toml` стоит `[scheduled_tasks].enabled = false`, воркер не
@@ -84,7 +112,7 @@ trunk serve --port 8080 --cargo-profile wasm-dev   # Leptos/WASM фронт на
 ```powershell
 cargo check -p backend
 cargo check -p contracts
-cargo check -p frontend --target wasm32-unknown-unknown   # frontend — только wasm-таргет
+cargo check -p frontend --target wasm32-unknown-unknown --profile wasm-dev   # профиль обязателен: см. ниже
 cargo test -p backend router_builds   # после правок роутов: конфликт путей axum виден только при сборке Router
 ```
 
@@ -112,6 +140,15 @@ cargo test -p backend router_builds   # после правок роутов: к
 > скрипта**; законное исключение — `waivers = [{ path, why }]` с причиной, а не
 > удаление правила. Прогоняй после переименований и при заведении нового среза.
 
+> **Кодировка проверяется на коммите.** Русский текст в UTF-8, прочитанный как
+> CP1251, превращается в «РєР»РёРµРЅС‚» вместо «клиент» — компилятор этого не видит,
+> строка остаётся валидной. К 2026-08-19 так накопилось **1234** места в 7 файлах
+> (плюс 82, где байты потеряны безвозвратно; они записаны в `KNOWN_DAMAGED`).
+> Проверка — `python tools/check_text_encoding.py` (`--fix` чинит), в pre-commit
+> хуке она смотрит только файлы коммита и **блокирует** его. Признак порчи — не
+> список «подозрительных» символов (так ловились обычные `…` и `«»`), а обратный
+> разбор: испорченный текст раскодируется по построению, нормальный — нет.
+>
 > **Храповик метрик.** `tools/check_health.ps1` сравнивает свежий
 > `codebase_metrics.json` с версией на `HEAD` и **блокирует коммит**, если
 > отслеживаемая метрика ухудшилась. Это единственный шаг pre-commit хука с
@@ -152,7 +189,15 @@ cargo test -p backend router_builds   # после правок роутов: к
 > `wasm-dev` — на **66 МБ**, а `wasm-bindgen` работает пропорционально размеру.
 > Компиляция при этом не медленнее (20,7 с против 24,6 с): на `opt-level = 0`
 > кодогенерация выдаёт столько кода, что дальнейшая обработка дороже самой
-> оптимизации. Отсюда `--cargo-profile wasm-dev` в команде запуска выше.
+> оптимизации. Профиль поэтому переехал в `Trunk.toml` — измерено 2026-08-19:
+> 30,8 → **24,7 с** на правку и 11,7 → **4,7 с** на пустую пересборку.
+>
+> **`--profile wasm-dev` в `cargo check`/`cargo build` фронта — не украшение.**
+> Без него cargo держит **второй** набор wasm-артефактов в
+> `target/wasm32-unknown-unknown/debug` (было 10,9 ГБ), и первая команда после
+> каждого переключения платит полную холодную пересборку зависимостей.
+> После правки одного файла остаётся ~20 с кодогенерации самого крейта против
+> ~4,5 с постобработки — дальше дешеветь уже некуда без деления крейта.
 >
 > Две оговорки. Первый запуск на новом профиле пересобирает **все 598
 > зависимостей** — это разово ~6 минут. И **не чередуй профили**: у каждого
@@ -176,7 +221,7 @@ cargo test -p backend router_builds   # после правок роутов: к
 
 Release:
 ```powershell
-trunk build --release                      # → dist/ (фронт)
+trunk build --cargo-profile release        # → dist/ (фронт); НЕ --release: его перебивает cargo_profile из Trunk.toml
 cargo build --release --bin backend        # → target/release/backend.exe
 ```
 
@@ -327,6 +372,19 @@ GL — скелет финансовой модели. Поверх неё ко�
 - **Миграции БД** — SQL-файлы `migrations/NNNN_имя.sql`, применяются автоматически при старте бэкенда (`shared/data/migration_runner.rs`, трекинг по checksum). Новая миграция = следующий номер.
 - Soft delete (`is_deleted`); сложные поля хранятся JSON-ом в БД.
 - Фронт: `spawn_local` для async, `RwSignal` для состояния; per-page CSS в `static/pages/<page>.css` под корневым классом страницы (см. memory `per-page-css-convention`).
+- **Два каталога скриптов, граница по запускающему.** `tools/` — то, что исполняет
+  **процесс разработки**: генераторы карт и метрик, гейты, git-хук, цикл сборки и dev-петля,
+  замер стоимости сборки, проверка кодировки, доступ к API локального экземпляра.
+  `scripts/` — **операции над средой и данными**: релиз и деплой (`build-release*`,
+  `update-release`, Servy), упаковка распространяемых артефактов, наполнение базы
+  тестовыми данными.
+  Правило записано в `architecture.toml` (`[conventions.script_homes]`) и **исполняется**:
+  состав обоих каталогов перечислен правилами `tools_dir_manifest` / `scripts_dir_manifest`,
+  и `tools/check_architecture.ps1` не даст положить новый скрипт, не классифицировав его.
+  Индексы каталогов — `tools/README.md` и `scripts/README.md`.
+  **Снимка БД в `scripts/` нет намеренно**: база в режиме WAL, копия `app.db` без `-wal` —
+  не бэкап. Правильный снимок делает `VACUUM INTO` внутри приложения — «Наборы данных»
+  (`system/datasets/`). Три копировавших файл скрипта удалены 2026-08-19.
 - Боевая БД и knowledge — вне репозитория: `F:/data/sdd_mpi_app/` (пути в `config.toml`).
   Диск F: отдан под проекты: `F:\dev\<проект>` — репозитории, `F:\data\<проект>` — рабочие данные.
   Файл БД — `F:/data/sdd_mpi_app/db/app.db` (~3 ГБ), knowledge — соседний `knowledge/`.

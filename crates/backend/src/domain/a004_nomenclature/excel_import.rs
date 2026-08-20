@@ -7,7 +7,7 @@ use super::repository;
 use crate::shared::data::db::get_connection;
 use sea_orm::TransactionTrait;
 
-/// ExcelData РґР»СЏ РїСЂРёРµРјР° СЃ С„СЂРѕРЅС‚РµРЅРґР° (РІСЂРµРјРµРЅРЅР°СЏ СЃС‚СЂСѓРєС‚СѓСЂР°)
+/// ExcelData для приема с фронтенда (временная структура)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExcelData {
     pub metadata: ExcelMetadata,
@@ -30,12 +30,12 @@ pub struct ColumnMapping {
     pub file_index: Option<usize>,
 }
 
-/// РРјРїРѕСЂС‚РёСЂСѓРµС‚ РґР°РЅРЅС‹Рµ РёР· ExcelData (РїСЂРёРЅРёРјР°РµС‚ РІРµСЃСЊ РѕР±СЉРµРєС‚ СЃ С„СЂРѕРЅС‚РµРЅРґР°)
-/// РљРѕРЅРІРµСЂС‚РёСЂСѓРµС‚ HashMap РІ ExcelRow Рё РІС‹Р·С‹РІР°РµС‚ РѕСЃРЅРѕРІРЅСѓСЋ С„СѓРЅРєС†РёСЋ РёРјРїРѕСЂС‚Р°
+/// РРјРїРѕСЂС‚РёСЂСѓРµС‚ данные из ExcelData (принимает весь объект с фронтенда)
+/// Конвертирует HashMap в ExcelRow и вызывает основную функцию импорта
 pub async fn import_nomenclature_from_excel_data(
     excel_data: ExcelData,
 ) -> anyhow::Result<ImportResult> {
-    // РљРѕРЅРІРµСЂС‚РёСЂСѓРµРј rows (HashMap) РІ Vec<ExcelRow>
+    // Конвертируем rows (HashMap) в Vec<ExcelRow>
     let rows: Vec<ExcelRow> = excel_data
         .rows
         .into_iter()
@@ -50,13 +50,13 @@ pub async fn import_nomenclature_from_excel_data(
         })
         .collect();
 
-    // Р’С‹Р·С‹РІР°РµРј РѕСЃРЅРѕРІРЅСѓСЋ С„СѓРЅРєС†РёСЋ РёРјРїРѕСЂС‚Р°
+    // Вызываем основную функцию импорта
     import_nomenclature_from_rows(rows).await
 }
 
-/// РРјРїРѕСЂС‚РёСЂСѓРµС‚ РґР°РЅРЅС‹Рµ РёР· СЃРїРёСЃРєР° ExcelRow РІ Р±Р°Р·Сѓ РґР°РЅРЅС‹С…
-/// РћР±РЅРѕРІР»СЏРµС‚ С‚РѕР»СЊРєРѕ С‚Рµ РїРѕР»СЏ, РєРѕС‚РѕСЂС‹Рµ РќР• РїСѓСЃС‚С‹Рµ РІ Excel
-/// Р•СЃР»Рё РїРѕР»Рµ РІ Р‘Р” Р·Р°РїРѕР»РЅРµРЅРѕ, Р° РІ Excel РїСѓСЃС‚РѕРµ - РїРѕР»Рµ РќР• РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ
+/// РРјРїРѕСЂС‚РёСЂСѓРµС‚ данные из списка ExcelRow в базу данных
+/// Обновляет только те поля, которые НЕ пустые в Excel
+/// Если поле в БД заполнено, а в Excel пустое - поле НЕ обновляется
 pub async fn import_nomenclature_from_rows(rows: Vec<ExcelRow>) -> anyhow::Result<ImportResult> {
     let started_at = std::time::Instant::now();
     let mut updated_count = 0;
@@ -73,7 +73,7 @@ pub async fn import_nomenclature_from_rows(rows: Vec<ExcelRow>) -> anyhow::Resul
             tracing::info!("Excel import progress: {} rows processed...", idx);
         }
 
-        // РС‰РµРј РЅРѕРјРµРЅРєР»Р°С‚СѓСЂСѓ РїРѕ Р°СЂС‚РёРєСѓР»Сѓ
+        // РС‰РµРј номенклатуру по артикулу
         let article_trimmed = row.article.trim();
         let found_items = repository::find_by_article_txn(&txn, article_trimmed).await?;
 
@@ -85,12 +85,12 @@ pub async fn import_nomenclature_from_rows(rows: Vec<ExcelRow>) -> anyhow::Resul
             continue;
         }
 
-        // РћР±РЅРѕРІР»СЏРµРј РєР°Р¶РґСѓСЋ РЅР°Р№РґРµРЅРЅСѓСЋ РЅРѕРјРµРЅРєР»Р°С‚СѓСЂСѓ
+        // Обновляем каждую найденную номенклатуру
         for mut item in found_items {
             let mut updated = false;
 
-            // РћР±РЅРѕРІР»СЏРµРј С‚РѕР»СЊРєРѕ РЅРµРїСѓСЃС‚С‹Рµ РїРѕР»СЏ РёР· Excel
-            // Р›РѕРіРёРєР°: РµСЃР»Рё РІ Р‘Р” Р·Р°РїРѕР»РЅРµРЅРѕ, Р° РІ Excel РїСѓСЃС‚Рѕ - РќР• РѕР±РЅРѕРІР»СЏРµРј
+            // Обновляем только непустые поля из Excel
+            // Логика: если в БД заполнено, а в Excel пусто - НЕ обновляем
 
             if !row.category.is_empty() {
                 item.dim1_category = truncate_string(&row.category, 40);
@@ -145,7 +145,7 @@ pub async fn import_nomenclature_from_rows(rows: Vec<ExcelRow>) -> anyhow::Resul
     })
 }
 
-/// РћР±СЂРµР·Р°РµС‚ СЃС‚СЂРѕРєСѓ РґРѕ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№ РґР»РёРЅС‹
+/// Обрезает строку до максимальной длины
 fn truncate_string(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()

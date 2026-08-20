@@ -96,7 +96,7 @@ ps aux | grep -E "backend|trunk|cargo"
 # 1. Navigate to project root
 cd f:\dev\sdd_mpi_app
 
-# 2. Stop trunk serve (Ctrl+C in its terminal)
+# 2. Убедиться, что сборка фронта не идёт (вотчера в цикле нет — сборка разовая)
 
 # 3. Remove WASM artifacts
 Remove-Item -Path "target\wasm32-unknown-unknown" -Recurse -Force -ErrorAction SilentlyContinue
@@ -104,11 +104,9 @@ Remove-Item -Path "target\wasm32-unknown-unknown" -Recurse -Force -ErrorAction S
 # 4. Verify cleanup
 Get-ChildItem target\ | Select-Object Name, @{Name="SizeMB";Expression={(Get-ChildItem $_.FullName -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB}}
 
-# 5. Rebuild frontend only
-cargo build --target=wasm32-unknown-unknown --manifest-path crates/frontend/Cargo.toml
-
-# 6. Restart trunk serve in separate terminal
-trunk serve
+# 5. Rebuild frontend only (профиль обязателен: без него cargo заведёт ВТОРОЙ набор
+#    wasm-артефактов в target/wasm32-unknown-unknown/debug — то, что мы только что снесли)
+powershell -File tools/build_frontend.ps1
 ```
 
 **Expected Results:**
@@ -124,8 +122,8 @@ trunk serve
 
 ```powershell
 # 1. Stop ALL processes
-# - Ctrl+C in trunk serve terminal
-# - Ctrl+C in backend terminal (or stop debugging)
+# - Ctrl+C in backend terminal (or stop debugging); powershell -File tools/run_backend.ps1
+#   останавливает занятый backend.exe, если он держит target\debug\backend.exe
 
 # 2. Navigate to project root
 cd f:\dev\sdd_mpi_app
@@ -140,11 +138,10 @@ Get-ChildItem target\ -ErrorAction SilentlyContinue
 cargo build
 
 # 6. Rebuild frontend for WASM
-cargo build --target=wasm32-unknown-unknown --manifest-path crates/frontend/Cargo.toml
+powershell -File tools/build_frontend.ps1
 
-# 7. Restart both processes
-# Terminal 1: cargo run -p backend
-# Terminal 2: trunk serve
+# 7. Поднять бэкенд — он же раздаёт dist/ на :3000
+cargo run -p backend
 ```
 
 **Expected Results:**
@@ -180,7 +177,7 @@ cargo clean
 
 # 7. Full rebuild
 cargo build
-cargo build --target=wasm32-unknown-unknown --manifest-path crates/frontend/Cargo.toml
+powershell -File tools/build_frontend.ps1
 ```
 
 **Expected Results:**
@@ -224,15 +221,12 @@ Get-PSDrive E | Select-Object Free
 
 1. **Restart development servers:**
    ```powershell
-   # Terminal 1
-   cargo run -p backend
-   
-   # Terminal 2
-   trunk serve
+   cargo run -p backend                        # API + раздача dist/ на :3000
+   powershell -File tools/build_frontend.ps1   # пересобрать фронт
    ```
 
 2. **Test application:**
-   - Open browser to `http://localhost:8080`
+   - Open browser to `http://localhost:3000`
    - Verify frontend loads
    - Test API endpoints
 

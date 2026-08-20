@@ -154,8 +154,8 @@ For each file with duplicate:
 #### 4.1 Compilation Check
 
 ```bash
-# Let trunk serve recompile
-# Watch for errors in terminal output
+# Пересобрать фронт (вотчера в цикле нет)
+powershell -File tools/build_frontend.ps1
 ```
 
 #### 4.2 Search for Remaining Duplicates

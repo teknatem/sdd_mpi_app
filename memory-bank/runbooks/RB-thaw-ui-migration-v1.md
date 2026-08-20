@@ -202,7 +202,7 @@ Update inline styles to use CSS variables:
 ### 7. Compilation Check
 
 ```bash
-cargo check --target wasm32-unknown-unknown --manifest-path crates/frontend/Cargo.toml
+cargo check -p frontend --target wasm32-unknown-unknown --profile wasm-dev
 ```
 
 **Common errors:**
@@ -213,7 +213,7 @@ cargo check --target wasm32-unknown-unknown --manifest-path crates/frontend/Carg
 
 ### 8. Visual QA
 
-1. Start `trunk serve`
+1. Пересобрать фронт: `powershell -File tools/build_frontend.ps1`, открыть http://localhost:3000
 2. Navigate to the migrated page
 3. Check:
    - All components render correctly

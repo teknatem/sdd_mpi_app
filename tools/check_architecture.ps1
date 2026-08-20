@@ -25,6 +25,7 @@
       dir_matches_metadata_id directory name equals `id` inside its metadata.json
       snake_case_files        .rs file names are snake_case
       embedded_doc_path_sync  `source_path:` agrees with the neighbouring include_str!
+      dir_manifest            the scripts in a directory are exactly the ones the manifest lists
 
     Severity `error` counts toward the gate; `warn` is reported only.
 
@@ -496,6 +497,44 @@ foreach ($rule in $rules) {
                 }
                 if (-not (Test-Path $resolved)) {
                     Add-Violation $rule $rule['file'] "embedded document does not exist: $resolvedRel"
+                }
+            }
+        }
+
+        # tools/ and scripts/ are two homes with different tenants, and the
+        # border runs through WHO runs the script and WHEN: the development
+        # process (generators, gates, the hook, the build loop) versus
+        # operations on the environment and the data (database, release,
+        # deploy, service). Neither can be read off a file name, so the census
+        # of each directory is written out in the manifest — a new script
+        # cannot be dropped in without being classified. See
+        # [conventions.script_homes] for the border itself.
+        'dir_manifest' {
+            $dir = Join-Path $root $scope
+            if (-not (Test-Path $dir)) {
+                Add-Violation $rule $scope "manifest scope directory does not exist"
+            } else {
+                $exts = @($rule['extensions'])
+                $declared = @($rule['files'])
+                $hint = if ($rule.Contains('hint')) { " — $($rule['hint'])" } else { '' }
+                $present = @()
+                # Top level only: subdirectories are addressed by other means
+                # (tools/hooks/ lives at core.hooksPath, not in this census).
+                foreach ($f in [System.IO.Directory]::EnumerateFiles($dir)) {
+                    $name = Split-Path $f -Leaf
+                    $ext = [System.IO.Path]::GetExtension($name).ToLowerInvariant()
+                    if ($exts -notcontains $ext) { continue }
+                    $rel = Get-RelPath $f
+                    if (Test-AnyGlob $rel $rule['exempt']) { continue }
+                    $present += $name
+                    if ($declared -notcontains $name) {
+                        Add-Violation $rule $rel "script is not in the manifest of '$scope/'$hint"
+                    }
+                }
+                foreach ($name in $declared) {
+                    if ($present -notcontains $name) {
+                        Add-Violation $rule "$scope/$name" "manifest lists a script that is not there — it was moved or deleted without updating architecture.toml"
+                    }
                 }
             }
         }

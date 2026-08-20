@@ -11,7 +11,7 @@ tags: ["quality-control", "metadata", "frontend", "contracts", "scripts"]
 В проекте уже есть:
 
 - Field Metadata System (`metadata.json` → `metadata_gen.rs`) как “паспорт”.
-- `scripts/domain_analisys.py` как табличный сбор метрик по слоям (bytes).
+- `tools/domain_analisys.py` как табличный сбор метрик по слоям (bytes). Скрипт удалён 2026-08-19: знал 16 агрегатов из 43. Роль заняли `codebase_metrics.json` и `quality/checks/`.
 
 ## Pattern: QC JSON as a build/artifact
 

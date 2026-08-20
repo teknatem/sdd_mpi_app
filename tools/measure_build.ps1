@@ -131,7 +131,11 @@ function Measure-AfterEdit {
 }
 
 $checkBackend  = @('check', '-p', 'backend', '--quiet')
-$checkFrontend = @('check', '-p', 'frontend', '--target', 'wasm32-unknown-unknown', '--quiet')
+# `--profile wasm-dev` is not decoration: it is the profile Trunk.toml builds with.
+# Without it cargo keeps a SECOND wasm artifact set under
+# target/wasm32-unknown-unknown/debug (10.9 GB when this was found), and the first
+# command after any switch pays a full cold rebuild of ~600 dependencies.
+$checkFrontend = @('check', '-p', 'frontend', '--target', 'wasm32-unknown-unknown', '--profile', 'wasm-dev', '--quiet')
 
 Write-Host "Measuring build cost. Nothing else should be compiling." -ForegroundColor Cyan
 
@@ -147,7 +151,7 @@ Write-Host "[0/7] Warm-up (not recorded)" -ForegroundColor Cyan
 Invoke-Timed 'warm-up backend check'  $checkBackend  | Out-Null
 Invoke-Timed 'warm-up frontend check' $checkFrontend | Out-Null
 Invoke-Timed 'warm-up backend test build' @('test', '-p', 'backend', '--no-run', '--quiet') | Out-Null
-Invoke-Timed 'warm-up frontend wasm build' @('build', '-p', 'frontend', '--target', 'wasm32-unknown-unknown', '--quiet') | Out-Null
+Invoke-Timed 'warm-up frontend wasm build' @('build', '-p', 'frontend', '--target', 'wasm32-unknown-unknown', '--profile', 'wasm-dev', '--quiet') | Out-Null
 
 # --- incremental ------------------------------------------------------------
 Write-Host ""
@@ -190,7 +194,7 @@ Write-Host "[3b/7] Backend BINARY after editing one aggregate file" -ForegroundC
 #
 # Fails while backend.exe is running (the linker cannot overwrite it); a failed
 # measurement is dropped rather than recorded, so stop the backend first —
-# tools/restart_backend.ps1 does that.
+# tools/run_backend.ps1 does that.
 $timings['build.bin_backend_sec'] = Measure-AfterEdit $probes.backend {
     Invoke-Timed 'incremental backend binary' @('build', '--bin', 'backend', '--quiet')
 }
@@ -198,7 +202,7 @@ $timings['build.bin_backend_sec'] = Measure-AfterEdit $probes.backend {
 Write-Host ""
 Write-Host "[4/7] Frontend wasm build after editing one aggregate file" -ForegroundColor Cyan
 $timings['build.wasm_frontend_sec'] = Measure-AfterEdit $probes.frontend {
-    Invoke-Timed 'incremental frontend wasm build' @('build', '-p', 'frontend', '--target', 'wasm32-unknown-unknown', '--quiet')
+    Invoke-Timed 'incremental frontend wasm build' @('build', '-p', 'frontend', '--target', 'wasm32-unknown-unknown', '--profile', 'wasm-dev', '--quiet')
 }
 
 # --- the contracts ripple ---------------------------------------------------
@@ -222,7 +226,7 @@ if (-not $IncrementalOnly) {
 
     Write-Host ""
     Write-Host "[7/7] Full frontend (our crates cleaned, dependencies kept)" -ForegroundColor Cyan
-    & cargo clean -p frontend --target wasm32-unknown-unknown | Out-Null
+    & cargo clean -p frontend --target wasm32-unknown-unknown --profile wasm-dev | Out-Null
     $timings['build.full_frontend_sec'] = Invoke-Timed 'full frontend' $checkFrontend
 } else {
     Write-Host ""

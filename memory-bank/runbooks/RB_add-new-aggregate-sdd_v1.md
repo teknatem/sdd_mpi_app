@@ -393,7 +393,7 @@ k if k.starts_with("aXXX_<name>_detail_") => {
 - [ ] Module exports in all mod.rs files
 - [ ] Run database migrations
 - [ ] Recompile backend (cargo build)
-- [ ] Recompile frontend (trunk build)
+- [ ] Recompile frontend (`powershell -File tools/build_frontend.ps1`)
 - [ ] Test create/read/update/delete operations
 - [ ] Check linter errors
 

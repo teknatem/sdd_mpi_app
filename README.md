@@ -11,31 +11,41 @@
 
 Требуется Rust (stable, edition 2021) и Trunk (`cargo install trunk`).
 
-Два терминала из корня:
+Всё живёт на **одном origin — http://localhost:3000**: бэкенд поднимает API и он
+же раздаёт собранный фронт из `dist/` (`ServeDir`). Отдельного dev-сервера для
+фронта нет, вотчера нет — сборка запускается явно, одна на пачку правок.
 
 ```powershell
-cargo run -p backend          # Axum API на http://localhost:3000
-trunk serve --port 8080       # фронт на http://localhost:8080 (проксирует API на :3000)
+cargo run -p backend                                  # API + раздача dist/ на :3000
+powershell -File tools/build_frontend.ps1             # пересобрать фронт в dist/
+powershell -File tools/build_frontend.ps1 -CssOnly    # только static/ → dist/, без cargo
 ```
 
 Если `cargo run` падает с «Access is denied» — старый `backend.exe` ещё держит файл:
-`powershell -File tools/restart_backend.ps1`.
+`powershell -File tools/run_backend.ps1`.
 
 Проверка перед коммитом:
 
 ```powershell
 cargo check -p backend
 cargo check -p contracts
-cargo check -p frontend --target wasm32-unknown-unknown   # фронт собирается только под wasm
-cargo test -p backend router_builds                        # после правок роутов
+cargo check -p frontend --target wasm32-unknown-unknown --profile wasm-dev   # профиль обязателен
+cargo test -p backend router_builds                                          # после правок роутов
 ```
 
 Release:
 
 ```powershell
-trunk build --release                      # → dist/
+trunk build --cargo-profile release        # → dist/ (фронт). НЕ `--release`: см. ниже
 cargo build --release --bin backend        # → target/release/backend.exe
 ```
+
+Про `--cargo-profile`: `Trunk.toml` задаёт `cargo_profile = "wasm-dev"`, и этот ключ
+**сильнее флага `--release`** — `trunk build --release` молча соберёт dev-профилем.
+Профиль для релиза передаётся явно; в dev, наоборот, флаг не нужен и забыть его
+нельзя. Тот же профиль обязателен в `cargo check`/`cargo build` фронта, иначе cargo
+держит второй набор wasm-артефактов и платит полную холодную пересборку при каждом
+переключении. Готовый релиз собирается [scripts/build-release.ps1](scripts/README.md).
 
 ## Данные
 
@@ -53,7 +63,14 @@ crates/
 ├── contracts/    # общие DTO, определения агрегатов, metadata.json
 ├── backend/      # Axum, домен, БД, проекции, главная книга
 └── frontend/     # Leptos/WASM SPA
+tools/            # исполняется процессом разработки: генераторы, гейты, git-хук, цикл сборки
+scripts/          # операции над средой и данными: релиз, деплой, служба, плагины
 ```
+
+Два каталога скриптов — не разнобой: граница проходит по тому, **кто и когда**
+скрипт запускает. Правило записано в `architecture.toml`
+(`[conventions.script_homes]`) и проверяется валидатором, состав каждого каталога —
+в [tools/README.md](tools/README.md) и [scripts/README.md](scripts/README.md).
 
 Принципы: DDD + SDD (индексированные срезы, зеркалируемые по трём крейтам), именование
 объектов кодом (`a0XX` агрегаты, `p9XX` проекции, `u5XX` use-cases, `d4XX` дашборды),

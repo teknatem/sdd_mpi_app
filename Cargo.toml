@@ -54,7 +54,8 @@ opt-level = 0
 overflow-checks = false
 
 # Frontend dev: небольшая оптимизация заметно уменьшает WASM и время wasm-bindgen.
-# Запуск: trunk serve --cargo-profile wasm-dev
+# Профиль применяется автоматически — он задан в Trunk.toml (cargo_profile).
+# Запуск: powershell -File tools/build_frontend.ps1
 [profile.wasm-dev]
 inherits = "dev"
 opt-level = 1

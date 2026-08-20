@@ -421,7 +421,7 @@ Power BI**), `/api/a012/wb-sales/*`, `/api/a034/ym-realization/*`,
 ```powershell
 cargo check -p contracts
 cargo test -p backend            # включает router_builds и оба теста реестра
-cargo check -p frontend --target wasm32-unknown-unknown
+cargo check -p frontend --target wasm32-unknown-unknown --profile wasm-dev
 powershell -File tools/check_architecture.ps1   # соответствие architecture.toml
 powershell -File tools/check_health.ps1
 ```
