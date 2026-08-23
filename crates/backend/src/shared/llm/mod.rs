@@ -2,6 +2,7 @@ pub mod admin_tools;
 pub mod agent_task_tools;
 pub mod builder_workflow;
 pub mod chart_tools;
+pub mod chat_effects;
 pub mod chat_workspace;
 pub mod cost;
 pub mod data_tools;
@@ -40,5 +41,5 @@ pub mod workspace_tools;
 
 pub use metadata_registry::METADATA_REGISTRY;
 pub use provider_factory::create_provider;
-pub use tool_executor::execute_tool_call;
+pub use tool_executor::{execute_tool_call, ToolContext};
 pub use types::*;

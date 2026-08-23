@@ -1,5 +1,5 @@
 use crate::app::ThawThemeContext;
-use crate::shared::theme::registry::{theme_by_id, ThemeDef, DEFAULT_THEME_ID, THEMES};
+use crate::shared::theme::registry::{theme_by_id, ThemeContext, ThemeDef, DEFAULT_THEME_ID, THEMES};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -62,6 +62,13 @@ fn apply_theme(def: &ThemeDef) {
     }
 }
 
+/// Сохранённая тема — то, что уже применил anti-FOUC скрипт в index.html.
+/// Нужна `app.rs`, чтобы выдать [`ThemeContext`] сразу с верным значением:
+/// иначе первый кадр отрисовался бы по теме по умолчанию.
+pub fn saved_theme_def() -> &'static ThemeDef {
+    theme_by_id(&get_saved_theme())
+}
+
 /// ThemeSelect component for switching themes
 #[component]
 pub fn ThemeSelect() -> impl IntoView {
@@ -72,6 +79,7 @@ pub fn ThemeSelect() -> impl IntoView {
 
     // Get Thaw theme context
     let thaw_theme_ctx = leptos::context::use_context::<ThawThemeContext>();
+    let theme_ctx = leptos::context::use_context::<ThemeContext>();
 
     // Apply saved theme on mount (including Thaw theme)
     Effect::new(move |_| {
@@ -82,6 +90,9 @@ pub fn ThemeSelect() -> impl IntoView {
         if let Some(ctx) = thaw_theme_ctx {
             ctx.0.set(def.base.thaw_theme());
         }
+        if let Some(ctx) = theme_ctx {
+            ctx.0.set(def);
+        }
     });
 
     let change_theme = move |theme_id: &'static str| {
@@ -91,6 +102,9 @@ pub fn ThemeSelect() -> impl IntoView {
 
         if let Some(ctx) = thaw_theme_ctx {
             ctx.0.set(def.base.thaw_theme());
+        }
+        if let Some(ctx) = theme_ctx {
+            ctx.0.set(def);
         }
 
         current_theme.set(def.id.to_string());

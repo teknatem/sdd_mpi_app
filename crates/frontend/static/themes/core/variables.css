@@ -9,7 +9,6 @@
      ========================================================= */
    --app-bg-color: var(--color-bg-primary);
    --app-bg-image: none;
-   --app-main-bg: var(--color-bg-primary);
 
    /* =========================================================
      Fancy readability system
@@ -17,23 +16,30 @@
      Дефолты = строгий режим: эффектов нет, поверхности берутся из обычной
      палитры. Fancy-темы (kind=fancy) переопределяют значения; строгий
      флаг возвращает их к нулю (см. strict-guard.css).
+
+     Модель — ДВЕ роли поверхностей, и роль решает всё:
+
+     1. ХРОМ — .app-sidebar, .app-header, .app-panel, .page__header.
+        Лёгкая заливка (полупрозрачный --sidebar-bg / --top-header-bg /
+        --panel-bg / --header-bg) + backdrop-filter: var(--glass-filter).
+        Картинка видна и размыта; blur локально усредняет её, поэтому фон
+        под текстом однороден. Текст добирает --text-on-image-shadow.
+
+     2. КОНТЕНТ — лист страницы (--sheet-bg на .page__content), карточки
+        (--card-bg), таблицы.
+        Плотная заливка БЕЗ размытия: картинка просвечивает текстурой.
+
+     Размытие вешается на хром и на всплывающие поверхности (.modal берёт
+     тот же --glass-filter). На карточку его вешать НЕЛЬЗЯ: backdrop-filter
+     создаёт containing block для position:fixed потомков, а внутри карточки
+     лежит .card-animated__nav-backdrop с fixed — он перестал бы крыть экран.
+     Плотности заливки контенту достаточно.
+
+     Значение --glass-filter — целиком filter-функция, а не число: в
+     строгом режиме это честный `none` (без stacking context и слоя
+     композитинга, в отличие от blur(0px)).
      ========================================================= */
-   /* «Стекло»: полупрозрачная поверхность + backdrop-filter локально
-      усредняет картинку — фон под текстом становится однородным.
-      Значение — целиком filter-функция, а не число: в строгом режиме это
-      честный `none` (без stacking context и слоя композитинга, в отличие
-      от blur(0px)). Потребители: .app-sidebar, .app-header, .app-right-panel,
-      модалки. */
-   --glass-filter: none;         /* sidebar, модалки */
-   --header-filter: none;        /* верхняя шапка */
-   --right-panel-filter: none;   /* правая панель */
-   /* Роль поверхности задаётся значением её обычного токена в теме:
-      shell-хром (--sidebar-bg, --top-header-bg, --panel-bg) — полупрозрачный,
-      контент (--card-bg, --modal-bg) — почти непрозрачный (модель Gmail:
-      картинка видна вокруг панелей, не сквозь текст). */
-   /* Scrim — защитный градиент для зон, где текст лежит прямо на картинке. */
-   --scrim-side: none;
-   --scrim-top: none;
+   --glass-filter: none;
    --text-on-image-shadow: none;
    --form-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23525252' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
 
@@ -194,9 +200,6 @@
 
    /* Table Dimensions */
    --table-header-height: 30px;
-
-   /* Opacity Values */
-   --opacity-panel: 0.8;
 
    /* Transitions */
    --transition-fast: 0.15s ease;

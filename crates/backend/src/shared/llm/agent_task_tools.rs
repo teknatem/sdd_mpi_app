@@ -12,13 +12,13 @@
 
 use serde_json::{json, Value};
 
-use super::types::{ToolCaller, ToolDefinition};
+use super::types::ToolDefinition;
 use contracts::domain::a017_llm_agent::aggregate::AgentType;
 use contracts::domain::a042_agent_task::aggregate::{
-    AgentTaskStatus, MAX_DELEGATION_DEPTH, MAX_GLOBAL_BACKLOG, MAX_OUTSTANDING_PER_CHAT,
+    AgentTaskStatus, MAX_DELEGATION_DEPTH, MAX_OUTSTANDING_PER_CHAT,
 };
 
-use crate::domain::a042_agent_task::service::{self as agent_task_service, EnqueueRequest};
+use crate::domain::a042_agent_task::service as agent_task_service;
 
 pub const AGENT_TASK_TOOL_NAMES: &[&str] = &[
     "list_agent_specializations",
@@ -169,16 +169,13 @@ pub async fn execute_agent_task_tool(
     name: &str,
     arguments: &str,
     chat_id: &str,
-    agent_id: &str,
     agent_type: &AgentType,
-    caller: Option<&ToolCaller>,
+    effect: &super::chat_effects::ChatEffect,
 ) -> Value {
     let args = serde_json::from_str::<Value>(arguments).unwrap_or_default();
     match name {
         "list_agent_specializations" => list_specializations(),
-        "create_agent_task" => {
-            create_agent_task(&args, chat_id, agent_id, agent_type, caller).await
-        }
+        "create_agent_task" => create_agent_task(&args, chat_id, agent_type, effect).await,
         "list_my_agent_tasks" => list_my_agent_tasks(&args, chat_id).await,
         "get_agent_task_result" => get_agent_task_result(&args).await,
         _ => json!({ "error": format!("Unknown agent task tool: {name}") }),
@@ -207,12 +204,17 @@ fn list_specializations() -> Value {
     })
 }
 
+/// Оболочка чата над Действием `create_agent_task`.
+///
+/// `agent_id` и `caller` сюда больше не приходят: заказчик, диалог и агент —
+/// это провенанс, и он едет в `ChatEffect` (см. `ToolContext::effect`). Здесь
+/// остаётся то, что действительно свойственно чату: цепочка делегирования,
+/// потолок на диалог и распознавание дублей внутри хода.
 async fn create_agent_task(
     args: &Value,
     chat_id: &str,
-    agent_id: &str,
     agent_type: &AgentType,
-    caller: Option<&ToolCaller>,
+    effect: &super::chat_effects::ChatEffect,
 ) -> Value {
     // ── Разбор и проверка аргументов ────────────────────────────────────────
     let Some(target_raw) = args.get("target_agent_type").and_then(Value::as_str) else {
@@ -330,54 +332,65 @@ async fn create_agent_task(
         }
     }
 
-    match agent_task_service::count_open().await {
-        Ok(count) if count >= MAX_GLOBAL_BACKLOG => {
-            return json!({
-                "error": format!(
-                    "Очередь поручений переполнена ({count} незакрытых, предел {MAX_GLOBAL_BACKLOG}). \
-                     Сообщи об этом человеку — вероятно, регламент исполнения не запускается."
-                )
-            });
-        }
-        Ok(_) => {}
-        Err(e) => return json!({ "error": format!("Не удалось проверить размер очереди: {e}") }),
-    }
+    // Потолок очереди целиком проверяет сама очередь (`a042::service::enqueue`):
+    // это её свойство, а не свойство заказчика, и поручения от Процесса обязаны
+    // упираться в тот же предел.
 
     // ── Постановка ──────────────────────────────────────────────────────────
-    let payload_json = args
-        .get("context")
-        .filter(|v| !v.is_null())
-        .map(|v| v.to_string());
+    //
+    // Всё выше — оболочка чата: цепочка делегирования, потолок на диалог, дубли.
+    // Ниже — запись реестра Действий, общая с Этапом: та же схема входа, тот же
+    // ключ идемпотентности, та же строка в журнале эффектов. Раньше здесь стоял
+    // прямой `agent_task_service::enqueue`, и поручение из чата — в отличие от
+    // поручения из Процесса — не оставляло следа в `sys_effect_log`.
+    //
+    // Провенанс (диалог, агент, заказчик, место в цепочке) едет актором, а не
+    // входом Действия: поэтому у `create_agent_task` не появляется полей «для
+    // чата», и схема входа остаётся одной на обе оболочки.
+    let effect = effect
+        .clone()
+        .with_chain(chain.parent_task_ref, chain.depth);
 
-    let request = EnqueueRequest {
-        title,
-        request_text,
-        target_agent_type: target,
-        payload_json,
-        requested_by_agent_ref: (!agent_id.trim().is_empty()).then(|| agent_id.to_string()),
-        requested_by_chat_ref: chat_ref,
-        requested_by_user_ref: caller.map(|c| c.user_id.clone()),
-        parent_task_ref: chain.parent_task_ref,
-        depth: chain.depth,
-    };
+    // Ключ различает поручения внутри одного хода по адресату и постановке:
+    // повтор того же вызова схлопнется, два разных поручения — нет.
+    let suffix = format!("{}:{}", target.as_str(), short_digest(&request_text));
 
-    match agent_task_service::enqueue(request).await {
-        Ok(task) => json!({
-            "ok": true,
-            "task_id": task.to_string_id(),
-            "code": task.base.code,
-            "status": task.status.as_str(),
-            "target_agent_type": task.target_agent_type.as_str(),
-            "target_display_name": task.target_agent_type.display_name(),
-            "note": format!(
-                "Результата ещё НЕТ и в этом ходе не будет. Поручение исполнится при ближайшем \
-                 прогоне регламента «{RUNNER_TASK_CODE}». Не вызывай get_agent_task_result сразу — \
-                 он вернёт pending. Заверши ход тем, что уже знаешь, и скажи человеку, кому и что \
-                 ты поручил. Результат заберёшь в следующем ходе через list_my_agent_tasks."
-            ),
-        }),
-        Err(e) => json!({ "error": format!("Не удалось поставить поручение: {e}") }),
+    let mut input = json!({
+        "title": title,
+        "request_text": request_text,
+        "target_agent_type": target.as_str(),
+    });
+    // Канон — имя поля агрегата (`payload`); инструмент чата исторически звал
+    // его `context`. Принимаем оба, вниз отдаём одно.
+    if let Some(payload) = args
+        .get("payload")
+        .or_else(|| args.get("context"))
+        .filter(|value| value.is_object())
+    {
+        input["payload"] = payload.clone();
     }
+
+    let mut outcome = effect.run("create_agent_task", input, &suffix).await;
+    if outcome.get("ok").and_then(Value::as_bool) == Some(true) {
+        outcome["note"] = json!(format!(
+            "Результата ещё НЕТ и в этом ходе не будет. Поручение исполнится при ближайшем \
+             прогоне регламента «{RUNNER_TASK_CODE}». Не вызывай get_agent_task_result сразу — \
+             он вернёт pending. Заверши ход тем, что уже знаешь, и скажи человеку, кому и что \
+             ты поручил. Результат заберёшь в следующем ходе через list_my_agent_tasks."
+        ));
+    }
+    outcome
+}
+
+/// Короткий отпечаток текста для ключа идемпотентности.
+///
+/// Целиком постановку в ключ не кладём: ключ уходит в уникальный индекс БД, а
+/// `request_text` бывает на тысячи символов.
+fn short_digest(text: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    text.trim().hash(&mut hasher);
+    format!("{:x}", hasher.finish())
 }
 
 async fn list_my_agent_tasks(args: &Value, chat_id: &str) -> Value {

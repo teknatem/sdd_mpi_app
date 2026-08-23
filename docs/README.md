@@ -21,6 +21,7 @@
 | [DEPLOYMENT_WINDOWS_SERVER.md](DEPLOYMENT_WINDOWS_SERVER.md) | Развёртывание на Windows Server | актуально |
 | [database-config-system.md](database-config-system.md) | Конфигурация БД и путей данных (`[data].root`) | актуально |
 | [quality-checks.md](quality-checks.md) | Quality-checks: популяция / нарушения / доля | актуально |
+| [processes-user-guide.md](processes-user-guide.md) | Механизм Процессов: где смотреть в UI, как включить пилот `pr0001`, что проверить | актуально |
 | [llm-quality.md](llm-quality.md) | Измеримость качества LLM: судья, голден-сет, дашборд d407 | актуально |
 | [user-guide-kb-format.md](user-guide-kb-format.md) | Формат статей базы знаний (для авторов) | актуально |
 | [ext-bi-wb-funnel.md](ext-bi-wb-funnel.md) | Внешний BI-доступ к воронке WB; пример для 1С — [ext-api-1c-example.txt](ext-api-1c-example.txt) | актуально |
@@ -53,6 +54,7 @@
 
 | План | Статус |
 |---|---|
+| [plans/2026-08-22-processes-mechanism.md](plans/2026-08-22-processes-mechanism.md) | механизм Процессов по ADR-0011: Б0–Б6 построены, кода в плане не осталось. Открыто — активация пилота человеком и три пункта сверки |
 | [plans/DB_BACKUP_RESTORE_PLAN.md](plans/DB_BACKUP_RESTORE_PLAN.md) | заменён «Наборами данных»; перенос БД — их фаза 2 |
 
 План тонкого клиента отсюда удалён: он был устаревшей копией. Клиент — отдельный

@@ -1,5 +1,5 @@
 use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, EventStore, Origin,
+    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -259,14 +259,6 @@ impl AggregateRoot for WbAdvertDaily {
 
     fn metadata_mut(&mut self) -> &mut EntityMetadata {
         &mut self.base.metadata
-    }
-
-    fn events(&self) -> &EventStore {
-        &self.base.events
-    }
-
-    fn events_mut(&mut self) -> &mut EventStore {
-        &mut self.base.events
     }
 
     fn aggregate_index() -> &'static str {

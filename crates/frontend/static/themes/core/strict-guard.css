@@ -28,13 +28,13 @@ body[data-theme-kind="strict"] {
      всей площади; она не создаёт неоднородности под текстом, в отличие от
      фотофона. Её плотностью управляет сама тема. */
 
-  /* Система читаемости fancy-тем (glass/scrim/text-shadow).
+  /* Система читаемости fancy-тем: одно размытие на весь хром + тень текста.
      `none` вместо blur(0px) — иначе браузер всё равно заводит
-     stacking context и слой композитинга. */
+     stacking context и слой композитинга.
+
+     Цветов здесь нет намеренно: --sheet-bg, --tabs-bar-bg и прочие
+     поверхности строгая тема задаёт сама (непрозрачными), а полноту
+     набора стережёт UI-023 (раздел «Theme drift» в UI_REGISTRY.md). */
   --glass-filter: none;
-  --header-filter: none;
-  --right-panel-filter: none;
-  --scrim-side: none;
-  --scrim-top: none;
   --text-on-image-shadow: none;
 }

@@ -93,17 +93,9 @@
   --badge-accent-border: rgba(167, 139, 250, 0.35);
 
   /* Tab Colors */
-  --tab-text: rgba(255, 255, 255, 0.90);
-  --tab-text-hover: rgba(255, 255, 255, 1);
-  --tab-text-active: rgba(255, 255, 255, 0.95);
+  --tab-text: rgba(255, 255, 255, 0.70);
+  --tab-text-active: #60a5fa;
   --tab-border-active: #60a5fa;
-  --tab-bg: rgba(30, 41, 59, 0.15);
-  --tab-bg-hover: rgba(0,0,0,0.5);
-  --tab-bg-active: rgba(96, 165, 250, 0.10);
-  --tab-close-bg: rgba(255, 255, 255, 0.20);
-  --tab-close-text: rgba(255, 255, 255, 0.70);
-  --tab-close-hover: #ff69b4;
-  --tab-close-active: #90EE90;
 
   /* Modal Colors */
   --modal-overlay: rgba(0, 0, 0, 0.50);
@@ -135,8 +127,9 @@
   --top-header-border: rgba(255, 255, 255, 0.20);
   --top-header-btn-hover: rgba(255, 255, 255, 0.10);
 
-  /* Panel Colors */
-  --panel-bg: rgba(30, 35, 45, 0.30);
+  /* Panel Colors — альфа учитывает снятый с .app-panel `opacity: 0.8`
+     (он гасил заодно и текст панели) */
+  --panel-bg: rgba(30, 35, 45, 0.24);
   --panel-border: rgba(255, 255, 255, 0.15);
   --panel-resizer-hover: rgba(255, 255, 255, 0.10);
 
@@ -153,8 +146,7 @@
   --form-input-focus-border: #60a5fa;
   --form-input-focus-shadow: rgba(96, 165, 250, 0.20);
   --form-placeholder: rgba(255, 255, 255, 0.40);
-  --form-group-bg: rgba(255, 255, 255, 0.02);
-  --form-group-border: rgba(255, 255, 255, 0.10);
+  --form-input-readonly-bg: rgba(255, 255, 255, 0.05);
 
   /* Info/Warning/Code Box Colors */
   --info-box-bg: rgba(96, 165, 250, 0.08);
@@ -171,7 +163,9 @@
   /* Cross-theme behavior tokens */
   --app-bg-color: var(--color-bg-primary);
   --app-bg-image: none;
-  --app-main-bg: var(--color-bg-primary);
+  /* Лист непрозрачен → бар вкладок продолжает шапку (см. layout.css) */
+  --sheet-bg: var(--color-bg-primary);
+  --tabs-bar-bg: var(--header-bg);
   --form-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
 
   /* Color scale tokens used by core utilities */

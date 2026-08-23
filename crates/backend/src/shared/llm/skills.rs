@@ -984,14 +984,20 @@ fn load_package_members(
                 ));
                 return None;
             }
+            // `action:<name>` разбирается в право с появлением механизма Процессов, но
+            // навыкам ветка `host.actions` не выдаётся: задача исполняется через
+            // `invoke_ephemeral_server_script` с `HostExtensions::default()`. До этого
+            // такой манифест отсеивался как `Unknown`; без явного отказа он проходит
+            // загрузку и падает уже в рантайме непонятной JS-ошибкой.
             if let Some(capability) = task.capabilities.iter().find(|capability| {
                 matches!(
                     contracts::plugins::PluginCapability::parse(capability),
                     contracts::plugins::PluginCapability::Unknown(_)
+                        | contracts::plugins::PluginCapability::Action(_)
                 )
             }) {
                 record_diagnostic(format!(
-                    "Skill '{}': task '{}' declares unknown capability '{}'",
+                    "Skill '{}': task '{}' declares unsupported capability '{}'",
                     skill_id, task.id, capability
                 ));
                 return None;
@@ -1417,30 +1423,58 @@ pub async fn employee_skills(agent_type: &AgentType) -> serde_json::Value {
 
 // ─── Сборка инструментов/guard ───────────────────────────────────────────────
 
+/// Все бандлы определений с меткой категории — единственный перечень.
+///
+/// Раньше их было два: `tool_universe()` без меток и `tools_catalog()` с
+/// метками, и каждый просил комментарием держать себя в синхроне с соседом
+/// руками. Новый бандл теперь заводится в одном месте.
+///
+/// Порядок значим для `tools_catalog()`: дедуп оставляет ПЕРВОЕ вхождение
+/// имени, поэтому бандл поиска по базе знаний идёт до kb_admin.
+fn tool_bundles() -> Vec<(&'static str, Vec<ToolDefinition>)> {
+    vec![
+        ("data", super::data_tools::tool_definitions()),
+        ("shared", super::tool_executor::shared_tool_definitions()),
+        ("analyst", super::tool_executor::analyst_tool_definitions()),
+        ("admin", super::admin_tools::admin_tool_definitions()),
+        ("kb_search", super::kb_tools::kb_tool_definitions()),
+        ("kb", super::kb_admin_tools::kb_admin_tool_definitions()),
+        ("plugin", super::plugin_tools::plugin_tool_definitions()),
+        ("chart", super::chart_tools::chart_tool_definitions()),
+        ("table", super::table_tools::table_tool_definitions()),
+        ("mail", super::mail_tools::mail_tool_definitions()),
+        (
+            "schedule",
+            super::schedule_tools::schedule_tool_definitions(),
+        ),
+        ("ticket", super::ticket_tools::ticket_tool_definitions()),
+        (
+            "workspace",
+            super::workspace_tools::workspace_tool_definitions(),
+        ),
+        ("quality", super::quality_tools::quality_tool_definitions()),
+        (
+            "funnel_repair",
+            super::funnel_repair_tools::funnel_repair_tool_definitions(),
+        ),
+        (
+            "llm_quality",
+            super::llm_quality_tools::llm_quality_tool_definitions(),
+        ),
+        (
+            "agent_task",
+            super::agent_task_tools::agent_task_tool_definitions(),
+        ),
+        ("meta", meta_tool_definitions()),
+    ]
+}
+
 /// «Вселенная» всех определений инструментов (core + все бандлы + мета).
-/// NB: при добавлении нового бандла обнови также `tools_catalog()` (там бандлы
-/// перечислены заново парами `(category, defs)`, т.к. здесь метка категории теряется).
-fn tool_universe() -> Vec<ToolDefinition> {
-    let mut v = Vec::new();
-    v.extend(super::data_tools::tool_definitions());
-    v.extend(super::tool_executor::shared_tool_definitions());
-    v.extend(super::tool_executor::analyst_tool_definitions());
-    v.extend(super::admin_tools::admin_tool_definitions());
-    v.extend(super::kb_tools::kb_tool_definitions());
-    v.extend(super::kb_admin_tools::kb_admin_tool_definitions());
-    v.extend(super::plugin_tools::plugin_tool_definitions());
-    v.extend(super::chart_tools::chart_tool_definitions());
-    v.extend(super::table_tools::table_tool_definitions());
-    v.extend(super::mail_tools::mail_tool_definitions());
-    v.extend(super::schedule_tools::schedule_tool_definitions());
-    v.extend(super::ticket_tools::ticket_tool_definitions());
-    v.extend(super::workspace_tools::workspace_tool_definitions());
-    v.extend(super::quality_tools::quality_tool_definitions());
-    v.extend(super::funnel_repair_tools::funnel_repair_tool_definitions());
-    v.extend(super::llm_quality_tools::llm_quality_tool_definitions());
-    v.extend(super::agent_task_tools::agent_task_tool_definitions());
-    v.extend(meta_tool_definitions());
-    v
+pub(crate) fn tool_universe() -> Vec<ToolDefinition> {
+    tool_bundles()
+        .into_iter()
+        .flat_map(|(_, defs)| defs)
+        .collect()
 }
 
 /// Множество имён активных инструментов (core ∪ инструменты активных навыков).
@@ -1585,48 +1619,11 @@ pub fn catalog() -> Value {
 
 /// Каталог инструментов для UI/обзора: полное определение каждого инструмента
 /// (name, description, JSON-схема параметров) + производные поля (category, is_core,
-/// список навыков, в которых он используется). Дедуп по имени.
-///
-/// NB: бандлы перечислены заново парами `(category, defs)` — при добавлении нового
-/// бандла в `tool_universe()` продублируй его и здесь с меткой категории.
+/// список навыков, в которых он используется). Дедуп по имени: у инструмента,
+/// объявленного в двух бандлах, метка категории берётся из первого (см. порядок
+/// в `tool_bundles`).
 pub fn tools_catalog() -> Value {
-    let bundles: Vec<(&str, Vec<ToolDefinition>)> = vec![
-        ("data", super::data_tools::tool_definitions()),
-        ("shared", super::tool_executor::shared_tool_definitions()),
-        ("analyst", super::tool_executor::analyst_tool_definitions()),
-        ("admin", super::admin_tools::admin_tool_definitions()),
-        // Порядок важен: дедуп ниже оставляет ПЕРВОЕ вхождение имени, поэтому
-        // бандл поиска должен идти до kb_admin, чтобы задать свою метку категории.
-        ("kb_search", super::kb_tools::kb_tool_definitions()),
-        ("kb", super::kb_admin_tools::kb_admin_tool_definitions()),
-        ("plugin", super::plugin_tools::plugin_tool_definitions()),
-        ("chart", super::chart_tools::chart_tool_definitions()),
-        ("table", super::table_tools::table_tool_definitions()),
-        ("mail", super::mail_tools::mail_tool_definitions()),
-        (
-            "schedule",
-            super::schedule_tools::schedule_tool_definitions(),
-        ),
-        ("ticket", super::ticket_tools::ticket_tool_definitions()),
-        (
-            "workspace",
-            super::workspace_tools::workspace_tool_definitions(),
-        ),
-        ("quality", super::quality_tools::quality_tool_definitions()),
-        (
-            "funnel_repair",
-            super::funnel_repair_tools::funnel_repair_tool_definitions(),
-        ),
-        (
-            "llm_quality",
-            super::llm_quality_tools::llm_quality_tool_definitions(),
-        ),
-        (
-            "agent_task",
-            super::agent_task_tools::agent_task_tool_definitions(),
-        ),
-        ("meta", meta_tool_definitions()),
-    ];
+    let bundles = tool_bundles();
 
     let mut seen: HashSet<String> = HashSet::new();
     let mut tools: Vec<Value> = Vec::new();
@@ -1915,6 +1912,52 @@ mod tests {
             parse_skill(&raw, &tool_universe_names(), Some(&package), "external")
                 .expect("package remains valid when one task is invalid");
         assert!(invalid_task_skill.tasks.is_empty());
+
+        std::fs::remove_dir_all(&root).expect("cleanup test package");
+    }
+
+    /// `action:<name>` — право механизма Процессов, и навыкам оно не выдаётся:
+    /// задача навыка исполняется без ветки `host.actions`. Такой манифест обязан
+    /// отсеиваться на загрузке. До появления варианта `PluginCapability::Action`
+    /// его ловил разбор в `Unknown`, и потеря этого отказа была бы незаметной:
+    /// навык загрузился бы штатно и упал только в рантайме.
+    #[test]
+    fn task_asking_for_an_action_capability_is_rejected() {
+        let root = std::env::temp_dir().join(format!("skill-action-cap-{}", uuid::Uuid::new_v4()));
+        let package = root.join("effectful-skill");
+        std::fs::create_dir_all(package.join("scripts")).expect("scripts dir");
+        std::fs::write(
+            package.join("scripts").join("repost.mjs"),
+            "export function run(args) { return args; }",
+        )
+        .expect("script");
+
+        let manifest = |capability: &str| {
+            format!(
+                "---\nid: effectful-skill\ntitle: Effectful\ntasks:\n  - id: repost\n    \
+                 entrypoint: scripts/repost.mjs\n    capabilities: [{capability}]\n---\nUse it."
+            )
+        };
+
+        // Контрольный прогон: с обычным правом та же задача проходит, значит
+        // отказ ниже вызван именно capability, а не формой пакета.
+        let allowed = manifest("network:none");
+        let skill = parse_skill(&allowed, &tool_universe_names(), Some(&package), "external")
+            .expect("skill parses");
+        assert_eq!(skill.tasks.len(), 1);
+
+        let effectful = manifest("action:repost_documents");
+        let skill = parse_skill(
+            &effectful,
+            &tool_universe_names(),
+            Some(&package),
+            "external",
+        )
+        .expect("навык остаётся валидным, отсеивается только задача");
+        assert!(
+            skill.tasks.is_empty(),
+            "задача с правом на эффект не должна попадать в каталог навыков"
+        );
 
         std::fs::remove_dir_all(&root).expect("cleanup test package");
     }

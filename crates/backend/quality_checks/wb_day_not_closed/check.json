@@ -1,0 +1,12 @@
+{
+  "id": "wb_day_not_closed",
+  "code": "QC-010",
+  "name": "WB: незакрытые дни",
+  "description": "Дни кабинетов WB, по которым были продажи, но день не закрыт: нет актуального снимка a033 либо в нём есть блокирующие проблемы. Парная проверка Процесса pr0001 — пока день не закрыт, ситуация видна нарушением, а не только экземпляром в середине графа.",
+  "category": "Процессы",
+  "kind": "regular",
+  "entrypoint": "check.mjs",
+  "export": "run",
+  "capabilities": ["db:read:a012_wb_sales", "db:read:a033_wb_day_close"],
+  "default_input": { "grace_days": 2, "window_days": 60 }
+}

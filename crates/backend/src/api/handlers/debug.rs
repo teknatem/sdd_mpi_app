@@ -21,6 +21,7 @@ pub struct ToolTestParams {
     pub to_entity: Option<String>,
     pub tags: Option<String>,
     pub id: Option<String>,
+    pub check_id: Option<String>,
 }
 
 /// GET /api/debug/tool-test
@@ -113,19 +114,22 @@ pub async fn tool_test(Query(params): Query<ToolTestParams>) -> impl IntoRespons
 
     let raw_result = crate::shared::llm::execute_tool_call(
         &call,
-        "debug-chat-id",
-        "debug-agent-id",
-        &specialization,
-        &active_tools,
-        &active_skill_ids,
-        &skill_snapshot,
-        &skill_access,
-        artifact_publish_allowed,
-        skill_script_execute_allowed,
-        skill_script_develop_allowed,
-        data_repair_execute_allowed,
-        // Собеседника у debug-вызова нет: инструменты «от лица пользователя» откажут.
-        None,
+        &crate::shared::llm::ToolContext {
+            chat_id: "debug-chat-id",
+            agent_id: "debug-agent-id",
+            agent_type: &specialization,
+            active_tools: &active_tools,
+            active_skill_ids: &active_skill_ids,
+            skill_snapshot: &skill_snapshot,
+            skill_access: &skill_access,
+            artifact_publish_allowed,
+            skill_script_execute_allowed,
+            skill_script_develop_allowed,
+            data_repair_execute_allowed,
+            // Собеседника у debug-вызова нет: инструменты «от лица пользователя» откажут.
+            caller: None,
+            turn: 1,
+        },
     )
     .await;
 
@@ -168,6 +172,9 @@ fn build_args(p: &ToolTestParams) -> serde_json::Value {
         }),
         "get_knowledge" => serde_json::json!({
             "id": p.id.as_deref().unwrap_or("")
+        }),
+        "run_quality_check" => serde_json::json!({
+            "check_id": p.check_id.as_deref().unwrap_or("")
         }),
         _ => serde_json::json!({}),
     }

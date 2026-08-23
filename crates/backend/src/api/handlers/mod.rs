@@ -114,6 +114,7 @@ pub mod refs;
 
 // Plugins subsystem (admin-only)
 pub mod plugins;
+pub mod processes;
 
 // YM-обслуживание: консолидация подключений к модели «подключение = бизнес» (admin-only)
 pub mod ym_consolidation;

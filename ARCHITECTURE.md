@@ -4,6 +4,76 @@
 > Regenerate: `powershell -File tools/gen_architecture.ps1`
 > Project object map (aggregates, projections, use-cases, chart of accounts, turnovers, API).
 
+## Mechanisms
+
+Четыре механизма, которыми систему меняют **без пересборки**. Их легко перепутать,
+поэтому здесь — что чем является и когда что брать. Что именно заведено в конкретном
+экземпляре, лежит в картах `processes`, `plugins` и `actions`, а не здесь.
+
+| Механизм | Что это | Где живёт |
+|---|---|---|
+| **Процесс** (`pr0001`) | Граф Этапов с курсором и ожиданием по доменному событию: «после какого исхода куда идём». Стартует по триггеру, живёт дольше одного запуска. | Определение — в БД, версионируется. Код механизма — `backend/src/processes/` (graph, worker, instances). |
+| **Этап** (`st0001`) | Узел графа: mjs-модуль `(input, host) -> { outcome, data }`. Читает данные, при необходимости зовёт Действия, возвращает один из объявленных выходов. | Определение — в БД, версионируется. Код — `backend/src/processes/stages/`. |
+| **Действие** | Операция ядра с побочным эффектом: сухой прогон, ключ идемпотентности, запись в `sys_effect_log`. Кода не имеет — адресуется именем и своей `capability`. | Только в Rust: `backend/src/processes/actions/`. В версионировании определений не участвует. |
+| **Плагин** | Самодостаточный JS-артефакт (клиентский и серверный скрипт, стили, SQL-ресурсы), исполняемый в том же QuickJS. Ветки эффектов не видит. | Строкой в таблице `plugin`, адресуется по `manifest.code`. Код движка — `backend/src/plugins/`. |
+
+### Как они соотносятся
+
+Процесс состоит из Этапов; на Этапах вызываются Действия. Это единственная связь
+внутри тройки — Действие ничего не знает про Процесс, а Этап переиспользуется между
+Процессами, потому что лежит в глобальном каталоге со своими версиями.
+
+**Плагин — сосед, а не часть механизма Процессов.** Разница в назначении: плагин
+доставляет функционал пользователю (экран плюс серверные методы), Процесс делает
+системную работу внутри конвейера и человеку показывается только журналом и просьбами.
+Общий у них рантайм исполнения (QuickJS), а не подсистема.
+
+### Действие и инструмент чата — одна запись, две оболочки
+
+То же самое Действие, поданное в LLM-чат, называется **инструментом**. Реестр
+вызываемых операций один (`processes::actions`), оболочек две: оболочка Этапа
+(`processes::stages`) и оболочка чата (`shared/llm/chat_effects.rs`). Обе зовут
+`actions::run`, где и собран весь контракт безопасности эффекта.
+
+Отсюда практическое следствие: **второй реализации бизнес-логики не заводят**. Операция
+с эффектом появляется в `processes/actions/`, инструмент над ней — адаптер. Кто именно
+просил (экземпляр и Этап либо диалог, агент и заказчик), едет **актором**, а не входом
+Действия — поэтому схема входа одна на обе оболочки.
+
+### Один движок на четыре хоста
+
+Все четыре mjs-хоста — плагины, quality-проверки, задачи навыков и Этапы — исполняются
+одним движком `plugins::engine`. Базовая поверхность `host` одинакова: `db.query`,
+`db.queryResource`, `log.*`, `context`. Ветка `host.actions` выдаётся **только Этапу** и
+только поимённо, по манифесту: у плагинов, проверок и навыков её нет вовсе — право не
+отбирают проверкой, его просто не выдают.
+
+Чтение данных у всех mjs-хостов ограничено гардом `sql_guard`: ровно один `SELECT`,
+без комментариев, без `*` рядом с таблицей, где лежат креды.
+
+### Что выбрать
+
+- Нужен **экран с данными** для пользователя — плагин.
+- Нужна **работа по факту** («день импортирован» → пересчитать, сверить, позвать
+  человека), которая переживает перезапуск и умеет ждать, — Процесс.
+- Нужна **новая операция с эффектом**, которой ещё нет ни у Этапа, ни у чата, — Действие
+  в Rust; это единственный из четырёх, который требует пересборки, и добавляется поштучно.
+
+Термины — `CONTEXT.md`, раздел «Механизм процессов». Почему механизм устроен именно так и
+где грабли — ADR-0011 и `backend/src/processes/llm.md`.
+
+## Actions (5)
+
+Операции ядра с побочным эффектом. В mjs Этапа — `host.actions.<method>`, право — `action:<name>` в манифесте Этапа. В LLM-чате те же записи подаются как инструменты.
+
+| Name | host.actions | Title | Reversible | Writes |
+|------|--------------|-------|------------|--------|
+| `create_agent_task` | `createAgentTask` | Поставить поручение AI-сотруднику | true | `a042_agent_task` |
+| `rebuild_day_close` | `rebuildDayClose` | Пересобрать закрытие дня WB | true | `a033_wb_day_close` |
+| `repost_documents` | `repostDocuments` | Перепровести документы агрегата | false | `sys_general_ledger`, `p903_wb_finance_report`, `p904_sales_data`, `p907_ym_payment_report`, `p909_mp_order_line_turnovers` |
+| `request_human_action` | `requestHumanAction` | Позвать человека | true | `sys_ticket` |
+| `run_quality_check` | `runQualityCheck` | Прогнать quality-проверку | true | `sys_quality_check_runs` |
+
 ## Aggregates (a0XX)
 
 | Index | Entity | Table | Description | Related | Docs |
@@ -476,6 +546,7 @@
 | Tab key | Label | Scope | Component |
 |---------|-------|-------|-----------|
 | `sys_metrics` | Метрики проекта |  | ProjectMetricsPage |
+| `sys_processes` | Процессы |  | ProcessesPage |
 | `sys_users` | Пользователи |  | UsersListPage |
 | `sys_roles` | Роли |  | RolesListPage |
 | `sys_roles_matrix` | Матрица ролей |  | RoleMatrixPage |
@@ -489,7 +560,7 @@
 | `sys_thaw_test` | Тест Thaw UI |  | ThawTestPage |
 | `sys_style_guide` | Гид по стилям |  | StyleGuidePage |
 
-## API routes (450)
+## API routes (471)
 
 ### `/a004`
 - `GET` /api/a004/nomenclature
@@ -1047,6 +1118,29 @@
 - `POST` /api/plugin/testdata
 - `GET` /api/plugin/updates
 - `POST` /api/plugin/validate
+
+### `/processes`
+- `GET` /api/processes/actions
+- `GET POST` /api/processes/definitions
+- `POST` /api/processes/definitions/:code/deactivate
+- `GET` /api/processes/definitions/:code/versions
+- `GET DELETE` /api/processes/definitions/:code/versions/:version
+- `POST` /api/processes/definitions/:code/versions/:version/activate
+- `GET` /api/processes/definitions/:code/versions/:version/activation-plan
+- `GET` /api/processes/definitions/full
+- `GET` /api/processes/effects
+- `GET` /api/processes/event-kinds
+- `GET` /api/processes/events
+- `GET` /api/processes/instances
+- `GET` /api/processes/instances/:id
+- `POST` /api/processes/instances/:id/human-done
+- `GET POST` /api/processes/stages
+- `GET` /api/processes/stages/:code/versions
+- `GET DELETE` /api/processes/stages/:code/versions/:version
+- `POST` /api/processes/stages/:code/versions/:version/activate
+- `POST` /api/processes/stages/:code/versions/:version/dry-run
+- `GET` /api/processes/stages/full
+- `POST` /api/processes/tick
 
 ### `/projections`
 - `GET` /api/projections/p900/:registrator_ref

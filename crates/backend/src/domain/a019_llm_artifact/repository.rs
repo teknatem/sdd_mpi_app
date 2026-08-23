@@ -159,7 +159,6 @@ impl From<artifact::Model> for LlmArtifact {
                 description: m.description,
                 comment: m.comment,
                 metadata,
-                events: Default::default(),
             },
             chat_id: LlmChatId::new(chat_uuid),
             agent_id: LlmAgentId::new(agent_uuid),

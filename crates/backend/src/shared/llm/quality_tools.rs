@@ -84,7 +84,11 @@ fn authoring_parameters(require_confirm: bool) -> Value {
     })
 }
 
-pub async fn execute_quality_tool(name: &str, arguments: &str) -> Value {
+pub async fn execute_quality_tool(
+    name: &str,
+    arguments: &str,
+    effect: &super::chat_effects::ChatEffect,
+) -> Value {
     let args: Value = serde_json::from_str(arguments).unwrap_or_else(|_| json!({}));
     match name {
         "list_quality_checks" => {
@@ -100,16 +104,24 @@ pub async fn execute_quality_tool(name: &str, arguments: &str) -> Value {
                 Err(error) => json!({"ok":false,"error":error.to_string()}),
             }
         }
+        // Прогон проверки — запись реестра Действий, а не вторая реализация:
+        // и чат, и Этап зовут `actions::run`, поэтому получают одинаковую
+        // проверку входа по схеме, ключ идемпотентности и строку в журнале
+        // эффектов. Раньше здесь стоял прямой вызов `run_check_with_input`, и
+        // пропущенный `check_id` молча превращался в пустую строку.
         "run_quality_check" => {
-            let check_id = args
+            let mut input = json!({});
+            for field in ["check_id", "input"] {
+                if let Some(value) = args.get(field) {
+                    input[field] = value.clone();
+                }
+            }
+            let suffix = args
                 .get("check_id")
                 .and_then(Value::as_str)
-                .unwrap_or_default();
-            let input = args.get("input").cloned().unwrap_or_else(|| json!({}));
-            match crate::quality::run_check_with_input(check_id, input, "llm").await {
-                Ok(details) => json!({"ok":true,"details":details}),
-                Err(error) => json!({"ok":false,"error":error.to_string()}),
-            }
+                .unwrap_or("-")
+                .to_string();
+            effect.run("run_quality_check", input, &suffix).await
         }
         "get_latest_quality_check" => {
             let check_id = args

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Regenerates ARCHITECTURE.md from code (source of truth).
 
@@ -13,6 +13,10 @@
                               (most dashboards are frontend-only)
       - Quality checks     -> file names + //! header crates/backend/src/quality/checks/
       - Tasks task0XX      -> file names crates/backend/src/system/tasks/managers/
+      - Mechanisms         -> static definitions (Processes, Stages, Actions, Plugins);
+                              their INSTANCES live in the DB and are generated into the
+                              instance knowledge base, not here
+      - Actions            -> ActionInfo in backend/src/processes/actions/*.rs
       - Chart of accounts  -> ACCOUNT_REGISTRY (shared/analytics/account_registry.rs)
       - Turnover classes   -> TURNOVER_CLASSES (shared/analytics/turnover_registry.rs)
       - API routes         -> .route(...) in api/routes.rs
@@ -179,6 +183,74 @@ W "> **GENERATED file - do not edit by hand.** Source of truth is the code."
 W "> Regenerate: $(Q 'powershell -File tools/gen_architecture.ps1')"
 W '> Project object map (aggregates, projections, use-cases, chart of accounts, turnovers, API).'
 W ''
+
+# ----- Mechanisms -----
+# Проза о механизмах живёт ОДНИМ файлом — статьёй базы знаний
+# `src/shared/llm/docs/mechanisms.md`. Здесь она только инлайнится: раньше текст
+# был захардкожен в этом скрипте, то есть правился в PowerShell, хотя выходной
+# файл помечен «GENERATED — do not edit by hand». Берём тело статьи до маркера
+# `<!-- architecture:end -->`: хвост за маркером адресован LLM-чату и карте не нужен.
+$mechFile = Join-Path $root 'crates/backend/src/shared/llm/docs/mechanisms.md'
+W '## Mechanisms'
+W ''
+if (Test-Path $mechFile) {
+    $mechLines = Get-Content -Encoding UTF8 $mechFile
+    # Отрезаем frontmatter: он ограничен строками '---' в начале файла.
+    $from = 0
+    if ($mechLines.Count -gt 0 -and $mechLines[0].Trim() -eq '---') {
+        for ($i = 1; $i -lt $mechLines.Count; $i++) {
+            if ($mechLines[$i].Trim() -eq '---') { $from = $i + 1; break }
+        }
+    }
+    $body = @()
+    for ($i = $from; $i -lt $mechLines.Count; $i++) {
+        $line = $mechLines[$i]
+        # Хвост за маркером адресован чату (id карт для get_knowledge) — в карту не идёт.
+        if ($line -match 'architecture:end') { break }
+        # H1 статьи заменён заголовком раздела; вложенные опускаем на уровень.
+        if ($line -match '^#\s')  { continue }
+        if ($line -match '^##\s') { $line = '#' + $line }
+        $body += $line
+    }
+    W (($body -join [Environment]::NewLine).Trim())
+    W ''
+} else {
+    W "_Источник ``crates/backend/src/shared/llm/docs/mechanisms.md`` не найден._"
+    W ''
+}
+
+# ----- Actions -----
+# Паспорта Действий заданы в Rust (ActionInfo), поэтому каталог выводится из кода.
+$actionsDir = Join-Path $root 'crates/backend/src/processes/actions'
+if (Test-Path $actionsDir) {
+    $rows = @()
+    foreach ($file in Get-ChildItem -Path $actionsDir -Filter '*.rs' | Where-Object { $_.BaseName -ne 'mod' } | Sort-Object Name) {
+        $text = Get-Content -Raw -Encoding UTF8 $file.FullName
+        $name = [regex]::Match($text, 'name:\s*"([^"]+)"').Groups[1].Value
+        if (-not $name) { continue }
+        $rows += [pscustomobject]@{
+            Name       = $name
+            Method     = [regex]::Match($text, 'method:\s*"([^"]+)"').Groups[1].Value
+            Title      = [regex]::Match($text, 'title:\s*"([^"]+)"').Groups[1].Value
+            Reversible = [regex]::Match($text, 'reversible:\s*(true|false)').Groups[1].Value
+            Writes     = ([regex]::Matches(
+                            [regex]::Match($text, 'write_tables:\s*&\[([^\]]*)\]').Groups[1].Value,
+                            '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }) -join ', '
+        }
+    }
+    W "## Actions ($($rows.Count))"
+    W ''
+    W ("Операции ядра с побочным эффектом. В mjs Этапа — $(Q 'host.actions.<method>'), право — " +
+       "$(Q 'action:<name>') в манифесте Этапа. В LLM-чате те же записи подаются как инструменты.")
+    W ''
+    W '| Name | host.actions | Title | Reversible | Writes |'
+    W '|------|--------------|-------|------------|--------|'
+    foreach ($r in $rows) {
+        $writes = if ($r.Writes) { (($r.Writes -split ', ') | ForEach-Object { Q $_ }) -join ', ' } else { '' }
+        W "| $(Q $r.Name) | $(Q $r.Method) | $(Cell $r.Title) | $($r.Reversible) | $writes |"
+    }
+    W ''
+}
 
 # ----- Aggregates a0XX -----
 $domainDir = Join-Path $root 'crates/contracts/src/domain'

@@ -1,0 +1,350 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Стили страницы «Процессы» (sys_processes).
+
+   Скоуп — корневой класс `.sys-processes`. Общие блоки переиспользуются как
+   есть: `.table__data` для таблиц, `.badge` для состояний, `.alert` для
+   ошибок, `.button` для действий, `CardAnimated` для карточек определений.
+
+   Здесь остаётся то, чего в общих блоках нет по смыслу: раскладка вкладки,
+   три подписи-разделителя, «паспорт» карточки (ключ — значение), граф
+   Процесса и раскрывающиеся блоки с кодом.
+
+   Каркас `.page__header` / `.page__content` не переопределяем (UI-014).
+   ════════════════════════════════════════════════════════════════════════ */
+
+.sys-processes .sys-processes__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.sys-processes .sys-processes__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+/* Подпись над таблицей: разделитель смысловых блоков внутри одной вкладки.
+   Не заголовок страницы и не заголовок карточки — поэтому своя, самая тихая
+   ступень в типографической лестнице. */
+.sys-processes .sys-processes__block-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sys-processes .sys-processes__note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    max-width: 72ch;
+}
+
+/* Пустое состояние: список без строк должен говорить, чего в нём нет и
+   почему, а не выглядеть сломанной таблицей. */
+.sys-processes .sys-processes__empty {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    padding: var(--spacing-md);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+/* Разбор — вложенный блок под таблицей: план активации, шаги экземпляра.
+   Отделён рамкой, а не заливкой: заливка спорила бы с подсветкой строк. */
+.sys-processes .sys-processes__details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.sys-processes .sys-processes__list {
+    margin: 0;
+    padding-left: var(--spacing-lg);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+/* ── Карточка определения ───────────────────────────────────────────────
+   Содержимое `CardAnimated`: шапка с кодом и кнопками, описание, паспорт,
+   граф и раскрывающиеся блоки. Рамку и фон даёт карточка, здесь только
+   вертикальный ритм. */
+
+.sys-processes .sys-processes__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.sys-processes .sys-processes__card-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.sys-processes .sys-processes__card-code {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.sys-processes .sys-processes__card-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+/* Кнопки уезжают вправо: в шапке они действия над карточкой, а не часть её
+   названия. */
+.sys-processes .sys-processes__card-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.sys-processes .sys-processes__desc {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    max-width: 88ch;
+}
+
+/* ── Паспорт: ключ слева, значение справа ───────────────────────────────
+   Колонка ключей фиксированной ширины, чтобы значения выстроились в линию и
+   карточки читались одна под другой. */
+
+.sys-processes .sys-processes__facts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.sys-processes .sys-processes__fact {
+    display: grid;
+    grid-template-columns: 14rem 1fr;
+    gap: var(--spacing-sm);
+    align-items: baseline;
+    font-size: var(--font-size-sm);
+}
+
+.sys-processes .sys-processes__fact-key {
+    color: var(--color-text-secondary);
+}
+
+.sys-processes .sys-processes__fact-value {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    color: var(--color-text-primary);
+    word-break: break-word;
+}
+
+.sys-processes .sys-processes__fact-hint {
+    color: var(--color-text-secondary);
+}
+
+/* Строка внутри значения: код Действия, бейджи и пояснение в один ряд. */
+.sys-processes .sys-processes__cap {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.sys-processes .sys-processes__cap-item {
+    margin-right: var(--spacing-xs);
+}
+
+.sys-processes .sys-processes__output {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.sys-processes .sys-processes__output-name {
+    font-family: var(--font-family-mono);
+    color: var(--color-text-primary);
+}
+
+.sys-processes .sys-processes__output-desc {
+    color: var(--color-text-secondary);
+}
+
+.sys-processes .sys-processes__mono {
+    font-family: var(--font-family-mono);
+}
+
+/* Вторая строка в ячейке таблицы: текст ошибки под бейджем статуса, описание
+   под названием Действия. */
+.sys-processes .sys-processes__cell-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+/* ── Граф Процесса ──────────────────────────────────────────────────────
+   Плоский список «Этап → его выходы», а не дерево: граф в модели тоже
+   плоский, и рисовать над ним иерархию значило бы придумывать структуру,
+   которой нет. */
+
+.sys-processes .sys-processes__graph-node {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) 0 var(--spacing-xs) var(--spacing-sm);
+    border-left: 2px solid var(--color-border);
+}
+
+.sys-processes .sys-processes__graph-node-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+}
+
+.sys-processes .sys-processes__graph-node-title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.sys-processes .sys-processes__graph-edge {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    padding-left: var(--spacing-md);
+    font-size: var(--font-size-sm);
+}
+
+.sys-processes .sys-processes__graph-outcome {
+    font-family: var(--font-family-mono);
+    color: var(--color-text-primary);
+}
+
+.sys-processes .sys-processes__graph-arrow {
+    color: var(--color-text-secondary);
+}
+
+.sys-processes .sys-processes__graph-target {
+    color: var(--color-text-secondary);
+}
+
+/* Выход без ребра — дефект графа, а не оформление: он должен читаться как
+   предупреждение прямо в схеме. */
+.sys-processes .sys-processes__graph-edge--warn .sys-processes__graph-target {
+    color: var(--color-warning);
+}
+
+.sys-processes .sys-processes__graph-wait {
+    padding-left: calc(var(--spacing-md) + var(--spacing-md));
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+/* ── Раскрывающийся блок ────────────────────────────────────────────────
+   Заголовок — кнопка во всю ширину: цель клика должна совпадать с тем, что
+   человек считает заголовком. */
+
+.sys-processes .sys-processes__disclosure {
+    border-top: 1px solid var(--color-border);
+}
+
+.sys-processes .sys-processes__disclosure-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    width: 100%;
+    padding: var(--spacing-xs) 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    text-align: left;
+}
+
+.sys-processes .sys-processes__disclosure-head:hover {
+    color: var(--color-text-primary);
+}
+
+.sys-processes .sys-processes__disclosure-caret {
+    display: inline-flex;
+    align-items: center;
+}
+
+.sys-processes .sys-processes__disclosure-title {
+    font-weight: 600;
+}
+
+.sys-processes .sys-processes__disclosure-hint {
+    color: var(--color-text-secondary);
+}
+
+.sys-processes .sys-processes__disclosure-body {
+    padding: 0 0 var(--spacing-sm);
+}
+
+/* Свёрнутый блок остаётся в DOM — иначе повторное раскрытие теряло бы
+   введённый вход сухого прогона и прокрутку в коде Этапа. */
+.sys-processes .sys-processes__disclosure-body--hidden {
+    display: none;
+}
+
+/* Код и JSON: длинные строки скроллятся внутри блока, а не растягивают
+   страницу. */
+.sys-processes .sys-processes__code {
+    margin: 0;
+    max-height: 24rem;
+    overflow: auto;
+    padding: var(--spacing-sm);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    white-space: pre;
+}
+
+/* ── Сухой прогон ───────────────────────────────────────────────────────── */
+
+.sys-processes .sys-processes__dry {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.sys-processes .sys-processes__dry-input {
+    width: 100%;
+    padding: var(--spacing-sm);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    resize: vertical;
+}
+
+.sys-processes .sys-processes__dry-result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}

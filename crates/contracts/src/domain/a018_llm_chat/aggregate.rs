@@ -1,7 +1,7 @@
 use crate::domain::a017_llm_agent::aggregate::LlmAgentId;
 use crate::domain::a019_llm_artifact::aggregate::LlmArtifactId;
 use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, EventStore, Origin,
+    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -171,14 +171,6 @@ impl AggregateRoot for LlmChat {
 
     fn metadata_mut(&mut self) -> &mut EntityMetadata {
         &mut self.base.metadata
-    }
-
-    fn events(&self) -> &EventStore {
-        &self.base.events
-    }
-
-    fn events_mut(&mut self) -> &mut EventStore {
-        &mut self.base.events
     }
 
     fn aggregate_index() -> &'static str {

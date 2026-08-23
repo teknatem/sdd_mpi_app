@@ -1,4 +1,4 @@
-use super::{EntityMetadata, EventStore};
+use super::EntityMetadata;
 use serde::{Deserialize, Serialize};
 
 /// Базовый агрегат с обязательными полями для всех агрегатов
@@ -14,8 +14,6 @@ pub struct BaseAggregate<Id> {
     pub comment: Option<String>,
     /// Метаданные жизненного цикла
     pub metadata: EntityMetadata,
-    /// Хранилище событий
-    pub events: EventStore,
 }
 
 impl<Id> BaseAggregate<Id> {
@@ -27,7 +25,6 @@ impl<Id> BaseAggregate<Id> {
             description,
             comment: None,
             metadata: EntityMetadata::new(),
-            events: EventStore::new(),
         }
     }
 
@@ -45,7 +42,6 @@ impl<Id> BaseAggregate<Id> {
             description,
             comment,
             metadata,
-            events: EventStore::new(),
         }
     }
 

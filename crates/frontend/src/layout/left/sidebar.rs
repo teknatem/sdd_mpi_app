@@ -625,6 +625,11 @@ fn get_menu_groups() -> Vec<MenuGroup> {
             icon: "shield",
             items: vec![
                 SidebarItem::new("sys_metrics", tab_label_for_key("sys_metrics"), "activity"),
+                SidebarItem::new(
+                    "sys_processes",
+                    tab_label_for_key("sys_processes"),
+                    "git-branch",
+                ),
                 SidebarItem::new("sys_users", tab_label_for_key("sys_users"), "users"),
                 SidebarItem::new("sys_roles", tab_label_for_key("sys_roles"), "shield"),
                 SidebarItem::new(

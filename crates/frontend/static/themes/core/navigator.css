@@ -180,7 +180,7 @@
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background: var(--app-main-bg, var(--color-bg-primary));
+  background: var(--sheet-bg);
   padding: 4px 0;
   max-width: 1200px;
   margin-inline: auto;

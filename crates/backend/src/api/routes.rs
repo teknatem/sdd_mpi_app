@@ -97,6 +97,8 @@ pub fn configure_business_routes() -> Router<AppState> {
         .merge(misc_routes())
         // Plugins subsystem (use: auth-only, manage: admin-only)
         .merge(plugin_routes())
+        // Механизм Процессов (admin-only целиком)
+        .merge(process_routes())
         // YM maintenance (admin-only)
         .merge(ym_maintenance_routes())
 }
@@ -113,6 +115,103 @@ fn ym_maintenance_routes() -> Router<AppState> {
             "/api/ym/consolidate-connections",
             post(handlers::ym_consolidation::consolidate_ym_connections),
         )
+        .layer(middleware::from_fn(
+            |req: Request<Body>, next: Next| async move { require_admin(req, next).await },
+        ))
+}
+
+// ============================================================================
+// Механизм Процессов — определения, экземпляры, журналы (ADR-0011)
+// ============================================================================
+// Admin-only целиком, и это свойство предмета, а не осторожность: активация
+// Процесса означает, что система начнёт менять данные сама, а сухой прогон
+// Этапа исполняет чужой mjs.
+
+fn process_routes() -> Router<AppState> {
+    use crate::system::auth::middleware::require_admin;
+
+    Router::new()
+        .route(
+            "/api/processes/actions",
+            get(handlers::processes::list_actions),
+        )
+        .route(
+            "/api/processes/event-kinds",
+            get(handlers::processes::list_event_kinds),
+        )
+        .route(
+            "/api/processes/events",
+            get(handlers::processes::list_events),
+        )
+        .route(
+            "/api/processes/stages",
+            get(handlers::processes::list_stages).post(handlers::processes::save_stage),
+        )
+        .route(
+            "/api/processes/stages/full",
+            get(handlers::processes::list_stages_full),
+        )
+        .route(
+            "/api/processes/stages/:code/versions",
+            get(handlers::processes::list_stage_versions),
+        )
+        .route(
+            "/api/processes/stages/:code/versions/:version",
+            get(handlers::processes::get_stage).delete(handlers::processes::delete_stage),
+        )
+        .route(
+            "/api/processes/stages/:code/versions/:version/activate",
+            post(handlers::processes::activate_stage),
+        )
+        .route(
+            "/api/processes/stages/:code/versions/:version/dry-run",
+            post(handlers::processes::dry_run_stage),
+        )
+        .route(
+            "/api/processes/definitions",
+            get(handlers::processes::list_processes).post(handlers::processes::save_process),
+        )
+        .route(
+            "/api/processes/definitions/full",
+            get(handlers::processes::list_processes_full),
+        )
+        .route(
+            "/api/processes/definitions/:code/versions",
+            get(handlers::processes::list_process_versions),
+        )
+        .route(
+            "/api/processes/definitions/:code/versions/:version",
+            get(handlers::processes::get_process).delete(handlers::processes::delete_process),
+        )
+        .route(
+            "/api/processes/definitions/:code/versions/:version/activation-plan",
+            get(handlers::processes::activation_plan),
+        )
+        .route(
+            "/api/processes/definitions/:code/versions/:version/activate",
+            post(handlers::processes::activate_process),
+        )
+        .route(
+            "/api/processes/definitions/:code/deactivate",
+            post(handlers::processes::deactivate_process),
+        )
+        .route(
+            "/api/processes/instances",
+            get(handlers::processes::list_instances),
+        )
+        .route(
+            "/api/processes/instances/:id",
+            get(handlers::processes::get_instance),
+        )
+        .route(
+            "/api/processes/instances/:id/human-done",
+            post(handlers::processes::human_action_done),
+        )
+        .route(
+            "/api/processes/effects",
+            get(handlers::processes::list_effects),
+        )
+        .route("/api/processes/tick", post(handlers::processes::tick))
         .layer(middleware::from_fn(
             |req: Request<Body>, next: Next| async move { require_admin(req, next).await },
         ))

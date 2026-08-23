@@ -4,7 +4,7 @@
 //! - определения общих metadata-инструментов для передачи LLM
 //! - диспетчер выполнения (`execute_tool_call`)
 
-use super::admin_tools::execute_admin_tool;
+use super::admin_tools::{execute_admin_tool, ADMIN_TOOL_NAMES};
 use super::chart_tools::{execute_chart_tool, CHART_TOOL_NAMES};
 use super::data_tools::{execute_data_tool, DATA_TOOL_NAMES};
 use super::funnel_repair_tools::{execute_funnel_repair_tool, FUNNEL_REPAIR_TOOL_NAMES};
@@ -250,95 +250,217 @@ pub(crate) fn analyst_tool_definitions() -> Vec<ToolDefinition> {
 
 // ─── Диспетчер ───────────────────────────────────────────────────────────────
 
+/// Куда уходит вызов.
+///
+/// Раньше маршрут выбирала лестница из пятнадцати `if`, и **порядок ветвей был
+/// носителем смысла**: имя, попавшее в два набора, молча доставалось той ветви,
+/// что стоит выше. Теперь наборы перечислены таблицей, а тест требует, чтобы они
+/// не пересекались — коллизия падает на прогоне тестов, а не расходится в рантайме.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Route {
+    SkillRuntime,
+    Kb,
+    KbAdmin,
+    LlmQuality,
+    AgentTask,
+    Workspace,
+    Data,
+    BuildChart,
+    BuildTable,
+    Chart,
+    Table,
+    Ticket,
+    Mail,
+    Schedule,
+    Quality,
+    FunnelRepair,
+    Plugin,
+    Admin,
+    Metadata,
+}
+
+/// Инструменты рантайма навыков: ресурсы и mjs-задачи активного навыка.
+const SKILL_RUNTIME_TOOL_NAMES: &[&str] = &[
+    "list_skill_resources",
+    "read_skill_resource",
+    "run_skill_task",
+];
+
+/// Инструменты курирования базы знаний (правки статей через a031_kb_edit).
+const KB_ADMIN_TOOL_NAMES: &[&str] = &[
+    "list_kb_documents",
+    "get_kb_document",
+    "create_kb_edit",
+    "update_kb_edit_articles",
+    "list_open_kb_edits",
+    "write_kb_document",
+];
+
+/// Инструменты, реализованные прямо в этом файле (ветвь `Route::Metadata`).
+///
+/// Список ведётся руками и обязан совпадать с плечами `match` в
+/// `execute_metadata_tool`. Забытое имя ловится тестом
+/// `every_declared_tool_has_a_route`: объявленный, но не маршрутизированный
+/// инструмент отдаёт модели «Unknown tool» — ровно так пропал `get_project_metrics`.
+const METADATA_TOOL_NAMES: &[&str] = &[
+    "get_architecture_overview",
+    "get_chart_of_accounts",
+    "list_entities",
+    "list_skills",
+    "use_skill",
+    "get_entity_schema",
+    "get_join_hint",
+    "create_drilldown_report",
+    "list_gl_turnovers",
+];
+
+/// Единственный источник маршрутизации — и для `route_of`, и для тестов.
+/// Набор, не попавший сюда, не будет ни вызван, ни проверен.
+const ROUTING_TABLE: &[(Route, &[&str])] = &[
+    (Route::SkillRuntime, SKILL_RUNTIME_TOOL_NAMES),
+    (Route::Kb, super::kb_tools::KB_TOOL_NAMES),
+    (Route::KbAdmin, KB_ADMIN_TOOL_NAMES),
+    (
+        Route::LlmQuality,
+        super::llm_quality_tools::LLM_QUALITY_TOOL_NAMES,
+    ),
+    (
+        Route::AgentTask,
+        super::agent_task_tools::AGENT_TASK_TOOL_NAMES,
+    ),
+    (Route::Workspace, WORKSPACE_TOOL_NAMES),
+    (Route::Data, DATA_TOOL_NAMES),
+    (Route::BuildChart, &["build_chart"]),
+    (Route::BuildTable, &["build_table"]),
+    (Route::Chart, CHART_TOOL_NAMES),
+    (Route::Table, TABLE_TOOL_NAMES),
+    (Route::Ticket, super::ticket_tools::TICKET_TOOL_NAMES),
+    (Route::Mail, MAIL_TOOL_NAMES),
+    (Route::Schedule, SCHEDULE_TOOL_NAMES),
+    (Route::Quality, QUALITY_TOOL_NAMES),
+    (Route::FunnelRepair, FUNNEL_REPAIR_TOOL_NAMES),
+    (Route::Plugin, PLUGIN_TOOL_NAMES),
+    (Route::Admin, ADMIN_TOOL_NAMES),
+    (Route::Metadata, METADATA_TOOL_NAMES),
+];
+
+fn route_of(name: &str) -> Option<Route> {
+    ROUTING_TABLE
+        .iter()
+        .find(|(_, names)| names.contains(&name))
+        .map(|(route, _)| *route)
+}
+
+/// Оформить результат инструмента: конверт `_tool`/`_ok` и сериализация.
+///
+/// Раньше эти двенадцать строк были скопированы в каждой из пятнадцати ветвей.
+/// Ветвь, забывшая копию, отдавала результат **успешным по умолчанию**:
+/// `tool_result_ok` возвращает `true`, когда нет ни `ok`, ни `error`.
+fn finish(name: &str, result: serde_json::Value) -> String {
+    let is_ok = tool_result_ok(&result);
+    let mut result = result;
+    if let serde_json::Value::Object(ref mut map) = result {
+        map.insert(
+            "_tool".to_string(),
+            serde_json::Value::String(name.to_string()),
+        );
+        map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
+    }
+    serde_json::to_string_pretty(&result)
+        .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e))
+}
+
+/// Отказ до исполнения: текст уходит модели вместо результата инструмента.
+fn refuse(name: &str, message: String) -> String {
+    finish(name, serde_json::json!({ "error": message }))
+}
+
+/// Контекст оболочки чата — всё, что инструмент может узнать о вызывающем.
+///
+/// Раньше это были тринадцать позиционных параметров под
+/// `#[allow(clippy::too_many_arguments)]`. Собранные в тип, они делают «тонкую
+/// оболочку» видимой: вот ровно то, чем чат отличается от Этапа как вызывающего
+/// (чат, агент, собеседник и матрица прав — против экземпляра, Этапа и режима).
+pub struct ToolContext<'a> {
+    pub chat_id: &'a str,
+    pub agent_id: &'a str,
+    pub agent_type: &'a AgentType,
+    /// Разрешённый набор: core ∪ инструменты активных навыков.
+    pub active_tools: &'a HashSet<String>,
+    pub active_skill_ids: &'a HashSet<String>,
+    pub skill_snapshot: &'a super::skills::SkillRegistrySnapshot,
+    pub skill_access: &'a HashMap<String, super::skill_policy::SkillAccessLevel>,
+    pub artifact_publish_allowed: bool,
+    pub skill_script_execute_allowed: bool,
+    pub skill_script_develop_allowed: bool,
+    pub data_repair_execute_allowed: bool,
+    /// Пользователь-собеседник; `None` у фоновых сценариев, тогда инструменты,
+    /// действующие от лица человека (тикеты), отказывают.
+    pub caller: Option<&'a super::types::ToolCaller>,
+    /// Номер хода диалога. Входит в ключ идемпотентности эффектов — см.
+    /// `chat_effects::ChatEffect::new`.
+    pub turn: u32,
+}
+
+impl ToolContext<'_> {
+    /// Оболочка над реестром Действий для этого хода.
+    ///
+    /// Провенанс собирается здесь, а не в самом Действии: кто зовёт — знает
+    /// оболочка, что делать — знает Действие. Фоновый сценарий без собеседника
+    /// получает `Manual`, а не отказ: эффект всё равно обязан попасть в журнал.
+    pub fn effect(&self) -> super::chat_effects::ChatEffect {
+        let actor = match self.caller {
+            Some(caller) => contracts::processes::ActionActor::User {
+                user_id: caller.user_id.clone(),
+                chat_ref: (!self.chat_id.trim().is_empty()).then(|| self.chat_id.to_string()),
+                agent_ref: (!self.agent_id.trim().is_empty()).then(|| self.agent_id.to_string()),
+                parent_task_ref: None,
+                depth: 0,
+            },
+            None => contracts::processes::ActionActor::Manual,
+        };
+        super::chat_effects::ChatEffect::new(actor, self.chat_id, self.turn)
+    }
+}
+
 /// Выполнить tool call и вернуть результат в виде JSON-строки.
 ///
-/// `chat_id` и `agent_id` нужны для создания артефактов (a019_llm_artifact).
-/// `agent_type` определяет допустимый набор инструментов.
-/// `caller` — пользователь-собеседник; `None` у фоновых сценариев, тогда инструменты,
-/// действующие от лица человека (тикеты), отказывают.
 /// Вызывается в цикле `send_message`, когда LLM возвращает `tool_calls`.
-#[allow(clippy::too_many_arguments)]
-pub async fn execute_tool_call(
-    call: &ToolCall,
-    chat_id: &str,
-    agent_id: &str,
-    agent_type: &AgentType,
-    active_tools: &HashSet<String>,
-    active_skill_ids: &HashSet<String>,
-    skill_snapshot: &super::skills::SkillRegistrySnapshot,
-    skill_access: &HashMap<String, super::skill_policy::SkillAccessLevel>,
-    artifact_publish_allowed: bool,
-    skill_script_execute_allowed: bool,
-    skill_script_develop_allowed: bool,
-    data_repair_execute_allowed: bool,
-    caller: Option<&super::types::ToolCaller>,
-) -> String {
-    // Авторизация: исполняем только инструменты активного набора (core ∪ активные навыки).
-    // Единый источник истины вместо разрозненных проверок по роли агента.
-    if !active_tools.contains(call.name.as_str()) {
-        let result = serde_json::json!({
-            "error": format!(
-                "Инструмент '{}' не активен в текущем наборе. Вызови list_skills() и \
-                 use_skill(\"<id>\"), чтобы активировать нужный навык.",
-                call.name
-            ),
-            "_tool": call.name,
-            "_ok": false,
-        });
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
+pub async fn execute_tool_call(call: &ToolCall, cx: &ToolContext<'_>) -> String {
+    let name = call.name.as_str();
 
-    if super::skill_policy::is_artifact_mutation(&call.name) && !artifact_publish_allowed {
-        return serde_json::to_string_pretty(&serde_json::json!({
-            "error": "Специализация агента не имеет права artifact_publish.",
-            "_tool": call.name,
-            "_ok": false,
-        }))
-        .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
+    // ── Гарды: можно ли звать вообще ────────────────────────────────────────
+    //
+    // Вторая линия после `tool_guards::before_tool`: исполнитель достижим и из
+    // фоновых сценариев, где цикла чата (а значит и гардов) нет.
 
-    if matches!(
-        call.name.as_str(),
-        "list_skill_resources" | "read_skill_resource" | "run_skill_task"
-    ) {
-        let mut result = match call.name.as_str() {
-            "list_skill_resources" => super::skill_runtime::list_resources(
-                &call.arguments,
-                active_skill_ids,
-                skill_snapshot,
+    // Авторизация: исполняем только инструменты активного набора.
+    if !cx.active_tools.contains(name) {
+        return refuse(
+            name,
+            format!(
+                "Инструмент '{name}' не активен в текущем наборе. Вызови list_skills() и \
+                 use_skill(\"<id>\"), чтобы активировать нужный навык."
             ),
-            "read_skill_resource" => super::skill_runtime::read_resource(
-                &call.arguments,
-                active_skill_ids,
-                skill_snapshot,
-            ),
-            "run_skill_task" => {
-                super::skill_runtime::run_task(
-                    &call.arguments,
-                    active_skill_ids,
-                    skill_snapshot,
-                    skill_script_execute_allowed,
-                    skill_script_develop_allowed,
-                )
-                .await
-            }
-            _ => unreachable!(),
-        };
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
+        );
+    }
+    if super::skill_policy::is_artifact_mutation(name) && !cx.artifact_publish_allowed {
+        return refuse(
+            name,
+            "Специализация агента не имеет права artifact_publish.".to_string(),
+        );
+    }
+    if super::skill_policy::is_data_repair_mutation(name) && !cx.data_repair_execute_allowed {
+        return refuse(
+            name,
+            "Специализация агента не имеет права data_repair_execute.".to_string(),
+        );
     }
 
     // Кэш идемпотентных «системных» инструментов — обслуживаем повтор без вычисления.
-    let cacheable = CACHEABLE_TOOLS.contains(&call.name.as_str());
+    let cacheable = CACHEABLE_TOOLS.contains(&name);
     if cacheable {
-        let key = cache_key(agent_type, &call.name, &call.arguments);
+        let key = cache_key(cx.agent_type, name, &call.arguments);
         if let Ok(cache) = METADATA_TOOL_CACHE.lock() {
             if let Some(hit) = cache.get(&key) {
                 return hit.clone();
@@ -346,345 +468,134 @@ pub async fn execute_tool_call(
         }
     }
 
-    // Поиск/чтение/создание статей базы знаний. Раньше по бандлу: он должен идти
-    // до kb_admin, чтобы `get_knowledge` не перехватывался curation-ветвью.
-    if super::kb_tools::KB_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result =
-            super::kb_tools::execute_kb_tool(&call.name, &call.arguments, chat_id, agent_id).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
+    // ── Маршрутизация ───────────────────────────────────────────────────────
+    let Some(route) = route_of(name) else {
+        return refuse(
+            name,
+            format!(
+                "Unknown tool: '{name}'. Инструмент объявлен, но не маршрутизирован — \
+                 это дефект сборки, а не отсутствие права."
+            ),
+        );
+    };
 
-    if matches!(
-        call.name.as_str(),
-        "list_kb_documents"
-            | "get_kb_document"
-            | "create_kb_edit"
-            | "update_kb_edit_articles"
-            | "list_open_kb_edits"
-            | "write_kb_document"
-    ) {
-        let result = execute_kb_admin_tool(&call.name, &call.arguments, agent_id).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if super::llm_quality_tools::LLM_QUALITY_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result =
-            super::llm_quality_tools::execute_llm_quality_tool(&call.name, &call.arguments).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if super::agent_task_tools::AGENT_TASK_TOOL_NAMES.contains(&call.name.as_str()) {
-        // Гарды делегирования (глубина цепочки, самоделегирование, потолки очереди)
-        // считаются внутри по chat_id и agent_type, а не по аргументам модели.
-        let result = super::agent_task_tools::execute_agent_task_tool(
-            &call.name,
-            &call.arguments,
-            chat_id,
-            agent_id,
-            agent_type,
-            caller,
-        )
-        .await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if WORKSPACE_TOOL_NAMES.contains(&call.name.as_str()) {
-        // Шаблон анкеты приносит активный навык: у финансиста и маркетолога
-        // значимые параметры задачи разные.
-        let intake_template = super::skills::intake_template_in(skill_snapshot, active_skill_ids);
-        let result = execute_workspace_tool(
-            &call.name,
-            &call.arguments,
-            chat_id,
-            intake_template.as_deref(),
-        )
-        .await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if DATA_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result =
-            execute_data_tool(&call.name, &call.arguments, agent_type, chat_id, agent_id).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        let output = serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-        if cacheable {
-            if let Ok(mut cache) = METADATA_TOOL_CACHE.lock() {
-                cache.insert(
-                    cache_key(agent_type, &call.name, &call.arguments),
-                    output.clone(),
-                );
-            }
-        }
-        return output;
-    }
-
-    // build_chart — высокоуровневый сборщик: async + контекст чата (отдельная ветка,
-    // т.к. он выполняет SQL и сохраняет плагин, в отличие от заготовок-инструментов).
-    if call.name == "build_chart" {
-        let result =
-            super::chart_tools::execute_build_chart(&call.arguments, chat_id, agent_id).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if call.name == "build_table" {
-        let result = execute_build_table(&call.arguments, chat_id, agent_id).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    // Chart builder tools — dispatch to chart_tools module (заготовки, без БД)
-    if CHART_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_chart_tool(&call.name, &call.arguments);
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    // Table builder tools — dispatch to table_tools module (заготовки, без БД)
-    if TABLE_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_table_tool(&call.name, &call.arguments);
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    // Тикеты — dispatch to ticket_tools module. Действуют от лица собеседника,
-    // поэтому требуют `caller`; в фоновых сценариях его нет.
-    if super::ticket_tools::TICKET_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = match caller {
-            Some(caller) => {
-                super::ticket_tools::execute_ticket_tool(
-                    &call.name,
+    let result = match route {
+        Route::SkillRuntime => match name {
+            "list_skill_resources" => super::skill_runtime::list_resources(
+                &call.arguments,
+                cx.active_skill_ids,
+                cx.skill_snapshot,
+            ),
+            "read_skill_resource" => super::skill_runtime::read_resource(
+                &call.arguments,
+                cx.active_skill_ids,
+                cx.skill_snapshot,
+            ),
+            _ => {
+                super::skill_runtime::run_task(
                     &call.arguments,
-                    chat_id,
-                    caller,
+                    cx.active_skill_ids,
+                    cx.skill_snapshot,
+                    cx.skill_script_execute_allowed,
+                    cx.skill_script_develop_allowed,
                 )
                 .await
+            }
+        },
+        Route::Kb => {
+            super::kb_tools::execute_kb_tool(name, &call.arguments, cx.chat_id, cx.agent_id).await
+        }
+        Route::KbAdmin => execute_kb_admin_tool(name, &call.arguments, cx.agent_id).await,
+        Route::LlmQuality => {
+            super::llm_quality_tools::execute_llm_quality_tool(name, &call.arguments).await
+        }
+        // Гарды делегирования (глубина цепочки, самоделегирование, потолки очереди)
+        // считаются внутри по chat_id и agent_type, а не по аргументам модели.
+        Route::AgentTask => {
+            super::agent_task_tools::execute_agent_task_tool(
+                name,
+                &call.arguments,
+                cx.chat_id,
+                cx.agent_type,
+                &cx.effect(),
+            )
+            .await
+        }
+        Route::Workspace => {
+            // Шаблон анкеты приносит активный навык: у финансиста и маркетолога
+            // значимые параметры задачи разные.
+            let intake_template =
+                super::skills::intake_template_in(cx.skill_snapshot, cx.active_skill_ids);
+            execute_workspace_tool(
+                name,
+                &call.arguments,
+                cx.chat_id,
+                intake_template.as_deref(),
+            )
+            .await
+        }
+        Route::Data => {
+            execute_data_tool(
+                name,
+                &call.arguments,
+                cx.agent_type,
+                cx.chat_id,
+                cx.agent_id,
+            )
+            .await
+        }
+        // build_chart / build_table — высокоуровневые сборщики: выполняют SQL и
+        // сохраняют плагин, в отличие от заготовок-инструментов рядом.
+        Route::BuildChart => {
+            super::chart_tools::execute_build_chart(&call.arguments, cx.chat_id, cx.agent_id).await
+        }
+        Route::BuildTable => execute_build_table(&call.arguments, cx.chat_id, cx.agent_id).await,
+        Route::Chart => execute_chart_tool(name, &call.arguments),
+        Route::Table => execute_table_tool(name, &call.arguments),
+        // Тикеты действуют от лица собеседника, поэтому требуют `caller`;
+        // в фоновых сценариях его нет.
+        Route::Ticket => match cx.caller {
+            Some(caller) => {
+                super::ticket_tools::execute_ticket_tool(name, &call.arguments, cx.chat_id, caller)
+                    .await
             }
             None => serde_json::json!({
                 "error": "Инструменты тикетов доступны только в диалоге с пользователем: \
                           в текущей сессии автор обращения неизвестен.",
             }),
-        };
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
+        },
+        Route::Mail => execute_mail_tool(name, &call.arguments).await,
+        Route::Schedule => execute_schedule_tool(name, &call.arguments).await,
+        Route::Quality => execute_quality_tool(name, &call.arguments, &cx.effect()).await,
+        Route::FunnelRepair => {
+            execute_funnel_repair_tool(name, &call.arguments, cx.chat_id, cx.agent_id, cx.caller)
+                .await
         }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
+        Route::Plugin => execute_plugin_tool(name, &call.arguments, cx.chat_id, cx.agent_id).await,
+        Route::Admin => execute_admin_tool(name, &call.arguments).await,
+        Route::Metadata => execute_metadata_tool(call, cx).await,
+    };
 
-    // Mail tools (IMAP/SMTP) — dispatch to mail_tools module
-    if MAIL_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_mail_tool(&call.name, &call.arguments).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
+    let output = finish(name, result);
+
+    if cacheable {
+        if let Ok(mut cache) = METADATA_TOOL_CACHE.lock() {
+            cache.insert(
+                cache_key(cx.agent_type, name, &call.arguments),
+                output.clone(),
             );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
         }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
     }
 
-    // Scheduler tools (регламентные задания) — dispatch to schedule_tools module
-    if SCHEDULE_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_schedule_tool(&call.name, &call.arguments).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
+    output
+}
 
-    if super::skill_policy::is_data_repair_mutation(&call.name) && !data_repair_execute_allowed {
-        return serde_json::to_string_pretty(&serde_json::json!({
-            "error": "Специализация агента не имеет права data_repair_execute.",
-            "_tool": call.name,
-            "_ok": false,
-        }))
-        .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if QUALITY_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_quality_tool(&call.name, &call.arguments).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    if FUNNEL_REPAIR_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result =
-            execute_funnel_repair_tool(&call.name, &call.arguments, chat_id, agent_id, caller)
-                .await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    // Plugin developer tools — dispatch to plugin_tools module
-    if PLUGIN_TOOL_NAMES.contains(&call.name.as_str()) {
-        let result = execute_plugin_tool(&call.name, &call.arguments, chat_id, agent_id).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    // Admin-only tools — dispatch to admin_tools module
-    if matches!(
-        call.name.as_str(),
-        "check_system_health"
-            | "get_performance_stats"
-            | "list_background_jobs"
-            | "get_data_integrity_report"
-    ) {
-        let result = execute_admin_tool(&call.name, &call.arguments).await;
-        let is_ok = tool_result_ok(&result);
-        let mut result = result;
-        if let serde_json::Value::Object(ref mut map) = result {
-            map.insert(
-                "_tool".to_string(),
-                serde_json::Value::String(call.name.clone()),
-            );
-            map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
-        }
-        return serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
-    }
-
-    let result = match call.name.as_str() {
+/// Инструменты «знания о системе», реализованные прямо здесь.
+///
+/// Плечи обязаны совпадать с `METADATA_TOOL_NAMES`; последнее плечо недостижимо,
+/// пока эти два списка сходятся.
+async fn execute_metadata_tool(call: &ToolCall, cx: &ToolContext<'_>) -> serde_json::Value {
+    match call.name.as_str() {
         "get_architecture_overview" => {
             let category = parse_string_arg(&call.arguments, "category");
             METADATA_REGISTRY.architecture_overview(category.as_deref())
@@ -706,11 +617,13 @@ pub async fn execute_tool_call(
             METADATA_REGISTRY.list_entities(category.as_deref())
         }
 
-        "list_skills" => super::skills::list_skills_result_from(skill_snapshot, skill_access),
+        "list_skills" => super::skills::list_skills_result_from(cx.skill_snapshot, cx.skill_access),
 
-        "use_skill" => {
-            super::skills::use_skill_result_from(&call.arguments, skill_snapshot, skill_access)
-        }
+        "use_skill" => super::skills::use_skill_result_from(
+            &call.arguments,
+            cx.skill_snapshot,
+            cx.skill_access,
+        ),
 
         "get_entity_schema" => {
             let index = parse_string_arg(&call.arguments, "entity_index").unwrap_or_default();
@@ -743,7 +656,7 @@ pub async fn execute_tool_call(
         }
 
         "create_drilldown_report" => {
-            create_drilldown_report_tool(&call.arguments, chat_id, agent_id).await
+            create_drilldown_report_tool(&call.arguments, cx.chat_id, cx.agent_id).await
         }
 
         "list_gl_turnovers" => {
@@ -776,45 +689,69 @@ pub async fn execute_tool_call(
             })
         }
 
-        unknown => serde_json::json!({
-            "error": format!(
-                "Unknown tool: '{}'. Available tools depend on agent type. \
-                 BusinessAnalyst: list_entities, get_entity_schema, get_join_hint, \
-                 search_knowledge, get_knowledge, list_data_sources, execute_query, \
-                 create_drilldown_report, list_gl_turnovers. \
-                 SystemAdmin: get_entity_schema, get_knowledge, \
-                 check_system_health, get_performance_stats, list_background_jobs, \
-                 get_data_integrity_report.",
-                unknown
-            )
+        orphan => serde_json::json!({
+            "error": format!("'{orphan}' есть в METADATA_TOOL_NAMES, но без реализации"),
         }),
-    };
+    }
+}
 
-    // Добавляем отладочные метаданные: _tool и _ok
-    let is_ok = tool_result_ok(&result);
-    let mut result = result;
-    if let serde_json::Value::Object(ref mut map) = result {
-        map.insert(
-            "_tool".to_string(),
-            serde_json::Value::String(call.name.clone()),
+#[cfg(test)]
+mod routing_tests {
+    use super::*;
+
+    /// Каждый объявленный инструмент обязан иметь маршрут.
+    ///
+    /// Ради этого теста и заведена таблица: `get_project_metrics` был объявлен,
+    /// реализован и стоял первым в навыке `app-health-review`, но его имя выпало
+    /// из захардкоженной ветви диспетчера — и модель получала «Unknown tool» на
+    /// инструмент, который система ей же и предложила.
+    #[test]
+    fn every_declared_tool_has_a_route() {
+        let orphans: Vec<String> = super::super::skills::tool_universe()
+            .into_iter()
+            .filter(|tool| route_of(&tool.name).is_none())
+            .map(|tool| tool.name)
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "объявлены, но не маршрутизированы: {}",
+            orphans.join(", ")
         );
-        map.insert("_ok".to_string(), serde_json::Value::Bool(is_ok));
     }
 
-    let output = serde_json::to_string_pretty(&result)
-        .unwrap_or_else(|e| format!("{{\"error\": \"Serialization error: {}\"}}", e));
+    /// И наоборот: маршрут в никуда — мёртвая ветвь диспетчера.
+    #[test]
+    fn every_route_points_at_a_declared_tool() {
+        let declared: HashSet<String> = super::super::skills::tool_universe()
+            .into_iter()
+            .map(|tool| tool.name)
+            .collect();
+        let dangling: Vec<&str> = ROUTING_TABLE
+            .iter()
+            .flat_map(|(_, names)| names.iter().copied())
+            .filter(|name| !declared.contains(*name))
+            .collect();
+        assert!(
+            dangling.is_empty(),
+            "маршрутизированы, но не объявлены: {}",
+            dangling.join(", ")
+        );
+    }
 
-    // Сохранить в кэш идемпотентных инструментов.
-    if cacheable {
-        if let Ok(mut cache) = METADATA_TOOL_CACHE.lock() {
-            cache.insert(
-                cache_key(agent_type, &call.name, &call.arguments),
-                output.clone(),
-            );
+    /// Наборы не пересекаются. Пока маршрут выбирала лестница `if`, пересечение
+    /// разрешалось порядком ветвей молча — и порядок приходилось охранять
+    /// комментарием вместо теста.
+    #[test]
+    fn routing_sets_are_disjoint() {
+        let mut seen: HashMap<&str, Route> = HashMap::new();
+        for (route, names) in ROUTING_TABLE {
+            for name in names.iter() {
+                if let Some(first) = seen.insert(name, *route) {
+                    panic!("имя '{name}' есть и в {first:?}, и в {route:?}");
+                }
+            }
         }
     }
-
-    output
 }
 
 // ─── create_drilldown_report implementation ───────────────────────────────────

@@ -25,8 +25,12 @@ pub struct GenerateReport {
     pub files: Vec<String>,
     pub tables_profiled: usize,
     pub plugins: usize,
+    pub processes: usize,
+    pub stages: usize,
+    pub actions: usize,
     pub skills: usize,
     pub quality_checks: usize,
+    pub ui_scopes: usize,
     pub errors: Vec<String>,
 }
 
@@ -46,14 +50,20 @@ pub async fn regenerate_all() -> GenerateReport {
 
     let profile = data_profile_map().await;
     let plugins = plugins_map(&mut report).await;
+    let processes = processes_map(&mut report).await;
+    let actions = actions_map(&mut report);
     let skills = skills_map(&mut report);
     let checks = quality_checks_map(&mut report);
+    let ui = ui_map(&mut report);
 
     let maps = [
         ("data-profile.md", profile),
         ("plugins.md", plugins),
+        ("processes.md", processes),
+        ("actions.md", actions),
         ("skills.md", skills),
         ("quality-checks.md", checks),
+        ("ui-map.md", ui),
     ];
     for (file_name, content) in &maps {
         write_map(&mut report, file_name, content);
@@ -75,12 +85,17 @@ pub async fn regenerate_all() -> GenerateReport {
     }
 
     tracing::info!(
-        "[kb_generated] карты обновлены: {} файлов, {} таблиц, {} плагинов, {} навыков, {} проверок",
+        "[kb_generated] карты обновлены: {} файлов, {} таблиц, {} плагинов, \
+         {} Процессов, {} Этапов, {} Действий, {} навыков, {} проверок, {} разделов UI",
         report.files.len(),
         report.tables_profiled,
         report.plugins,
+        report.processes,
+        report.stages,
+        report.actions,
         report.skills,
-        report.quality_checks
+        report.quality_checks,
+        report.ui_scopes
     );
     report
 }
@@ -231,14 +246,15 @@ fn short_date(value: &str) -> &str {
 async fn plugins_map(report: &mut GenerateReport) -> String {
     let mut out = front_matter(
         "Плагины: что установлено в этом экземпляре",
-        "Список плагинов из таблицы plugin: код, тип рантайма, статус, серверные методы.",
+        "Список плагинов из таблицы plugin: код, назначение, тип рантайма, статус, SQL-ресурсы.",
         &["плагины", "расширения", "runtime"],
         &[],
     );
     out.push_str(generated_note());
     out.push_str(
         "Плагины живут строками в БД, а не файлами в репозитории, — их не найти поиском по коду.\n\
-         Эта карта и есть единственный способ увидеть, что установлено в экземпляре.\n\n",
+         Эта карта и есть единственный способ увидеть, что установлено в экземпляре.\n\
+         Чем плагин отличается от Процесса и Действия — статья `app-mechanisms`.\n\n",
     );
 
     let db = crate::shared::data::db::get_connection();
@@ -257,8 +273,8 @@ async fn plugins_map(report: &mut GenerateReport) -> String {
         return out;
     }
 
-    out.push_str("| Код | Название | Рантайм | Статус | Включён | Версия | SQL-ресурсы |\n");
-    out.push_str("|---|---|---|---|---|---:|---|\n");
+    out.push_str("| Код | Название | Назначение | Рантайм | Статус | Включён | Версия | SQL-ресурсы |\n");
+    out.push_str("|---|---|---|---|---|---|---:|---|\n");
     for plugin in &plugins {
         let manifest = &plugin.bundle.manifest;
         let resources = plugin
@@ -268,13 +284,16 @@ async fn plugins_map(report: &mut GenerateReport) -> String {
             .cloned()
             .collect::<Vec<_>>()
             .join(", ");
+        // `as_str()`, а не `{:?}`: Debug печатал имена Rust-вариантов («Hybrid»,
+        // «Draft») посреди русского текста, и статус плагина читался как опечатка.
         let _ = writeln!(
             out,
-            "| `{}` | {} | {:?} | {:?} | {} | {} | {} |",
+            "| `{}` | {} | {} | {} | {} | {} | {} | {} |",
             manifest.code,
             manifest.title,
-            manifest.runtime,
-            plugin.status,
+            one_line(manifest.description.as_deref().unwrap_or("—"), 140),
+            manifest.runtime.as_str(),
+            plugin.status.as_str(),
             if plugin.is_enabled { "да" } else { "нет" },
             plugin.version,
             if resources.is_empty() {
@@ -284,6 +303,132 @@ async fn plugins_map(report: &mut GenerateReport) -> String {
             }
         );
     }
+    out
+}
+
+/// Текст в ячейку таблицы: без переносов и труб, с обрезкой по длине.
+fn one_line(raw: &str, limit: usize) -> String {
+    let flat = raw
+        .replace(['\r', '\n'], " ")
+        .replace('|', "\\|")
+        .trim()
+        .to_string();
+    if flat.chars().count() <= limit {
+        return flat;
+    }
+    let mut short: String = flat.chars().take(limit).collect();
+    short.push('…');
+    short
+}
+
+// ─── Процессы и Этапы ────────────────────────────────────────────────────────
+
+/// Карта Процессов и Этапов этого экземпляра.
+///
+/// Определения живут в БД, а не файлами в репозитории, — ровно как плагины, и
+/// точно так же не находятся поиском по коду. Механизм (что такое Процесс, Этап
+/// и Действие, где их код) описан в `ARCHITECTURE.md`; здесь — что именно
+/// заведено здесь и в каком состоянии.
+async fn processes_map(report: &mut GenerateReport) -> String {
+    let mut out = front_matter(
+        "Процессы и Этапы: что заведено в этом экземпляре",
+        "Головные версии Процессов и Этапов из БД: коды, статусы, триггеры, выходы и права.",
+        &["процессы", "этапы", "pr", "st"],
+        &[],
+    );
+    out.push_str(generated_note());
+    // Раньше здесь стояла ссылка на `ARCHITECTURE.md` — файл репозитория, которого
+    // в базе знаний нет: для чата это была ссылка в пустоту. Ссылаемся на статьи,
+    // которые он действительно может открыть.
+    out.push_str(
+        "Определения Процессов и Этапов хранятся в БД и версионируются, — их не найти поиском\n\
+         по коду. Что такое Процесс, Этап, Действие и Плагин — статья `app-mechanisms`;\n\
+         каталог Действий — карта `actions`.\n\n",
+    );
+
+    let db = crate::shared::data::db::get_connection();
+
+    match crate::processes::repository::list_process_head_records(db).await {
+        Ok(processes) => {
+            report.processes = processes.len();
+            out.push_str("## Процессы\n\n");
+            if processes.is_empty() {
+                out.push_str("_Процессов нет._\n\n");
+            } else {
+                out.push_str(
+                    "| Код | Название | Статус | Версия | Триггер | Вход | Рёбер | QC |\n\
+                     |---|---|---|---:|---|---|---:|---|\n",
+                );
+                for record in &processes {
+                    let manifest = &record.definition.manifest;
+                    let _ = writeln!(
+                        out,
+                        "| `{}` | {} | {} | {} | `{}` | `{}` | {} | {} |",
+                        manifest.code,
+                        manifest.title,
+                        record.status.as_str(),
+                        record.version,
+                        manifest.trigger.event,
+                        manifest.entry,
+                        manifest.edges.len(),
+                        manifest
+                            .quality_check
+                            .as_deref()
+                            .map(|code| format!("`{code}`"))
+                            .unwrap_or_else(|| String::from("—")),
+                    );
+                }
+                out.push('\n');
+            }
+        }
+        Err(error) => {
+            report.errors.push(format!("Процессы не прочитаны: {error}"));
+            out.push_str("## Процессы\n\n_Список недоступен._\n\n");
+        }
+    }
+
+    match crate::processes::repository::list_stage_head_records(db).await {
+        Ok(stages) => {
+            report.stages = stages.len();
+            out.push_str("## Этапы\n\n");
+            if stages.is_empty() {
+                out.push_str("_Этапов нет._\n");
+            } else {
+                out.push_str(
+                    "| Код | Название | Статус | Версия | Выходы | Права |\n\
+                     |---|---|---|---:|---|---|\n",
+                );
+                for record in &stages {
+                    let manifest = &record.definition.manifest;
+                    let outputs: Vec<String> = manifest
+                        .outputs
+                        .iter()
+                        .map(|output| format!("`{}`", output.name))
+                        .collect();
+                    let capabilities: Vec<String> = manifest
+                        .capabilities
+                        .iter()
+                        .map(|capability| format!("`{capability}`"))
+                        .collect();
+                    let _ = writeln!(
+                        out,
+                        "| `{}` | {} | {} | {} | {} | {} |",
+                        manifest.code,
+                        manifest.title,
+                        record.status.as_str(),
+                        record.version,
+                        dash_join(&outputs),
+                        dash_join(&capabilities),
+                    );
+                }
+            }
+        }
+        Err(error) => {
+            report.errors.push(format!("Этапы не прочитаны: {error}"));
+            out.push_str("## Этапы\n\n_Список недоступен._\n");
+        }
+    }
+
     out
 }
 
@@ -399,4 +544,195 @@ fn quality_checks_map(report: &mut GenerateReport) -> String {
         );
     }
     out
+}
+
+// ─── Действия ────────────────────────────────────────────────────────────────
+
+/// Каталог Действий — операций ядра с побочным эффектом.
+///
+/// Единственное семейство механизмов, которое живёт целиком в Rust, поэтому
+/// карта собирается не из БД, а из паспортов `ActionInfo`. До этого каталог
+/// существовал только в `ARCHITECTURE.md`, то есть был не виден чату вовсе:
+/// на вопрос «какие Действия есть» ответить было нечем.
+fn actions_map(report: &mut GenerateReport) -> String {
+    let actions = crate::processes::actions::list();
+    report.actions = actions.len();
+
+    let mut out = front_matter(
+        "Действия: каталог операций с побочным эффектом",
+        "Что ядро умеет менять по команде Этапа или инструмента чата: имя, право, обратимость, таблицы записи.",
+        &["действия", "процессы", "этапы", "эффекты"],
+        &[],
+    );
+    out.push_str(generated_note());
+    out.push_str(
+        "Действие — операция ядра, которая меняет мир: у неё есть сухой прогон, ключ\n\
+         идемпотентности и запись в `sys_effect_log`. Одна и та же запись подаётся в двух\n\
+         оболочках: Этапу — как `host.actions.<метод>`, чату — как инструмент. Право\n\
+         Этапа на вызов — `capability` вида `action:<имя>` в его манифесте.\n\n\
+         Каталог закрыт и растёт только правкой Rust: нового Действия «на лету» не завести.\n\
+         Механизм целиком — статья `app-mechanisms`.\n\n",
+    );
+
+    if actions.is_empty() {
+        out.push_str("_Действий нет._\n");
+        return out;
+    }
+
+    out.push_str("| Имя | host.actions | Право | Название | Обратимо | Пишет в |\n");
+    out.push_str("|---|---|---|---|---|---|\n");
+    for info in &actions {
+        let writes: Vec<String> = info
+            .write_tables
+            .iter()
+            .map(|table| format!("`{table}`"))
+            .collect();
+        let _ = writeln!(
+            out,
+            "| `{}` | `{}` | `{}` | {} | {} | {} |",
+            info.name,
+            info.method,
+            info.capability,
+            one_line(info.title, 80),
+            if info.reversible { "да" } else { "**нет**" },
+            dash_join(&writes),
+        );
+    }
+
+    out.push_str("\n## Что делает каждое\n\n");
+    for info in &actions {
+        let _ = writeln!(
+            out,
+            "- **`{}`** — {}\n",
+            info.name,
+            one_line(info.description, 400)
+        );
+    }
+    out
+}
+
+// ─── Разделы интерфейса ──────────────────────────────────────────────────────
+
+/// Карта разделов UI из `SCOPE_CATALOG`.
+///
+/// Нужна поддержке: на вопрос «где это в программе» отвечать было нечем —
+/// у навыка `support` есть инструмент `find_page_help`, но статей с тегами
+/// `user-guide` / `page:<ключ>` в базе не было ни одной, и он всегда возвращал
+/// пусто. Ключ раздела здесь совпадает с ключом вкладки и с id scope.
+fn ui_map(report: &mut GenerateReport) -> String {
+    use crate::system::access::scope_catalog::SCOPE_CATALOG;
+
+    report.ui_scopes = SCOPE_CATALOG.len();
+
+    // `user-guide` — тот тег, по которому `find_page_help` собирает кандидатов:
+    // одного достаточно, чтобы карта отвечала на вопрос про любой раздел.
+    // Пер-страничные теги `page:<ключ>` сюда НЕ кладём: их было бы 67 в одной
+    // строке frontmatter, а разницы нет — конкурентов у карты в этой выдаче
+    // пока нет вовсе. Появятся статьи про отдельные страницы — они придут со
+    // своими `page:` тегами и обойдут карту по релевантности, как и задумано.
+    let mut out = front_matter(
+        "Разделы интерфейса: что где лежит",
+        "Каталог разделов приложения: ключ страницы, название в UI, категория и назначение.",
+        &["user-guide", "интерфейс", "разделы", "навигация"],
+        &[],
+    );
+    out.push_str(generated_note());
+    out.push_str(
+        "Карта отвечает на вопрос «где это в программе». Ключ раздела — он же ключ вкладки\n\
+         и id права доступа: по нему раздел находится и в интерфейсе, и в матрице прав.\n\
+         Раздел может быть не виден конкретному пользователю — это вопрос его прав, а не\n\
+         наличия страницы. Страницы плагинов сюда не входят: они добавляются в рантайме.\n\n",
+    );
+
+    // Группируем по категории, сохраняя порядок появления в каталоге: он
+    // осмысленный (справочники, документы, интеграции, система), а алфавит — нет.
+    let mut order: Vec<&'static str> = Vec::new();
+    for scope in SCOPE_CATALOG {
+        if !order.contains(&scope.category) {
+            order.push(scope.category);
+        }
+    }
+
+    for category in order {
+        let _ = writeln!(out, "## {category}\n");
+        out.push_str("| Ключ раздела | Название в UI | Тип | Про что |\n");
+        out.push_str("|---|---|---|---|\n");
+        for scope in SCOPE_CATALOG.iter().filter(|s| s.category == category) {
+            let _ = writeln!(
+                out,
+                "| `{}` | {} | {} | {} |",
+                scope.scope_id,
+                one_line(scope.label, 60),
+                scope.scope_type.as_str(),
+                one_line(scope.description, 160),
+            );
+        }
+        out.push('\n');
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Карта Действий обязана покрывать каталог целиком: она — единственный
+    /// источник, по которому чат вообще узнаёт о существовании Действия.
+    #[test]
+    fn actions_map_covers_the_whole_catalog() {
+        let mut report = GenerateReport::default();
+        let map = actions_map(&mut report);
+
+        let catalog = crate::processes::actions::list();
+        assert_eq!(report.actions, catalog.len());
+        for info in &catalog {
+            assert!(
+                map.contains(info.name),
+                "Действие '{}' не попало в карту",
+                info.name
+            );
+            assert!(
+                map.contains(info.method),
+                "метод host.actions.'{}' не попал в карту",
+                info.method
+            );
+        }
+        assert!(map.starts_with("---\nkind: generated\n"));
+    }
+
+    /// `find_page_help` отбирает статьи по тегам `user-guide` и `page:<ключ>`.
+    /// Без них карта разделов остаётся невидимой ровно для того инструмента,
+    /// ради которого она заводилась.
+    #[test]
+    fn ui_map_carries_the_tags_find_page_help_searches_by() {
+        let mut report = GenerateReport::default();
+        let map = ui_map(&mut report);
+
+        assert_eq!(
+            report.ui_scopes,
+            crate::system::access::scope_catalog::SCOPE_CATALOG.len()
+        );
+        assert!(map.contains("user-guide"), "нет тега user-guide");
+        for scope in crate::system::access::scope_catalog::SCOPE_CATALOG {
+            assert!(
+                map.contains(scope.scope_id),
+                "ключ раздела '{}' не попал в карту",
+                scope.scope_id
+            );
+            assert!(
+                map.contains(scope.label),
+                "раздел '{}' не попал в карту",
+                scope.scope_id
+            );
+        }
+    }
+
+    /// Ячейка таблицы не должна разъезжаться из-за переноса строки или трубы
+    /// в описании, пришедшем из манифеста плагина.
+    #[test]
+    fn one_line_flattens_and_escapes() {
+        assert_eq!(one_line("две\nстроки", 80), "две строки");
+        assert_eq!(one_line("а | б", 80), r"а \| б");
+        assert_eq!(one_line("абвгд", 3), "абв…");
+    }
 }

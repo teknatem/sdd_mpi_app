@@ -1,5 +1,5 @@
 use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, EventStore, Origin,
+    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
 };
 use crate::shared::analytics::ValueFormat;
 use chrono::{DateTime, Utc};
@@ -311,14 +311,6 @@ impl AggregateRoot for BiIndicator {
 
     fn metadata_mut(&mut self) -> &mut EntityMetadata {
         &mut self.base.metadata
-    }
-
-    fn events(&self) -> &EventStore {
-        &self.base.events
-    }
-
-    fn events_mut(&mut self) -> &mut EventStore {
-        &mut self.base.events
     }
 
     fn aggregate_index() -> &'static str {

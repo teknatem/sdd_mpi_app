@@ -68,6 +68,7 @@ dashboards    = "slice"
 general_ledger = "object"
 quality        = "object"
 plugins        = "object"
+processes      = "object"   # механизм Процессов, ADR-0011
 navigator      = "object"
 bi_timeline    = "removed"   # см. [deviations.bi_timeline]
 
@@ -88,6 +89,10 @@ dashboard    = { prefix = "d", pattern = "d4\\d{2}_", range = [400, 499] }
 data_scheme  = { prefix = "ds", pattern = "ds\\d{2}_", range = [1, 99] }
 data_view    = { prefix = "dv", pattern = "dv\\d{3}_", range = [1, 999] }
 task         = { prefix = "task", pattern = "task\\d{3}_", range = [1, 999] }
+# Процессы и Этапы (ADR-0011) хранятся в БД, а не файлами: пространства
+# описаны здесь ради единого места, но обходом каталога не проверяются.
+process      = { prefix = "pr", pattern = "pr\\d{4}", range = [1, 9999] }
+stage        = { prefix = "st", pattern = "st\\d{4}", range = [1, 9999] }
 
 # ---------------------------------------------------------------------------
 # Роли по видам сущностей, в разрезе крейтов

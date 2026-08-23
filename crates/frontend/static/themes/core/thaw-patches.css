@@ -159,21 +159,14 @@ body[data-theme-kind="fancy"] .thaw-config-provider {
   color: rgba(255, 255, 255, 0.35);
 }
 
-/* THAW Input readonly styling - visually distinct from editable */
+/* THAW Input readonly styling - visually distinct from editable.
+   Тот же токен, что у .form__input:read-only (components.css): прежние
+   ветки по data-theme-base держали значения хардкодом, теперь они живут
+   в файлах тем. */
 .thaw-input__input:read-only,
 .thaw-textarea__textarea:read-only {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--form-input-readonly-bg);
   cursor: default;
-}
-
-[data-theme-base="light"] .thaw-input__input:read-only,
-[data-theme-base="light"] .thaw-textarea__textarea:read-only {
-  background-color: #f9fafb;
-}
-
-[data-theme-base="dark"] .thaw-input__input:read-only,
-[data-theme-base="dark"] .thaw-textarea__textarea:read-only {
-  background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* Override Thaw Card default width for details forms */
@@ -189,9 +182,11 @@ body[data-theme-kind="fancy"] .thaw-config-provider {
               transform var(--transition-base);
 }
 
-.thaw-card[role="group"] {
-  background-color: transparent !important;
-}
+/* NB: правила `.thaw-card[role="group"] { background: transparent }` здесь
+   быть не должно. Thaw ставит role="group" КАЖДОЙ карточке, поэтому оно
+   гасило --card-bg у всех карточек во всех темах (а `:hover` ниже, с той же
+   специфичностью и позже по файлу, возвращал фон — карточка «моргала»).
+   Фон карточки задаётся токеном темы, и только им. */
 
 .thaw-card:hover {
   background-color: var(--card-hover-bg) !important;

@@ -25,7 +25,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--app-main-bg);
+  /* Фона нет намеренно: лист красится на .page__content (layout.css), т.е.
+     ПОД баром вкладок, а не за ним. Иначе «ушко» активного ярлыка легло бы
+     на заливку .app-main и получило её вторым слоем — ярлык оказался бы
+     плотнее своего листа. См. инвариант в layout.css у .page__tabs. */
   min-width: 400px; /* Минимальная ширина центра, чтобы панель не перекрывала */
 }
 
@@ -41,11 +44,10 @@
   padding: 0 var(--spacing-lg);
   z-index: var(--z-top-header);
   background-color: var(--top-header-bg);
-  /* Fancy: scrim-градиент + blur обеспечивают читаемость поверх картинки;
-     в строгом режиме оба обнулены (strict-guard.css). */
-  background-image: var(--scrim-top);
-  backdrop-filter: var(--header-filter);
-  -webkit-backdrop-filter: var(--header-filter);
+  /* Хром: лёгкая заливка + «стекло». В строгом режиме blur обнулён
+     (strict-guard.css), а заливка темы непрозрачна. */
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
   color: var(--top-header-text);
   box-shadow: var(--shadow-md);
   border-bottom: 1px solid var(--top-header-border);
@@ -157,9 +159,8 @@
   flex-direction: column;
   overflow: hidden;
   background-color: var(--sidebar-bg);
-  /* Fancy: scrim + «стекло» — blur локально усредняет картинку под текстом
-     меню; в строгом режиме эффекты обнулены (strict-guard.css). */
-  background-image: var(--scrim-side);
+  /* Хром: blur локально усредняет картинку под текстом меню; в строгом
+     режиме обнулён (strict-guard.css). */
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
   color: var(--sidebar-text);
@@ -294,12 +295,14 @@
   border-left: 1px solid var(--panel-border);
   overflow: hidden;
   position: relative;
-  opacity: var(--opacity-panel);
   padding-left: 0;
   padding-right: 0;
+  /* Хром. Прозрачность — только в альфе --panel-bg: прежний
+     `opacity: var(--opacity-panel)` гасил заодно и текст панели,
+     и заводил лишний stacking context. */
   background: var(--panel-bg);
-  backdrop-filter: var(--right-panel-filter);
-  -webkit-backdrop-filter: var(--right-panel-filter);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
   max-width: 50vw; /* Не даём перекрыть центр */
 }
 

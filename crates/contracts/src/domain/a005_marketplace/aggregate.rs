@@ -1,5 +1,5 @@
 use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, EventStore, Origin,
+    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
 };
 use crate::enums::marketplace_type::MarketplaceType;
 use serde::{Deserialize, Serialize};
@@ -176,14 +176,6 @@ impl AggregateRoot for Marketplace {
 
     fn metadata_mut(&mut self) -> &mut EntityMetadata {
         &mut self.base.metadata
-    }
-
-    fn events(&self) -> &EventStore {
-        &self.base.events
-    }
-
-    fn events_mut(&mut self) -> &mut EventStore {
-        &mut self.base.events
     }
 
     fn aggregate_index() -> &'static str {

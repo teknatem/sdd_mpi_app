@@ -202,7 +202,6 @@ impl From<chat::Model> for LlmChat {
                 description: m.description,
                 comment: m.comment,
                 metadata,
-                events: Default::default(),
             },
             agent_id: LlmAgentId::new(agent_uuid),
             model_name: m.model_name,

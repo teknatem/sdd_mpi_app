@@ -1,7 +1,7 @@
 //! Точка входа. Вся структура крейта — в `lib.rs`; здесь только стартовая
 //! процедура, чтобы интеграционные тесты могли линковаться против библиотеки.
 
-use backend::{api, quality, shared, system, AppState};
+use backend::{api, processes, quality, shared, system, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -208,6 +208,38 @@ async fn main() -> anyhow::Result<()> {
         // Keep `worker` alive (drop at end of main) so the registry Arc stays valid.
         drop(worker);
     }
+
+    // Посев определений пилота: коды заводятся черновиками, если их ещё нет.
+    // Активация — решение человека с просмотром плана эффектов (ADR-0011 п.8),
+    // поэтому посев ничего не включает.
+    match processes::pilot::seed(shared::data::db::get_connection()).await {
+        Ok(report) if report.is_empty() => {}
+        Ok(report) => println!(
+            "✓ Процессы: заведены черновики {:?}{}
+",
+            report.stages_created,
+            if report.process_created {
+                " + pr0001"
+            } else {
+                ""
+            }
+        ),
+        Err(e) => println!(
+            "✗ Процессы: посев определений не удался: {e}
+"
+        ),
+    }
+
+    // Воркер экземпляров процессов. Намеренно не под флагом планировщика
+    // (ADR-0011 п.12): регламентные задания и Процессы — разные механизмы, и
+    // выключенный планировщик не должен означать остановленные Процессы.
+    // Пока не активирован ни один Процесс, проход воркера — четыре пустых
+    // запроса.
+    tokio::spawn(async {
+        processes::worker::ProcessWorker::new(30)
+            .run_loop(shared::data::db::get_connection())
+            .await;
+    });
 
     // Прунинг лога внешнего API. Намеренно не регламентное задание: планировщик
     // может быть выключен в config.toml, и тогда задание просто не выполнилось бы.

@@ -8,7 +8,7 @@ use crate::domain::a038_llm_connection::repository as connection_repository;
 use crate::shared::llm::cost::{cost_micro, Pricing, UsageTotals};
 use crate::shared::llm::tool_guards::{GuardCapabilities, GuardDecision, GuardState};
 use crate::shared::llm::types::{ChatMessage, ChatRole as LlmChatRole, ToolCaller};
-use crate::shared::llm::{create_provider, execute_tool_call};
+use crate::shared::llm::{create_provider, execute_tool_call, ToolContext};
 use crate::system::s3::service::{self as s3_service, UploadedFile};
 use axum::extract::Multipart;
 use base64::Engine;
@@ -1324,18 +1324,28 @@ pub async fn send_message(
                         None => {
                             let fresh = execute_tool_call(
                                 tool_call,
-                                chat_id,
-                                &agent_id_str,
-                                &effective.agent_type,
-                                &active_tools,
-                                &active_skill_ids,
-                                skill_session.snapshot(),
-                                skill_session.access(),
-                                skill_session.artifact_publish_allowed(),
-                                skill_session.script_execute_allowed(),
-                                skill_session.script_develop_allowed(),
-                                skill_session.data_repair_execute_allowed(),
-                                actor.as_ref(),
+                                &ToolContext {
+                                    chat_id,
+                                    agent_id: &agent_id_str,
+                                    agent_type: &effective.agent_type,
+                                    active_tools: &active_tools,
+                                    active_skill_ids: &active_skill_ids,
+                                    skill_snapshot: skill_session.snapshot(),
+                                    skill_access: skill_session.access(),
+                                    artifact_publish_allowed: skill_session
+                                        .artifact_publish_allowed(),
+                                    skill_script_execute_allowed: skill_session
+                                        .script_execute_allowed(),
+                                    skill_script_develop_allowed: skill_session
+                                        .script_develop_allowed(),
+                                    data_repair_execute_allowed: skill_session
+                                        .data_repair_execute_allowed(),
+                                    caller: actor.as_ref(),
+                                    // Номер хода: ретрай модели внутри хода
+                                    // схлопывается в тот же эффект, а «сделай
+                                    // ещё раз» в следующем ходе — нет.
+                                    turn: iteration as u32 + 1,
+                                },
                             )
                             .await;
                             if let Some(key) = memo_key {

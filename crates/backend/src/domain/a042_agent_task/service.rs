@@ -13,7 +13,7 @@ use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use contracts::domain::a017_llm_agent::aggregate::AgentType;
 use contracts::domain::a042_agent_task::aggregate::{
-    AgentTask, AgentTaskStatus, MAX_DELEGATION_DEPTH,
+    AgentTask, AgentTaskStatus, MAX_DELEGATION_DEPTH, MAX_GLOBAL_BACKLOG,
 };
 use uuid::Uuid;
 
@@ -88,12 +88,25 @@ pub async fn resolve_chain(chat_id: Option<&str>) -> Result<ChainPosition> {
 }
 
 /// Поставить поручение в очередь.
+///
+/// Потолок очереди целиком проверяется **здесь**, а не у вызывающего: это
+/// свойство очереди, а не заказчика. Пока он жил в инструменте чата, поручения
+/// от Процесса обходили его — молча и в обход того самого правила, ради
+/// которого он заведён (один зациклившийся источник не должен уморить всех).
+/// Потолок на один чат остался у вызывающего: он про заказчика, а у Этапа
+/// заказчика нет.
 pub async fn enqueue(request: EnqueueRequest) -> Result<AgentTask> {
     if request.depth > MAX_DELEGATION_DEPTH {
         return Err(anyhow!(
             "Превышена глубина цепочки поручений ({} > {})",
             request.depth,
             MAX_DELEGATION_DEPTH
+        ));
+    }
+    let open = repository::count_open().await?;
+    if open >= MAX_GLOBAL_BACKLOG {
+        return Err(anyhow!(
+            "Очередь поручений переполнена: {open} незакрытых при пределе {MAX_GLOBAL_BACKLOG}"
         ));
     }
 

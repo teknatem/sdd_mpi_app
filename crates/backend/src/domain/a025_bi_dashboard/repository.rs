@@ -78,7 +78,6 @@ impl From<bi_dashboard::Model> for BiDashboard {
                 description: m.description,
                 comment: m.comment,
                 metadata,
-                events: Default::default(),
             },
             layout,
             filters,

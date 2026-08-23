@@ -7,6 +7,20 @@
 use super::types::ToolDefinition;
 use sea_orm::{DatabaseBackend, FromQueryResult, Statement};
 
+/// Имена инструментов администратора (для маршрутизации в `execute_tool_call`).
+///
+/// Константа заведена задним числом: ветвь диспетчера была захардкоженным
+/// `matches!`, из которого выпал `get_project_metrics` — объявленный, реализованный
+/// и первый в навыке `app-health-review`. Модель получала «Unknown tool» на
+/// инструмент, который система ей же и предложила.
+pub const ADMIN_TOOL_NAMES: &[&str] = &[
+    "check_system_health",
+    "get_performance_stats",
+    "list_background_jobs",
+    "get_project_metrics",
+    "get_data_integrity_report",
+];
+
 // ─── Определения инструментов ────────────────────────────────────────────────
 
 /// Набор инструментов для SystemAdmin агента.
@@ -191,7 +205,9 @@ pub async fn execute_admin_tool(name: &str, arguments: &str) -> serde_json::Valu
 async fn get_project_metrics(keys: Vec<String>, history: u64) -> serde_json::Value {
     let data = match crate::system::metrics::latest().await {
         Ok(data) => data,
-        Err(e) => return serde_json::json!({ "error": format!("Не удалось прочитать метрики: {e}") }),
+        Err(e) => {
+            return serde_json::json!({ "error": format!("Не удалось прочитать метрики: {e}") })
+        }
     };
 
     let mut result = crate::system::metrics::llm_view::summary(&data);
@@ -215,8 +231,9 @@ async fn get_project_metrics(keys: Vec<String>, history: u64) -> serde_json::Val
             Err(e) => result["history_error"] = serde_json::json!(e.to_string()),
         }
     } else if history > 0 {
-        result["history_error"] =
-            serde_json::json!("История требует непустой список keys: ряды по всем метрикам сразу не отдаются.");
+        result["history_error"] = serde_json::json!(
+            "История требует непустой список keys: ряды по всем метрикам сразу не отдаются."
+        );
     }
 
     result

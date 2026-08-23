@@ -529,6 +529,7 @@
     { "block": "meter", "layer": "core", "reason": "viz: шкала «значение против порога» — показывает дистанцию до порога, чего цветная рамка не может" },
     { "block": "sparkline", "layer": "core", "reason": "viz: компонент тренда вместо инлайнового <svg>, который писали в каждом файле руками" },
     { "block": "sys-metrics", "layer": "page", "reason": "страница «Метрики проекта»: bento-раскладка ведущего блока и таблицы-детализации, нигде больше не используются" },
+    { "block": "sys-processes", "layer": "page", "reason": "страница «Процессы»: раскладка вкладок механизма, подписи блоков и блок разбора экземпляра; общие блоки (таблица, бейдж, alert) переиспользуются как есть" },
     { "block": "sys-ticket-details", "layer": "page", "reason": "bootstrap" },
     { "block": "sys-ticket-details-page", "layer": "page", "reason": "bootstrap" },
     { "block": "sys-tickets", "layer": "page", "reason": "bootstrap" },

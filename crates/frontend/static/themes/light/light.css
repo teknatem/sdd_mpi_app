@@ -92,16 +92,8 @@
 
   /* Tab Colors */
   --tab-text: #6b7280;
-  --tab-text-hover: #ffffff;
-  --tab-text-active: #37474f;
-  --tab-border-active: #37474f;
-  --tab-bg: rgba(255, 255, 255, 0.7);
-  --tab-bg-hover: rgba(255, 255, 255, 0.5);
-  --tab-bg-active: rgba(55, 71, 79, 0.05);
-  --tab-close-bg: #ccc;
-  --tab-close-text: #666;
-  --tab-close-hover: #ff69b4;
-  --tab-close-active: #90EE90;
+  --tab-text-active: #2563eb;
+  --tab-border-active: #2563eb;
 
   /* Modal Colors */
   --modal-overlay: rgba(0, 0, 0, 0.22);
@@ -133,8 +125,9 @@
   --top-header-border: rgba(0, 0, 0, 0.08);
   --top-header-btn-hover: rgba(0, 0, 0, 0.01);
 
-  /* Panel Colors */
-  --panel-bg: #e8eaed;
+  /* Panel Colors — альфа учитывает снятый с .app-panel `opacity: 0.8`
+     (он гасил заодно и текст панели) */
+  --panel-bg: rgba(232, 234, 237, 0.8);
   --panel-border: rgba(0, 0, 0, 0.08);
   --panel-resizer-hover: rgba(0, 0, 0, 0.05);
 
@@ -151,8 +144,7 @@
   --form-input-focus-border: #3b82f6;
   --form-input-focus-shadow: rgba(59, 130, 246, 0.1);
   --form-placeholder: #a3a3a3;
-  --form-group-bg: rgba(255, 255, 255, 0.3);
-  --form-group-border: rgba(0, 0, 0, 0.08);
+  --form-input-readonly-bg: #f9fafb;
 
   /* Info/Warning/Code Box Colors */
   --info-box-bg: rgba(59, 130, 246, 0.05);
@@ -169,7 +161,9 @@
   /* Cross-theme behavior tokens */
   --app-bg-color: #f8f9fa;
   --app-bg-image: none;
-  --app-main-bg: var(--color-bg-primary);
+  /* Лист непрозрачен → бар вкладок продолжает шапку (см. layout.css) */
+  --sheet-bg: var(--color-bg-primary);
+  --tabs-bar-bg: var(--header-bg);
   --form-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23525252' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
 
   /* Color scale tokens used by core utilities */

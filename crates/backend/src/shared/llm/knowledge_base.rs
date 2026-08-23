@@ -362,6 +362,16 @@ const EMBEDDED_LLM_DOCS: &[EmbeddedKnowledgeSource] = &[
         source_path: "crates/backend/src/shared/llm/docs/finance_metrics.md",
         raw: include_str!("docs/finance_metrics.md"),
     },
+    // Дверь в корпус `generated`: карты Процессов, плагинов и Действий кладутся
+    // в `generated/` и поиском по умолчанию не находятся (`DocKind::Generated`).
+    // Эта статья — курируемая, поэтому находится, и называет их id поимённо.
+    // Она же — единственный источник прозы о механизмах: `gen_architecture.ps1`
+    // инлайнит её тело в раздел «Mechanisms» карты ARCHITECTURE.md.
+    EmbeddedKnowledgeSource {
+        id: "app-mechanisms",
+        source_path: "crates/backend/src/shared/llm/docs/mechanisms.md",
+        raw: include_str!("docs/mechanisms.md"),
+    },
     // ─── Справочник внешних API маркетплейсов ───
     // Живут рядом с клиентом соответствующего импорта: там же, где код, который
     // эти эндпоинты вызывает.
@@ -664,11 +674,19 @@ impl KnowledgeBase {
 
     /// Поиск по тегам (OR-семантика) — сохранён ради `find_page_help`,
     /// но исполняется новым движком, поэтому наследует нормализацию по словарю.
+    ///
+    /// Корпус `generated` здесь допущен, в отличие от общего поиска: карта
+    /// разделов интерфейса (`ui-map`) генерируется из `SCOPE_CATALOG` и по
+    /// определению машинная, а отвечает ровно на тот вопрос, ради которого
+    /// `find_page_help` и существует — «где это в программе». Утопить курируемые
+    /// статьи она не может: отбор идёт по тегам `user-guide` / `page:<ключ>`,
+    /// которых у остальных карт нет.
     pub fn search_by_tags(&self, tags: &[&str]) -> Vec<&KnowledgeDoc> {
         let query = super::kb_search::Query {
             tags: self.normalize_tags(tags),
             limit: super::kb_search::MAX_LIMIT,
             include_deprecated: true,
+            kinds: vec![DocKind::Business, DocKind::App, DocKind::Generated],
             ..Default::default()
         };
         self.search(&query)

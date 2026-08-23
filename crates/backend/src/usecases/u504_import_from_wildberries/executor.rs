@@ -606,11 +606,70 @@ impl ImportExecutor {
             }
         };
 
+        let clean = matches!(final_status, ImportStatus::Completed);
         self.progress_tracker
             .complete_session(session_id, final_status);
         tracing::info!("Import completed for session: {}", session_id);
 
+        // Факт для механизма Процессов (ADR-0011 п.5). Публикуется вручную и
+        // здесь, а не «на всякий случай» из репозитория: смысл «день собран»
+        // знает импорт, а не таблица.
+        if clean {
+            Self::publish_completed_days(request).await;
+        }
+
         work_result
+    }
+
+    /// Опубликовать `import.day.completed` по дням завершённого импорта.
+    ///
+    /// Три условия, и каждое сужает факт до того, за что можно ручаться:
+    ///
+    /// - импорт закончился **чисто** (`Completed`, не `CompletedWithErrors`):
+    ///   день, собранный наполовину, закрывать нельзя;
+    /// - в задании были **продажи** (`a012_wb_sales`): снимок дня строится из
+    ///   них, и без них «день собран» ничего не значит;
+    /// - **сегодняшний день не публикуется**: он ещё накапливается.
+    ///
+    /// Ошибка публикации не роняет импорт: событие — производная от уже
+    /// состоявшейся работы, и терять импорт из-за него нельзя.
+    async fn publish_completed_days(request: &ImportRequest) {
+        use contracts::processes::{CorrelationKey, DomainEventKind};
+
+        if !request
+            .target_aggregates
+            .iter()
+            .any(|aggregate| aggregate == "a012_wb_sales")
+        {
+            return;
+        }
+
+        let today = chrono::Utc::now().naive_utc().date();
+        let db = crate::shared::data::db::get_connection();
+        let mut day = request.date_from;
+        // Потолок на всякий случай: импорт за год не должен превращаться в
+        // сотни экземпляров одним махом.
+        let mut published = 0;
+        while day <= request.date_to && published < 62 {
+            if day < today {
+                let key = CorrelationKey::new()
+                    .with("connection_id", request.connection_id.clone())
+                    .with("business_date", day.format("%Y-%m-%d").to_string());
+                if let Err(error) = crate::processes::events::publish(
+                    db,
+                    DomainEventKind::ImportDayCompleted,
+                    key,
+                    serde_json::json!({ "source_usecase": "u504" }),
+                    "u504",
+                )
+                .await
+                {
+                    tracing::warn!("import.day.completed не опубликован за {day}: {error}");
+                }
+                published += 1;
+            }
+            day += chrono::Duration::days(1);
+        }
     }
 
     /// Внутренний цикл по агрегатам; возвращает первую ошибку без изменения трекера.

@@ -77,7 +77,6 @@ impl From<bi_indicator::Model> for BiIndicator {
                 description: m.description,
                 comment: m.comment,
                 metadata,
-                events: Default::default(),
             },
             explanation: m.explanation,
             data_spec,

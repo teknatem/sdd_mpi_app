@@ -1882,6 +1882,163 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
         scope_id: None,
         mode: PolicyMode::AuthOnly,
     },
+    // ========================================================================
+    // Механизм Процессов (ADR-0011) — admin-only целиком
+    // ========================================================================
+    // Разделения на «использование» и «управление», как у плагинов, здесь нет:
+    // читающие маршруты показывают, что система сделала с данными сама, а
+    // пишущие включают её делать это дальше. И то и другое — предмет
+    // администратора.
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/actions",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/event-kinds",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/events",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/stages",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/stages",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/stages/full",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/stages/:code/versions",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/stages/:code/versions/:version",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "DELETE",
+        path: "/api/processes/stages/:code/versions/:version",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/stages/:code/versions/:version/activate",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/stages/:code/versions/:version/dry-run",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/definitions",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/definitions",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/definitions/full",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/definitions/:code/versions",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/definitions/:code/versions/:version",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "DELETE",
+        path: "/api/processes/definitions/:code/versions/:version",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/definitions/:code/versions/:version/activation-plan",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/definitions/:code/versions/:version/activate",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/definitions/:code/deactivate",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/instances",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/instances/:id",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/instances/:id/human-done",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/processes/effects",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
+    RoutePolicy {
+        method: "POST",
+        path: "/api/processes/tick",
+        scope_id: None,
+        mode: PolicyMode::AdminOnly,
+    },
 ];
 
 /// Look up the policy entries for a given scope_id.

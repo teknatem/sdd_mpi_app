@@ -4,7 +4,12 @@
 //! `.detail-tabs` / sys_tasks), высота 32px. `Heavy` — наклонные ярлыки-
 //! «черепица»: левая грань вертикальная, скошена только правая, соседи стоят
 //! внахлёст, активный вырастает от кромки листа. Heavy выше на поле под тень.
-//! При нехватке ширины Heavy становится прокручиваемым `Light`.
+//!
+//! `Heavy` — просьба, а не гарантия: он вырождается в `Light` в двух
+//! случаях — когда не хватает ширины и когда активна весёлая тема
+//! (`kind=fancy`), где тяжёлая графика спорит с фоновой картинкой. Вид
+//! темы берётся реактивно из `ThemeContext`, поэтому переключение темы
+//! перестраивает бар на месте.
 //!
 //! ── Разделение ответственности ──────────────────────────────────────────
 //! Кнопки задают раскладку (ширину диктует подпись), держат текст, иконку,
@@ -20,10 +25,11 @@
 //!
 //! ── Фон ─────────────────────────────────────────────────────────────────
 //! Верх бара компонент НЕ красит: SVG прозрачна, фон даёт сам `.page__tabs`
-//! (`var(--header-bg)`, в светлой теме — градиент, который в `fill` не
+//! (`var(--tabs-bar-bg)`, в светлой теме — градиент, который в `fill` не
 //! положить). Снизу активный ярлык красится `--tabs-sheet` — токеном той
 //! области, что лежит под баром. Совпадение фона сверху и снизу выходит по
-//! построению, а не подбором цвета. Все токены — в `layout.css`.
+//! построению, а не подбором цвета; разбор — у `.page__tabs` в `layout.css`.
+//! Все токены — там же.
 //!
 //! Пример:
 //! ```rust
@@ -39,6 +45,7 @@
 //! ```
 
 use crate::shared::icons::icon;
+use crate::shared::theme::{ThemeContext, ThemeKind};
 use leptos::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use thaw::{Badge, BadgeAppearance, BadgeColor};
@@ -242,8 +249,21 @@ pub fn PageTabs(
         focus_tab(next);
     };
 
-    let wants_heavy = variant == TabsVariant::Heavy;
-    let display_heavy = RwSignal::new(wants_heavy);
+    // «Черепицу» просят только строгие темы. В весёлых её тяжёлая графика
+    // спорит с фоновой картинкой, поэтому там всегда подчёркивания — тот же
+    // Light, что и при нехватке ширины. Memo, а не bool: тему переключают на
+    // живой странице, и бар обязан перестроиться без переоткрытия вкладки.
+    let theme_ctx = leptos::context::use_context::<ThemeContext>();
+    let wants_heavy = Memo::new(move |_| {
+        let kind = theme_ctx
+            .map(|c| c.0.get().kind)
+            .unwrap_or(ThemeKind::Strict);
+        variant == TabsVariant::Heavy && kind == ThemeKind::Strict
+    });
+    let display_heavy = RwSignal::new(wants_heavy.get_untracked());
+
+    // Смена темы возвращает бар к запрошенному варианту; дальше решает замер.
+    Effect::new(move |_| display_heavy.set(wants_heavy.get()));
     let overflowing = RwSignal::new(false);
     let layout = RwSignal::new(None::<Vec<(f64, f64)>>);
     let heavy_required_width = RwSignal::new(None::<f64>);
@@ -252,7 +272,7 @@ pub fn PageTabs(
         let Some(el) = bar.get_untracked() else {
             return;
         };
-        let is_heavy = wants_heavy && display_heavy.get_untracked();
+        let is_heavy = wants_heavy.get_untracked() && display_heavy.get_untracked();
         let measured = measure(&el, is_heavy);
         let client_width = el.client_width() as f64;
         let required_width = measured
@@ -266,7 +286,7 @@ pub fn PageTabs(
         };
 
         overflowing.set(overflows);
-        if !wants_heavy {
+        if !wants_heavy.get_untracked() {
             layout.set(None);
         } else if is_heavy {
             if let Some(required) = required_width {
@@ -369,10 +389,12 @@ pub fn PageTabs(
         })
         .collect_view();
 
-    let bar_style = if wants_heavy {
-        heavy_css_vars()
-    } else {
-        String::new()
+    let bar_style = move || {
+        if wants_heavy.get() {
+            heavy_css_vars()
+        } else {
+            String::new()
+        }
     };
 
     view! {

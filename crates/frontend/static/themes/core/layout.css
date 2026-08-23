@@ -21,6 +21,9 @@
   width: 100%;
   /*border-bottom: 1px solid var(--header-bg);*/
   background: var(--header-bg);
+  /* Хром: заливка темы + «стекло» (в строгом режиме blur обнулён). */
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
   color: var(--header-text);
   overflow: hidden;
   /*border-top-left-radius: 8px;
@@ -163,11 +166,29 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Лист страницы. Красится именно здесь, а не на .app-main: лист обязан
+     начинаться ПОД баром вкладок — см. инвариант ниже. */
+  background: var(--sheet-bg);
 }
 
 /* ── Page Tabs (BEM element of .page) ────────────────────────────────────────
    Sits between .page__header and .page__content.
-   Concept: bar background = header bg → active tab = page bg → hover = midpoint.
+   Concept: bar background = header bg → active tab = sheet bg → hover = midpoint.
+
+   ИНВАРИАНТ (ярлык == его лист). Активный ярлык совпадает с листом, только
+   если оба композитятся на ОДИН задник. Лист = --sheet-bg поверх фона
+   приложения; «ушко» активного ярлыка (--tabs-sheet, вариант --heavy) тоже
+   рисуется цветом --sheet-bg, но поверх бара. Значит:
+
+     если --sheet-bg полупрозрачен, --tabs-bar-bg ОБЯЗАН быть transparent.
+
+   Иначе ушко получает вторым слоем заливку бара, а лист — нет, и фоны
+   расходятся. В строгих темах --sheet-bg непрозрачен, там это неважно и
+   --tabs-bar-bg = var(--header-bg) (бар продолжает шапку).
+
+   Сделать ушко бесцветным нельзя: под ним лежит SVG-путь с тенью от
+   feGaussianBlur(SourceAlpha) по всей площади фигуры (page_tabs.rs) — сквозь
+   прозрачную заливку она проступит тёмным пятном.
    ──────────────────────────────────────────────────────────────────────────── */
 
 .page__tabs {
@@ -175,7 +196,7 @@
   display: flex;
   height: 32px;
   min-height: 32px;
-  background: var(--header-bg);
+  background: var(--tabs-bar-bg);
   padding: 0;
   align-items: stretch;
 }
@@ -192,44 +213,48 @@
   font-size: var(--font-size-base);
   font-weight: 500;
   background: color-mix(in srgb,
-    var(--color-bg-primary) 20%,
+    var(--sheet-bg) 20%,
     var(--page-header-bg-solid, #d4d4d4) 80%);
   border: none;
   border-radius: 0;
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
-  border-right: 1px solid var(--color-bg-primary);
-  border-top: 1px solid var(--color-bg-primary);
+  border-right: 1px solid var(--sheet-bg);
+  border-top: 1px solid var(--sheet-bg);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   color: var(--color-text-primary);
+  /* В fancy-темах бар прозрачен и подписи ложатся прямо на картинку. */
+  text-shadow: var(--text-on-image-shadow);
   opacity: 0.8;
 }
 
 .page__tab:hover {
   background: color-mix(in srgb,
-    var(--color-bg-primary) 45%,
+    var(--sheet-bg) 45%,
     var(--page-header-bg-solid, #d4d4d4) 55%);
   opacity: 1;
 }
 
 .page__tab:active {
   background: color-mix(in srgb,
-    var(--color-bg-primary) 65%,
+    var(--sheet-bg) 65%,
     var(--page-header-bg-solid, #d4d4d4) 35%);
   opacity: 1;
 }
 
+/* Активный ярлык = лист (см. инвариант у .page__tabs) */
 .page__tab--active {
-  background: var(--color-bg-primary);
+  background: var(--sheet-bg);
   color: var(--color-text-primary);
   font-weight: 600;
   opacity: 1;
 }
 
+/* Активный ярлык не «оживает» под курсором: он и так лист. */
 .page__tab--active:hover,
 .page__tab--active:active {
-  background: var(--color-bg-primary);
+  background: var(--sheet-bg);
 }
 
 .page__tab:disabled {
@@ -305,7 +330,9 @@
   border-radius: 0;
   opacity: 1;
   font-weight: var(--font-weight-normal, 400);
-  color: var(--color-text-secondary);
+  /* Цвета вкладок — своими токенами: в весёлых темах бар лежит поверх
+     фотографии, и акцент палитры там слишком тускл. */
+  color: var(--tab-text);
   transition: color var(--transition-fast, 0.15s ease);
 }
 
@@ -336,7 +363,7 @@
 .page__tabs--light .page__tab--active:hover,
 .page__tabs--light .page__tab--active:active {
   background: none;
-  color: var(--color-primary);
+  color: var(--tab-text-active);
   font-weight: var(--font-weight-normal, 400);
   opacity: 1;
   /* Псевдо-жирный, как у .detail-tabs: ширина подписи не прыгает. */
@@ -346,7 +373,16 @@
 
 .page__tabs--light .page__tab--active::after,
 .page__tabs--light .page__tab--active:hover::after {
-  background: var(--color-primary);
+  background: var(--tab-border-active);
+}
+
+/* Весёлые темы: закладки всегда подчёркивания (см. page_tabs.rs), и бар
+   принадлежит листу, а не шапке — берёт его заливку. Так между шапкой и
+   листом не остаётся полосы голого фото, а подписи получают ровный фон.
+   Инвариант «ярлык == лист» тут не при делах: у light-варианта активная
+   вкладка без заливки, накладываться нечему. */
+[data-theme-kind="fancy"] .page__tabs--light {
+  background: var(--sheet-bg);
 }
 
 /* ── Тяжёлый вариант ─────────────────────────────────────────────────────
@@ -375,9 +411,9 @@
   height: calc(var(--tabs-tab-h) + var(--tabs-shadow-h));
   min-height: calc(var(--tabs-tab-h) + var(--tabs-shadow-h));
 
-  /* Лист под баром: этим красится `.app-main`, поверх которой лежит
-     `.page__content`. Им же заливается активный ярлык. */
-  --tabs-sheet: var(--app-main-bg, var(--color-bg-primary));
+  /* Лист под баром: этим красится `.page__content`. Им же заливается
+     активный ярлык — см. инвариант у `.page__tabs`. */
+  --tabs-sheet: var(--sheet-bg);
 
   /* Солид-дублёр шапки — подмешивается в заливку неактивных. */
   --tabs-shade: var(--page-header-bg-solid, #d4d4d4);

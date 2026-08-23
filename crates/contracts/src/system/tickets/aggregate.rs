@@ -1,4 +1,4 @@
-use crate::domain::common::{AggregateId, AggregateRoot, EntityMetadata, EventStore, Origin};
+use crate::domain::common::{AggregateId, AggregateRoot, EntityMetadata, Origin};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -77,8 +77,6 @@ pub struct Ticket {
     /// Метаданные жизненного цикла (created/updated/is_deleted)
     #[serde(default)]
     pub metadata: EntityMetadata,
-    #[serde(skip, default)]
-    pub events: EventStore,
 }
 
 impl AggregateRoot for Ticket {
@@ -103,14 +101,6 @@ impl AggregateRoot for Ticket {
 
     fn metadata_mut(&mut self) -> &mut EntityMetadata {
         &mut self.metadata
-    }
-
-    fn events(&self) -> &EventStore {
-        &self.events
-    }
-
-    fn events_mut(&mut self) -> &mut EventStore {
-        &mut self.events
     }
 
     fn aggregate_index() -> &'static str {

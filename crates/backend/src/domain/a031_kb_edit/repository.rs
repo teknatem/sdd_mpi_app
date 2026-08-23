@@ -75,7 +75,6 @@ impl From<kb_edit_entity::Model> for KbEdit {
                 description: m.description,
                 comment: m.comment,
                 metadata,
-                events: Default::default(),
             },
             edit_type: KbEditType::from_str(&m.edit_type),
             status: KbEditStatus::from_str(&m.status),

@@ -12,6 +12,7 @@ use rquickjs::{
     promise::MaybePromise,
     AsyncContext, AsyncRuntime, CatchResultExt, CaughtError, Function, Module, Object, Value,
 };
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -226,34 +227,87 @@ async fn host_db_query(
 }
 
 const HOST_FACTORY: &str = r#"
-(() => ({
+(() => {
+  const host = {
     db: Object.freeze({
-    query: async (sql, params = []) => {
-      const json = await __hostDbQuery(String(sql), JSON.stringify(params), __hostCapabilitiesJson);
-      return JSON.parse(json);
-    },
-    queryResource: async (name, params = []) => {
-      const key = String(name);
-      const sql = __hostSqlResources[key];
-      if (typeof sql !== "string") {
-        throw new Error(`SQL resource '${key}' is not defined`);
+      query: async (sql, params = []) => {
+        const json = await __hostDbQuery(String(sql), JSON.stringify(params), __hostCapabilitiesJson);
+        return JSON.parse(json);
+      },
+      queryResource: async (name, params = []) => {
+        const key = String(name);
+        const sql = __hostSqlResources[key];
+        if (typeof sql !== "string") {
+          throw new Error(`SQL resource '${key}' is not defined`);
+        }
+        const json = await __hostDbQuery(sql, JSON.stringify(params), __hostCapabilitiesJson);
+        return JSON.parse(json);
       }
-      const json = await __hostDbQuery(sql, JSON.stringify(params), __hostCapabilitiesJson);
-      return JSON.parse(json);
+    }),
+    log: Object.freeze({
+      info: (...values) => __hostLog(values.map(formatLogValue).join(" ")),
+      warn: (...values) => __hostLog("[warn] " + values.map(formatLogValue).join(" ")),
+      error: (...values) => __hostLog("[error] " + values.map(formatLogValue).join(" "))
+    })
+  };
+  // Ветка эффектов появляется только там, где её выдал хост. У плагинов и
+  // навыков этих глобалов нет — значит, нет и самой возможности что-то
+  // изменить: право на эффект не отбирается проверкой, его просто не выдают.
+  if (typeof __hostActionCatalog !== "undefined") {
+    const actions = {};
+    for (const entry of __hostActionCatalog) {
+      actions[entry.method] = async (input, options) => {
+        const json = await __hostActionCall(
+          entry.name,
+          JSON.stringify(input || {}),
+          JSON.stringify(options || {})
+        );
+        return JSON.parse(json);
+      };
     }
-  }),
-  log: Object.freeze({
-    info: (...values) => __hostLog(values.map(formatLogValue).join(" ")),
-    warn: (...values) => __hostLog("[warn] " + values.map(formatLogValue).join(" ")),
-    error: (...values) => __hostLog("[error] " + values.map(formatLogValue).join(" "))
-  })
-}))()
+    host.actions = Object.freeze(actions);
+  }
+  return host;
+})()
 
 function formatLogValue(value) {
   if (typeof value === "string") return value;
   try { return JSON.stringify(value); } catch (_) { return String(value); }
 }
 "#;
+
+/// Метод, который появится в `host.actions` у скрипта.
+///
+/// Смысла Действия и режима исполнения движок не трактует: он заводит метод и
+/// передаёт вызов наружу. Что такое Действие, знает вызывающая сторона —
+/// механизм Процессов; плагины про него по-прежнему не знают ничего.
+///
+/// Единственное, что движок делает с именем, — сверяет его с этим списком на
+/// вызове: `__hostActionCall` остаётся достижимым глобалом, и без сверки право
+/// держал бы только сахар `host.actions`, который скрипт обходит одной строкой.
+#[derive(Debug, Clone)]
+pub struct HostActionEntry {
+    pub name: String,
+    pub method: String,
+}
+
+/// Обработчик вызова эффекта: `(имя, вход, опции) -> результат | текст ошибки`.
+pub type HostActionHandler = Arc<
+    dyn Fn(
+            String,
+            serde_json::Value,
+            serde_json::Value,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<serde_json::Value, String>> + Send>,
+        > + Send
+        + Sync,
+>;
+
+/// Чем расширен `host` сверх базовой поверхности (чтение и журнал).
+#[derive(Default, Clone)]
+pub struct HostExtensions {
+    pub actions: Option<(Vec<HostActionEntry>, HostActionHandler)>,
+}
 
 /// Invoke one exported server function and return its JSON result plus captured log lines.
 pub async fn invoke_server_method(
@@ -267,6 +321,18 @@ pub async fn invoke_server_method_with_limits(
     def: PluginDefinition,
     request: PluginInvokeRequest,
     limits: ScriptExecutionLimits,
+) -> anyhow::Result<(serde_json::Value, Vec<String>)> {
+    invoke_server_method_with_extensions(def, request, limits, HostExtensions::default()).await
+}
+
+/// То же, но с расширенным `host`. Отдельный вход, а не флаг у прежнего:
+/// расширение поверхности — решение вызывающего, и оно должно быть видно в
+/// месте вызова.
+pub async fn invoke_server_method_with_extensions(
+    def: PluginDefinition,
+    request: PluginInvokeRequest,
+    limits: ScriptExecutionLimits,
+    extensions: HostExtensions,
 ) -> anyhow::Result<(serde_json::Value, Vec<String>)> {
     let script = def
         .bundle
@@ -316,6 +382,80 @@ pub async fn invoke_server_method_with_limits(
                 .set("__hostLog", Func::from(log_fn))
                 .catch(&ctx)
                 .map_err(|error| js_error("module_eval", &error))?;
+
+            if let Some((entries, handler)) = extensions.actions {
+                let catalog: Vec<serde_json::Value> = entries
+                    .iter()
+                    .map(|entry| serde_json::json!({ "name": entry.name, "method": entry.method }))
+                    .collect();
+                let catalog_value = rquickjs_serde::to_value(ctx.clone(), catalog)
+                    .map_err(|error| PluginError::new("module_eval", error.to_string()))?;
+                globals
+                    .set("__hostActionCatalog", catalog_value)
+                    .catch(&ctx)
+                    .map_err(|error| js_error("module_eval", &error))?;
+
+                // Выданные имена держим отдельным множеством и проверяем на вызове.
+                // Каталог задаёт только сахар `host.actions`, а `__hostActionCall`
+                // остаётся достижимым глобалом: без этой проверки скрипт звал бы
+                // мимо сахара любое Действие каталога — право, которого ему не
+                // выдавали.
+                let granted: Arc<HashSet<String>> =
+                    Arc::new(entries.iter().map(|entry| entry.name.clone()).collect());
+
+                // Обработчик захвачен замыканием, а не прочитан из глобала:
+                // права и контекст прогона остаются на стороне Rust и не могут
+                // быть подменены присваиванием из скрипта.
+                let action_fn = move |name: String, input_json: String, options_json: String| {
+                    let handler = handler.clone();
+                    let granted = granted.clone();
+                    async move {
+                        if !granted.contains(&name) {
+                            let mut allowed: Vec<&str> =
+                                granted.iter().map(String::as_str).collect();
+                            allowed.sort_unstable();
+                            return Err(rquickjs::Error::new_into_js_message(
+                                "action",
+                                "JavaScript",
+                                format!(
+                                    "Действие '{name}' не выдано этому скрипту; разрешены: {}",
+                                    allowed.join(", ")
+                                ),
+                            ));
+                        }
+                        let input: serde_json::Value =
+                            serde_json::from_str(&input_json).map_err(|error| {
+                                rquickjs::Error::new_from_js_message(
+                                    "JSON",
+                                    "action input",
+                                    format!("Invalid action input: {error}"),
+                                )
+                            })?;
+                        let options: serde_json::Value = serde_json::from_str(&options_json)
+                            .map_err(|error| {
+                                rquickjs::Error::new_from_js_message(
+                                    "JSON",
+                                    "action options",
+                                    format!("Invalid action options: {error}"),
+                                )
+                            })?;
+                        let result = handler(name, input, options).await.map_err(|error| {
+                            rquickjs::Error::new_into_js_message("action", "JavaScript", error)
+                        })?;
+                        serde_json::to_string(&result).map_err(|error| {
+                            rquickjs::Error::new_into_js_message(
+                                "action result",
+                                "JSON",
+                                error.to_string(),
+                            )
+                        })
+                    }
+                };
+                globals
+                    .set("__hostActionCall", Func::from(Async(action_fn)))
+                    .catch(&ctx)
+                    .map_err(|error| js_error("module_eval", &error))?;
+            }
 
             let declared = Module::declare(ctx.clone(), "plugin-server.js", script)
                 .catch(&ctx)
@@ -395,6 +535,28 @@ pub async fn invoke_ephemeral_server_script_with_limits(
     capabilities: Vec<String>,
     limits: ScriptExecutionLimits,
 ) -> anyhow::Result<(serde_json::Value, Vec<String>)> {
+    invoke_ephemeral_server_script_with_extensions(
+        script,
+        method,
+        args,
+        capabilities,
+        limits,
+        HostExtensions::default(),
+    )
+    .await
+}
+
+/// Тот же одноразовый модуль, но с расширенным `host`. По этому пути идут Этапы
+/// механизма Процессов: им нужна ветка `host.actions`, которой у навыков и
+/// плагинов нет.
+pub async fn invoke_ephemeral_server_script_with_extensions(
+    script: String,
+    method: String,
+    args: serde_json::Value,
+    capabilities: Vec<String>,
+    limits: ScriptExecutionLimits,
+    extensions: HostExtensions,
+) -> anyhow::Result<(serde_json::Value, Vec<String>)> {
     use chrono::Utc;
     use contracts::plugins::{
         DataBinding, PluginBundle, PluginDataMode, PluginManifest, PluginRunContext, PluginRuntime,
@@ -434,7 +596,7 @@ pub async fn invoke_ephemeral_server_script_with_limits(
         s3_published_version: None,
         s3_published_at: None,
     };
-    invoke_server_method_with_limits(
+    invoke_server_method_with_extensions(
         definition,
         PluginInvokeRequest {
             method,
@@ -443,6 +605,7 @@ pub async fn invoke_ephemeral_server_script_with_limits(
             data_mode: PluginDataMode::Live,
         },
         limits,
+        extensions,
     )
     .await
 }
@@ -808,5 +971,100 @@ export async function run(args, host) {
                 "SELECT * FROM (SELECT 1 AS value) AS plugin_limited_result LIMIT {READ_ROW_LIMIT}"
             )
         );
+    }
+
+    /// Право на Действие держится проверкой, а не отсутствием метода.
+    ///
+    /// Сахар `host.actions` заводит только выданные методы, но сырой
+    /// `__hostActionCall` остаётся достижимым глобалом — и до этой проверки
+    /// Этап, которому выдали одно Действие, мог позвать любое из каталога.
+    #[tokio::test]
+    async fn ungranted_action_is_rejected_before_the_handler() {
+        let seen: Arc<Mutex<Vec<String>>> = Arc::default();
+        let recorder = seen.clone();
+        let handler: HostActionHandler = Arc::new(move |name: String, _input, _options| {
+            let recorder = recorder.clone();
+            Box::pin(async move {
+                recorder.lock().unwrap().push(name);
+                Ok(serde_json::json!({ "done": true }))
+            })
+        });
+
+        let error = invoke_ephemeral_server_script_with_extensions(
+            r#"
+export async function run(_args, _host) {
+  // Мимо сахара: имени `repostDocuments` в `host.actions` нет, но глобал есть.
+  return await __hostActionCall("repost_documents", "{}", "{}");
+}
+"#
+            .to_string(),
+            "run".to_string(),
+            serde_json::json!({}),
+            vec!["action:request_human_action".to_string()],
+            ScriptExecutionLimits::default(),
+            HostExtensions {
+                actions: Some((
+                    vec![HostActionEntry {
+                        name: "request_human_action".to_string(),
+                        method: "requestHumanAction".to_string(),
+                    }],
+                    handler,
+                )),
+            },
+        )
+        .await
+        .expect_err("невыданное Действие обязано быть отклонено");
+
+        assert!(
+            error.to_string().contains("repost_documents"),
+            "ошибка должна называть отклонённое Действие: {error}"
+        );
+        // Главное: обработчик не позвали вовсе. Отказ обязан случиться до
+        // `actions::run`, иначе эффект успел бы записаться в журнал.
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "обработчик эффекта не должен вызываться для невыданного Действия"
+        );
+    }
+
+    /// А выданное — проходит насквозь.
+    #[tokio::test]
+    async fn granted_action_reaches_the_handler() {
+        let seen: Arc<Mutex<Vec<String>>> = Arc::default();
+        let recorder = seen.clone();
+        let handler: HostActionHandler = Arc::new(move |name: String, _input, _options| {
+            let recorder = recorder.clone();
+            Box::pin(async move {
+                recorder.lock().unwrap().push(name);
+                Ok(serde_json::json!({ "done": true }))
+            })
+        });
+
+        let (result, _logs) = invoke_ephemeral_server_script_with_extensions(
+            r#"
+export async function run(_args, host) {
+  return await host.actions.requestHumanAction({ title: "t" }, { key: "k" });
+}
+"#
+            .to_string(),
+            "run".to_string(),
+            serde_json::json!({}),
+            vec!["action:request_human_action".to_string()],
+            ScriptExecutionLimits::default(),
+            HostExtensions {
+                actions: Some((
+                    vec![HostActionEntry {
+                        name: "request_human_action".to_string(),
+                        method: "requestHumanAction".to_string(),
+                    }],
+                    handler,
+                )),
+            },
+        )
+        .await
+        .expect("выданное Действие обязано пройти");
+
+        assert_eq!(result.get("done").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(seen.lock().unwrap().as_slice(), ["request_human_action"]);
     }
 }

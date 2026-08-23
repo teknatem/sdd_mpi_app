@@ -189,6 +189,45 @@ impl RepostExecutor {
         })
     }
 
+    /// Перепровести агрегат **не отходя**: валидация плюс исполнение в текущей
+    /// задаче, с настоящим исходом в `Result`.
+    ///
+    /// Отличается от `start_aggregate_repost` тем, что не спавнит фон и не
+    /// возвращает `session_id`. HTTP-обработчику нужен ровно обратный контракт
+    /// (ответить сразу, прогресс опросить потом), а Действию механизма
+    /// Процессов — этот: журнал эффектов обязан записать, что произошло, а не
+    /// что началось.
+    ///
+    /// Прогресс пишется в трекер **этого** экземпляра исполнителя. У HTTP-слоя
+    /// трекер свой (`api/handlers/usecases.rs`), поэтому через `get_progress`
+    /// такой прогон снаружи не виден: наблюдать его можно только по журналу
+    /// эффектов, когда он закончится.
+    pub async fn repost_aggregate_inline(
+        &self,
+        session_id: &str,
+        request: &AggregateRepostRequest,
+    ) -> Result<()> {
+        let _database_activity = crate::system::maintenance::try_begin_database_activity()
+            .ok_or_else(|| {
+                anyhow!("Перепроведение недоступно во время обслуживания базы данных")
+            })?;
+        Self::validate_aggregate_request(request)?;
+        self.progress_tracker.create_session(session_id.to_string());
+        let outcome = self.execute_aggregate_repost(session_id, request).await;
+        match &outcome {
+            Ok(()) => self
+                .progress_tracker
+                .complete_session(session_id, RepostStatus::Completed),
+            Err(error) => {
+                self.progress_tracker
+                    .add_error(session_id, format!("Repost failed: {error}"));
+                self.progress_tracker
+                    .complete_session(session_id, RepostStatus::Failed);
+            }
+        }
+        outcome
+    }
+
     pub fn get_progress(
         &self,
         session_id: &str,

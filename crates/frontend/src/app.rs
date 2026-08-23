@@ -2,6 +2,7 @@ use crate::app_shell::AppShell;
 use crate::layout::global_context::AppGlobalContext;
 use crate::shared::change_tokens::ChangeTokenContext;
 use crate::shared::modal_stack::{KeydownGuard, ModalHost, ModalStackService};
+use crate::shared::theme::{saved_theme_def, ThemeContext};
 use crate::system::auth::context::AuthProvider;
 use crate::system::maintenance::MaintenanceContext;
 use crate::system::tasks::api as tasks_api;
@@ -98,6 +99,10 @@ pub fn App() -> impl IntoView {
 
     // Provide Thaw theme context for ThemeSelect to update
     provide_context(ThawThemeContext(theme));
+
+    // Тема приложения как реактивное значение: от неё зависит вид закладок
+    // (`PageTabs`). Стартуем с уже применённой anti-FOUC скриптом темы.
+    provide_context(ThemeContext(RwSignal::new(saved_theme_def())));
 
     view! {
         <ConfigProvider theme>

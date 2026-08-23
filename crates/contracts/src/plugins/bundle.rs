@@ -341,6 +341,12 @@ pub enum PluginCapability {
     NetworkNone,
     AssetsRead,
     PluginInvoke,
+    /// Право вызвать Действие механизма Процессов: `action:<name>`.
+    ///
+    /// Единственная capability с побочным эффектом. Намеренно без варианта
+    /// «все Действия»: `db:read:*` допустим, потому что чтение обратимо, а
+    /// проведение документа — нет, поэтому право выдаётся поимённо.
+    Action(String),
     Unknown(String),
 }
 
@@ -356,6 +362,13 @@ impl PluginCapability {
                 .strip_prefix("db:read:")
                 .filter(|scope| !scope.trim().is_empty())
                 .map(|scope| Self::DbRead(scope.trim().to_ascii_lowercase()))
+                .or_else(|| {
+                    value
+                        .strip_prefix("action:")
+                        .map(|name| name.trim())
+                        .filter(|name| !name.is_empty() && *name != "*")
+                        .map(|name| Self::Action(name.to_ascii_lowercase()))
+                })
                 .unwrap_or_else(|| Self::Unknown(value.to_string())),
         }
     }
@@ -367,6 +380,7 @@ impl PluginCapability {
             Self::NetworkNone => "network:none".to_string(),
             Self::AssetsRead => "assets:read".to_string(),
             Self::PluginInvoke => "plugin:invoke".to_string(),
+            Self::Action(name) => format!("action:{name}"),
             Self::Unknown(value) => value.clone(),
         }
     }
@@ -738,6 +752,33 @@ mod tests {
         assert_eq!(
             PluginCapability::DbRead("ref".into()).canonical(),
             "db:read:ref"
+        );
+    }
+
+    #[test]
+    fn parses_action_capabilities() {
+        assert_eq!(
+            PluginCapability::parse("action:post_document"),
+            PluginCapability::Action("post_document".into())
+        );
+        assert_eq!(
+            PluginCapability::Action("post_document".into()).canonical(),
+            "action:post_document"
+        );
+    }
+
+    /// `action:*` не должен разбираться в право: эффекты выдаются поимённо,
+    /// иначе один невнимательный манифест получает всё, что система умеет
+    /// делать с миром.
+    #[test]
+    fn action_wildcard_is_not_a_capability() {
+        assert_eq!(
+            PluginCapability::parse("action:*"),
+            PluginCapability::Unknown("action:*".into())
+        );
+        assert_eq!(
+            PluginCapability::parse("action:"),
+            PluginCapability::Unknown("action:".into())
         );
     }
 }

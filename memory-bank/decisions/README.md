@@ -61,7 +61,7 @@
 | [ADR-0008](ADR-0008-sql-preview-on-demand.md) | SQL-превью генерируется по запросу, а не хранится в конфиге | accepted |
 | [ADR-0009](ADR-0009-access-control.md) | Управление доступом: `is_admin` override + `primary_role` + матрица scope, default deny | accepted |
 | [ADR-0010](ADR-0010-data-source-roles.md) | Три роли источников данных: `dsNN` / `dvNN` / сырой SQL | accepted |
-| [ADR-0011](ADR-0011-process-action-mechanism.md) | Механизм Процессов и Действий: экземпляры, эффекты через Глаголы, хранение в БД | accepted |
+| [ADR-0011](ADR-0011-process-action-mechanism.md) | Механизм Процессов, Этапов и Действий: экземпляры, эффекты, хранение определений в БД | accepted |
 
 Снятые с серии — в [`../_archive/decisions/`](../_archive/decisions/): `thaw-transparent-background`
 (был ADR-0001) и `shared-utilities-organization` (был ADR-0003). Решения там по-прежнему верны,

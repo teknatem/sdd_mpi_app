@@ -209,7 +209,7 @@ pub fn OzonReturnsDetail(
                         view! {
                             <div style="height: 100%; display: flex; flex-direction: column;">
                                 // Tabs
-                                <div class="page__tabs" style="border-bottom: 2px solid var(--color-border); margin-bottom: 20px; flex-shrink: 0; background: var(--color-bg-primary); position: sticky; top: 0; z-index: 10;">
+                                <div class="page__tabs" style="border-bottom: 2px solid var(--color-border); margin-bottom: 20px; flex-shrink: 0; position: sticky; top: 0; z-index: 10;">
                                     <button
                                         on:click=move |_| set_active_tab.set("general")
                                         style=move || format!(

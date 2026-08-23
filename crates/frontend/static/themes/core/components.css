@@ -365,12 +365,15 @@
 .form__textarea:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background: var(--color-bg-secondary);
+  background: var(--form-input-readonly-bg);
 }
 
+/* Собственный токен, а не --color-bg-secondary: общая фоновая ступень
+   палитры не обязана быть читаемой подложкой поля. В fancy-темах это
+   ровно та ошибка, из-за которой readonly-поля светлели поверх картинки. */
 .form__input:read-only,
 .form__textarea:read-only {
-  background: var(--color-bg-secondary);
+  background: var(--form-input-readonly-bg);
   cursor: default;
 }
 

@@ -1,4 +1,4 @@
-use super::{EntityMetadata, EventStore, Origin};
+use super::{EntityMetadata, Origin};
 use crate::shared::metadata::{EntityMetadataInfo, FieldMetadata};
 
 /// Трейт для корня агрегата
@@ -26,12 +26,6 @@ pub trait AggregateRoot {
 
     /// Получить изменяемые метаданные
     fn metadata_mut(&mut self) -> &mut EntityMetadata;
-
-    /// Получить хранилище событий
-    fn events(&self) -> &EventStore;
-
-    /// Получить изменяемое хранилище событий
-    fn events_mut(&mut self) -> &mut EventStore;
 
     // ============================================================================
     // Метаданные класса агрегата (статические данные)

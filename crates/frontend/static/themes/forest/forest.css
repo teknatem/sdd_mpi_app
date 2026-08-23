@@ -3,15 +3,22 @@
    Only color variable overrides
 
    Fancy-тема (kind=fancy, base=dark): фоновая картинка + «стекло».
-   Правила читаемости поверх картинки:
-   - контентные поверхности (карточки, таблицы, модалки) — тёмные,
-     почти непрозрачные (alpha >= 0.88), текст светлый;
-   - shell-хром (sidebar, header) — полупрозрачный + blur/scrim
-     (эффект-токены в конце файла);
-   - тёмный текст допустим ТОЛЬКО на непрозрачных светлых поверхностях
+
+   Задача темы — чтобы картинку было видно везде, где это не мешает читать.
+   Роли поверхностей и почему они такие — themes/core/variables.css:
+
+   - ХРОМ (sidebar, top header, правая панель, шапка страницы) — лёгкая
+     заливка ~0.30 плюс blur (--glass-filter). Картинку видно, текст держит
+     --text-on-image-shadow. Плотнее заливать нельзя: именно это и убивало
+     фон под панелями.
+   - КОНТЕНТ (лист --sheet-bg, карточки --card-bg, модалки, таблицы) —
+     плотная заливка БЕЗ размытия, картинка просвечивает текстурой.
+   - Поля внутри карточки — тёмный «колодец» (чёрный с малой альфой), а не
+     белая вуаль: белое поверх фото даёт светлое пятно, на котором пропадает
+     светлый текст.
+   - Тёмный текст допустим ТОЛЬКО на непрозрачных светлых поверхностях
      (сейчас это лишь бейджи badge-*-bg). Всё, что полупрозрачно или
-     лежит прямо на картинке, обязано иметь СВЕТЛЫЙ текст — иначе фото
-     просвечивает и текст пропадает.
+     лежит прямо на картинке, обязано иметь СВЕТЛЫЙ текст.
    ============================================ */
 
 :root {
@@ -115,8 +122,8 @@
   --modal-border: rgba(165, 214, 167, 0.5);
   --modal-header-bg: rgba(255, 255, 255, 0.08);
 
-  /* Sidebar Colors — заливка плотнее, поверх неё работают scrim + blur */
-  --sidebar-bg: rgba(6, 26, 12, 0.45);
+  /* Sidebar Colors — лёгкая заливка, читаемость даёт blur + text-shadow */
+  --sidebar-bg: rgba(6, 26, 12, 0.30);
   --sidebar-text: #ffffff;
   --sidebar-text-active: #ffffff;
   --sidebar-item-hover: rgba(118, 255, 3, 0.15);
@@ -135,33 +142,32 @@
 
   /* Top Header Colors — тёмное стекло со светлым текстом
      (прежний тёмный текст на 25%-светлом фоне нечитаем поверх картинки) */
-  --top-header-bg: rgba(8, 28, 13, 0.55);
+  --top-header-bg: rgba(6, 26, 12, 0.35);
   --top-header-text: #ffffff;
   --top-header-border: rgba(76, 175, 80, 0.2);
   --top-header-btn-hover: rgba(76, 175, 80, 0.25);
 
-  /* Panel Colors */
-  --panel-bg: rgba(0, 50, 0, 0.75);
+  /* Panel Colors — та же плотность, что у сайдбара: обе зоны суть хром */
+  --panel-bg: rgba(6, 26, 12, 0.30);
   --panel-border: rgba(36, 170, 40, 0.2);
   --panel-resizer-hover: rgba(15, 241, 23, 0.76);
 
-  /* Card Colors — тёмная почти непрозрачная контент-поверхность:
-     .card/.table наследуют светлый текст от body, фон обязан быть тёмным */
-  --card-bg: rgba(8, 30, 14, 0.92);
-  --card-border: rgba(165, 214, 167, 0.2);
-  --card-hover-bg: rgba(12, 40, 18, 0.95);
+  /* Card Colors — контент: плотная тёмная заливка без размытия, сквозь неё
+     картинка читается текстурой. .card/.table наследуют светлый текст. */
+  --card-bg: rgba(6, 26, 13, 0.78);
+  --card-border: rgba(165, 214, 167, 0.22);
+  --card-hover-bg: rgba(10, 34, 18, 0.84);
   --card-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.80);
 
   /* Form Colors — поля тёмные: текст в них наследует светлый
-     --color-text-primary, поэтому белая заливка давала белое на белом */
+     --color-text-primary, а белая заливка поверх фото давала светлое пятно */
   --form-label-text: #ffffff;
-  --form-input-bg: rgba(255, 255, 255, 0.10);
-  --form-input-border: rgba(165, 214, 167, 0.45);
+  --form-input-bg: rgba(0, 0, 0, 0.18);
+  --form-input-readonly-bg: rgba(0, 0, 0, 0.24);
+  --form-input-border: rgba(165, 214, 167, 0.35);
   --form-input-focus-border: #76ff03;
   --form-input-focus-shadow: rgba(118, 255, 3, 0.20);
   --form-placeholder: rgba(255, 255, 255, 0.40);
-  --form-group-bg: rgba(255, 255, 255, 0.06);
-  --form-group-border: rgba(76, 175, 80, 0.2);
 
   /* Info/Warning/Code Box Colors */
   --info-box-bg: rgba(67, 160, 71, 0.08);
@@ -179,15 +185,17 @@
   /* Cross-theme behavior tokens */
   --app-bg-color: var(--color-bg-primary);
   --app-bg-image: url("/static/themes/forest/background.jpg");
-  --app-main-bg: rgba(0, 0, 0, 0.02);
+
+  /* Лист страницы (.page__content). Полупрозрачен → бар вкладок ОБЯЗАН быть
+     прозрачным, иначе активный ярлык разойдётся с листом по фону:
+     инвариант расписан в themes/core/layout.css у .page__tabs. */
+  --sheet-bg: rgba(6, 26, 13, 0.55);
+  --tabs-bar-bg: transparent;
 
   /* Fancy readability system (см. themes/core/variables.css) —
-     в строгом режиме всё это обнуляет strict-guard.css */
-  --glass-filter: blur(14px) saturate(130%);
-  --header-filter: blur(12px) saturate(120%);
-  --right-panel-filter: blur(4px);
-  --scrim-side: linear-gradient(180deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.18));
-  --scrim-top: linear-gradient(180deg, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0.12));
+     в строгом режиме всё это обнуляет strict-guard.css.
+     Одно размытие на весь хром; на контент его не вешаем. */
+  --glass-filter: blur(10px) saturate(120%);
   --text-on-image-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
   --form-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
 
@@ -271,15 +279,9 @@
   --color-primary-900: rgba(67, 160, 71, 0.20);
 
   /* Вкладки: тот же набор, что в dark/light, в зелёной гамме */
-  --tab-text: rgba(255, 255, 255, 0.90);
-  --tab-text-hover: rgba(255, 255, 255, 1);
+  /* Бар лежит над самым светлым участком фотографии, поэтому неактивные
+     подписи держим плотными: на 0.62 контраст падал до 3.2:1. */
+  --tab-text: rgba(255, 255, 255, 0.82);
   --tab-text-active: rgba(255, 255, 255, 0.95);
-  --tab-border-active: #43a047;
-  --tab-bg: rgba(10, 66, 12, 0.15);
-  --tab-bg-hover: rgba(0, 0, 0, 0.5);
-  --tab-bg-active: rgba(67, 160, 71, 0.10);
-  --tab-close-bg: rgba(255, 255, 255, 0.20);
-  --tab-close-text: rgba(255, 255, 255, 0.70);
-  --tab-close-hover: #ff69b4;
-  --tab-close-active: #90ee90;
+  --tab-border-active: #76ff03;
 }
