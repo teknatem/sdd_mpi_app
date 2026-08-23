@@ -22,7 +22,7 @@
 индекс — в [`decisions/README.md`](decisions/README.md). Это самый ухоженный раздел, читай
 его конвенцию как образец.
 
-### `architecture/` — стандарты UI и слоёв (21 файл)
+### `architecture/` — стандарты UI и слоёв (22 файла)
 Крупнейший раздел. Сюда идти за «как должна выглядеть страница», прежде чем грепать код.
 
 - **Программы и планы**: [`ARCHITECTURE_EVOLUTION_PROGRAM.md`](architecture/ARCHITECTURE_EVOLUTION_PROGRAM.md),
@@ -47,6 +47,10 @@
   [`modal-ui-standard.md`](architecture/modal-ui-standard.md) (см. ADR-0004),
   [`thaw-ui-standard.md`](architecture/thaw-ui-standard.md),
   [`document-general-ledger-tab-standard.md`](architecture/document-general-ledger-tab-standard.md)
+- **⭐ Знание и его учёт**: [`knowledge-inventory.md`](architecture/knowledge-inventory.md) —
+  метод инвентаризации: что считается единицей хранения/извлечения, реестр поверхностей,
+  пять осей классификации, метрики и инварианты целостности. Отвечает на «сколько у нас
+  знания и какая его часть вообще доступна LLM-чату».
 - **Слои и объекты**: [`domain-layer-architecture.md`](architecture/domain-layer-architecture.md),
   [`aggregate-structure-final.md`](architecture/aggregate-structure-final.md),
   [`metadata-system.md`](architecture/metadata-system.md) (см. ADR-0001),
