@@ -1235,6 +1235,124 @@ pub fn estimate_tokens(text: &str) -> u32 {
     (cyrillic / 2.7 + latin / 4.0 + other / 3.0).ceil() as u32
 }
 
+/// Раздел статьи — единица чтения НИЖЕ документа.
+///
+/// До неё самая мелкая единица выдачи равнялась файлу: `get_knowledge` отдавал
+/// `content` целиком, и статья на 4 500 токенов была неделима, даже когда из неё
+/// нужен один абзац. Разделы — четвёртый уровень progressive disclosure после
+/// «каталог инструментов → корпус → документ».
+///
+/// Разделы НЕ хранятся в `KnowledgeDoc`: разбор заголовков стоит один проход по
+/// телу и делается только при чтении конкретной статьи. Держать их в структуре
+/// значило бы платить памятью за все документы ради тех единиц, что реально
+/// читают.
+#[derive(Debug, Clone)]
+pub struct DocSection {
+    /// Номер по порядку, с 1. Им же раздел адресуется в `get_knowledge`.
+    pub number: usize,
+    /// Текст заголовка без решёток.
+    pub title: String,
+    /// Уровень заголовка, по которому шло деление (2 для `##`).
+    pub level: u8,
+    /// Байтовый диапазон в теле статьи, включая строку заголовка.
+    pub start: usize,
+    pub end: usize,
+    /// Стоимость чтения раздела тем же оценщиком, что и статьи целиком.
+    pub token_cost: u32,
+}
+
+/// Оглавление статьи: заголовки верхнего значащего уровня.
+///
+/// Уровень деления выбирается, а не задаётся константой: в корпусе есть и файлы
+/// с `# Заголовок` + `## Разделы`, и карты `generated`, где разделы — это `#`.
+/// Правило: делим по `##`, если они есть; иначе по `#`, но только когда таких
+/// заголовков больше одного (единственный `#` — это название статьи, а не раздел).
+/// Заголовки глубже уровня деления остаются ВНУТРИ своего раздела: дробление до
+/// `####` дало бы десятки огрызков вместо связных кусков.
+///
+/// Заголовки внутри ```-блоков не считаются: в техдоках корпуса `app` строка
+/// вида `# comment` в примере кода иначе рвала бы статью в произвольном месте.
+pub fn outline(content: &str) -> Vec<DocSection> {
+    let headings = scan_headings(content);
+    if headings.is_empty() {
+        return Vec::new();
+    }
+
+    let has_level_2 = headings.iter().any(|(_, level, _)| *level == 2);
+    let level_1_count = headings.iter().filter(|(_, level, _)| *level == 1).count();
+    let split_level: u8 = if has_level_2 {
+        2
+    } else if level_1_count > 1 {
+        1
+    } else {
+        return Vec::new();
+    };
+
+    let starts: Vec<(usize, String)> = headings
+        .into_iter()
+        .filter(|(_, level, _)| *level == split_level)
+        .map(|(offset, _, title)| (offset, title))
+        .collect();
+
+    starts
+        .iter()
+        .enumerate()
+        .map(|(idx, (start, title))| {
+            let end = starts
+                .get(idx + 1)
+                .map(|(next, _)| *next)
+                .unwrap_or(content.len());
+            DocSection {
+                number: idx + 1,
+                title: title.clone(),
+                level: split_level,
+                start: *start,
+                end,
+                token_cost: estimate_tokens(&content[*start..end]),
+            }
+        })
+        .collect()
+}
+
+/// Текст раздела вместе с его заголовком.
+pub fn section_text<'a>(content: &'a str, section: &DocSection) -> &'a str {
+    content
+        .get(section.start..section.end)
+        .unwrap_or("")
+        .trim_end()
+}
+
+/// Текст до первого раздела: вводка статьи (обычно `# Заголовок` и абзац под ним).
+pub fn intro_text<'a>(content: &'a str, sections: &[DocSection]) -> &'a str {
+    let end = sections.first().map(|s| s.start).unwrap_or(content.len());
+    content.get(..end).unwrap_or("").trim_end()
+}
+
+/// Заголовки вне ```-блоков: `(смещение строки, уровень, текст)`.
+fn scan_headings(content: &str) -> Vec<(usize, u8, String)> {
+    let mut out = Vec::new();
+    let mut in_fence = false;
+    let mut offset = 0usize;
+    for line in content.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_fence = !in_fence;
+        } else if !in_fence && trimmed.starts_with('#') {
+            let level = trimmed.chars().take_while(|c| *c == '#').count();
+            let rest = &trimmed[level..];
+            // `#текст` без пробела — не заголовок, а решётка в тексте.
+            if level <= 6 && rest.starts_with(' ') {
+                let title = rest.trim().trim_end_matches('#').trim().to_string();
+                if !title.is_empty() {
+                    out.push((offset, level as u8, title));
+                }
+            }
+        }
+        offset += line.len();
+    }
+    out
+}
+
 /// Первый содержательный абзац тела — запасной `summary` для статей без поля.
 fn derive_summary(content: &str) -> String {
     let paragraph = content
@@ -1519,6 +1637,50 @@ author: llm
         assert!(doc.related.contains(&"funnel-overview".to_string()));
         // Ссылка из тела тоже даёт якорь.
         assert!(doc.anchors.contains(&"a012".to_string()));
+    }
+
+    #[test]
+    fn outline_splits_by_level_two_and_keeps_deeper_headings_inside() {
+        let content = "# Статья\n\nВводка.\n\n## Первый\n\nтекст\n\n### Подпункт\n\nещё\n\n## Второй\n\nтекст\n";
+        let sections = outline(content);
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].title, "Первый");
+        assert_eq!(sections[1].title, "Второй");
+        // `###` не делит: иначе крупная статья рассыпается на десятки огрызков.
+        assert!(section_text(content, &sections[0]).contains("### Подпункт"));
+        assert_eq!(intro_text(content, &sections).trim(), "# Статья\n\nВводка.");
+    }
+
+    #[test]
+    fn outline_ignores_headings_inside_code_fences() {
+        // В техдоках корпуса `app` строка `# comment` внутри примера кода иначе
+        // рвала бы статью в произвольном месте.
+        let content =
+            "# Статья\n\n## Раздел\n\n```sh\n# это комментарий, а не заголовок\n```\n\nхвост\n";
+        let sections = outline(content);
+        assert_eq!(sections.len(), 1);
+        assert!(section_text(content, &sections[0]).contains("# это комментарий"));
+    }
+
+    #[test]
+    fn outline_falls_back_to_level_one_only_when_it_is_not_the_title() {
+        // Карты `generated` пишут разделы первым уровнем — их делим по `#`.
+        let many = "# Один\n\nтекст\n\n# Два\n\nтекст\n";
+        assert_eq!(outline(many).len(), 2);
+        // Единственный `#` — это название статьи, а не раздел: делить нечего.
+        let single = "# Только заголовок\n\nтекст без разделов\n";
+        assert!(outline(single).is_empty());
+        assert_eq!(intro_text(single, &[]).trim_end(), single.trim_end());
+    }
+
+    #[test]
+    fn section_token_cost_sums_close_to_whole_document() {
+        let content = "# Статья\n\n## Первый\n\nтекст первого раздела\n\n## Второй\n\nтекст второго раздела\n";
+        let sections = outline(content);
+        let parts: u32 = sections.iter().map(|s| s.token_cost).sum();
+        // Разделы не должны «терять» текст: сумма плюс вводка покрывает статью.
+        let intro = estimate_tokens(intro_text(content, &sections));
+        assert!(parts + intro >= estimate_tokens(content) - 2);
     }
 
     #[test]

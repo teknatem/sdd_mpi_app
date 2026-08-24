@@ -581,11 +581,12 @@ pub static METRIC_CATALOG: &[MetricDef] = &[
     ),
     with_hint(
         with_limits(
-            def("smells.unwrap", ".unwrap()", "tests", "шт", 0, Lower),
-            500.0,
-            800.0,
+            def("smells.unwrap", ".unwrap() вне тестов", "tests", "шт", 0, Lower),
+            200.0,
+            320.0,
         ),
-        "Каждый — потенциальная паника в рантайме",
+        "Каждый — потенциальная паника в рантайме. В `#[cfg(test)]` не считается: \
+         там паника и есть проверка",
     ),
     def("smells.todo_fixme", "TODO / FIXME", "tests", "шт", 0, Lower),
     // --- UI-стандарт -------------------------------------------------------

@@ -26,6 +26,19 @@ const MIN_BODY_CHARS: usize = 400;
 /// Выше этого предлагаем разбить статью на части (но всё равно записываем).
 pub(super) const LARGE_ARTICLE_TOKENS: u32 = 6000;
 
+/// Выше этого `get_knowledge` отдаёт ОГЛАВЛЕНИЕ, а не тело статьи.
+///
+/// Калибровка по корпусу на 2026-08-23: у 48 статей `app` средняя цена чтения
+/// 1 316 токенов при максимуме 4 483, у карт `generated` — 1 294 при максимуме
+/// 2 992. Порог в 2 000 задевает единицы самых крупных документов и не трогает
+/// большинство: дробить статью, которая дешевле одного ответа модели, — лишний
+/// раунд без выигрыша.
+const SECTIONED_READ_TOKENS: u32 = 2000;
+
+/// Сколько вводки отдавать вместе с оглавлением: её задача — дать понять, о чём
+/// статья, чтобы модель выбрала раздел, а не заменить собой чтение.
+const INTRO_CHARS: usize = 900;
+
 pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
@@ -78,9 +91,14 @@ pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "get_knowledge".into(),
-            description: "Получить полное содержимое статьи базы знаний по id. \
-                          id берётся из результата search_knowledge. Если использовал статью \
-                          в ответе — сошлись на неё строкой kb://article/<id>."
+            description: "Получить содержимое статьи базы знаний по id. \
+                          id берётся из результата search_knowledge. \
+                          Небольшая статья приходит целиком. КРУПНАЯ (в выдаче поиска \
+                          помечена `sectioned: true`) приходит ОГЛАВЛЕНИЕМ: выбери нужный \
+                          раздел и позови ещё раз с `section` — так ты не платишь контекстом \
+                          за то, что не читаешь. Целиком крупную статью берут, только когда \
+                          нужны все разделы сразу: `full: true`. \
+                          Использовал статью в ответе — сошлись на неё строкой kb://article/<id>."
                 .into(),
             parameters: json!({
                 "type": "object",
@@ -88,6 +106,17 @@ pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
                     "id": {
                         "type": "string",
                         "description": "Идентификатор статьи из search_knowledge, например 'wb-promotions'."
+                    },
+                    "section": {
+                        "type": "string",
+                        "description": "Раздел статьи: номер из оглавления ('3') или часть его заголовка \
+                                        ('расчёт ДРР'). Само оглавление приходит в ответе без этого параметра."
+                    },
+                    "full": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Отдать крупную статью целиком, минуя оглавление. Ставь, только когда \
+                                        нужны все разделы: это самый дорогой вызов инструмента."
                     }
                 },
                 "required": ["id"]
@@ -282,6 +311,14 @@ fn search_knowledge(args: &Value) -> Value {
             if !doc.anchors.is_empty() {
                 item["entities"] = json!(doc.anchors);
             }
+            // Предупреждение о четвёртом уровне progressive disclosure: у крупной
+            // статьи get_knowledge вернёт оглавление, а не тело. Один булев флаг
+            // дешевле, чем выяснение этого лишним вызовом инструмента.
+            if doc.token_cost > SECTIONED_READ_TOKENS
+                && knowledge_base::outline(&doc.content).len() >= 2
+            {
+                item["sectioned"] = json!(true);
+            }
             if let Some(stars) = doc.stars {
                 item["stars"] = json!(stars);
             }
@@ -303,7 +340,9 @@ fn search_knowledge(args: &Value) -> Value {
         "returned": results.len(),
         "total_matched": total_matched,
         "hint": "Читай через get_knowledge(id) только нужные статьи — ориентируйся на summary и \
-                 token_cost. Использовал статью в ответе — сошлись строкой kb://article/<id>."
+                 token_cost. У статьи с `sectioned: true` get_knowledge отдаст оглавление: \
+                 возьми оттуда раздел, а не всю статью. Использовал статью в ответе — сошлись \
+                 строкой kb://article/<id>."
     })
 }
 
@@ -320,8 +359,60 @@ fn parse_corpus(raw: Option<&str>) -> Vec<DocKind> {
     }
 }
 
+/// Оглавление статьи в компактном виде: номер, заголовок, цена раздела.
+fn outline_json(sections: &[knowledge_base::DocSection]) -> Vec<Value> {
+    sections
+        .iter()
+        .map(|s| json!({ "n": s.number, "title": s.title, "token_cost": s.token_cost }))
+        .collect()
+}
+
+/// Раздел по номеру из оглавления или по части заголовка.
+///
+/// Оба способа нужны: номер модель берёт из выдачи без ошибок, а заголовок
+/// переживает переписывание статьи, после которого номера съезжают.
+fn resolve_section<'a>(
+    sections: &'a [knowledge_base::DocSection],
+    raw: &str,
+) -> Option<&'a knowledge_base::DocSection> {
+    if let Ok(number) = raw.parse::<usize>() {
+        return sections.iter().find(|s| s.number == number);
+    }
+    let needle = raw.to_lowercase();
+    sections
+        .iter()
+        .find(|s| s.title.to_lowercase() == needle)
+        .or_else(|| {
+            sections
+                .iter()
+                .find(|s| s.title.to_lowercase().contains(&needle))
+        })
+}
+
+/// Обрезка по символам, а не байтам: в кириллице второе режет посреди буквы.
+fn truncate_chars(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_string();
+    }
+    let mut out: String = text.chars().take(limit).collect();
+    out.push('…');
+    out
+}
+
+/// Чтение статьи с тремя режимами выдачи: `full`, `outline`, `section`.
+///
+/// Раньше режим был один — тело целиком, и статья на 4 483 токена приходила
+/// неделимой, даже когда из неё нужен один раздел. Теперь крупная статья по
+/// умолчанию отвечает оглавлением, а тело выдаётся по разделу; поведение мелких
+/// статей (а это большинство корпуса) не изменилось.
 fn get_knowledge(args: &Value) -> Value {
     let id = args.get("id").and_then(|v| v.as_str()).unwrap_or_default();
+    let requested_section = args
+        .get("section")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let want_full = args.get("full").and_then(|v| v.as_bool()).unwrap_or(false);
     let kb = kb_read();
 
     let Some(doc) = kb.get(id) else {
@@ -338,7 +429,7 @@ fn get_knowledge(args: &Value) -> Value {
         });
     };
 
-    kb_metrics::record_read(&ArticleRef::from(doc));
+    let sections = knowledge_base::outline(&doc.content);
 
     let related_articles: Vec<Value> = doc
         .related
@@ -346,15 +437,6 @@ fn get_knowledge(args: &Value) -> Value {
         .filter_map(|r| kb.get(r))
         .map(|d| json!({ "id": d.id, "title": d.title }))
         .collect();
-
-    let mut content = doc.content.clone();
-    if doc.status == KbStatus::Deprecated {
-        content = format!(
-            "> ⚠️ Статья помечена как УСТАРЕВШАЯ. Не опирайся на неё без проверки.\n\n{}",
-            content
-        );
-    }
-    content.push_str(&format!("\n\nИсточник: kb://article/{}", doc.id));
 
     let mut result = json!({
         "id": doc.id,
@@ -365,7 +447,6 @@ fn get_knowledge(args: &Value) -> Value {
         "token_cost": doc.token_cost,
         "related_articles": related_articles,
         "source_path": doc.source_path,
-        "content": content,
     });
     if let Some(stars) = doc.stars {
         result["stars"] = json!(stars);
@@ -379,6 +460,77 @@ fn get_knowledge(args: &Value) -> Value {
             result["staleness_pct"] = json!(pct);
         }
     }
+
+    let banner = if doc.status == KbStatus::Deprecated {
+        "> ⚠️ Статья помечена как УСТАРЕВШАЯ. Не опирайся на неё без проверки.\n\n"
+    } else {
+        ""
+    };
+    let source_line = format!("\n\nИсточник: kb://article/{}", doc.id);
+
+    // Запрошен конкретный раздел.
+    if let Some(raw) = requested_section {
+        let Some(section) = resolve_section(&sections, raw) else {
+            return json!({
+                "error": format!("Раздел '{}' в статье '{}' не найден.", raw, doc.id),
+                "sections": outline_json(&sections),
+                "hint": "Возьми номер или заголовок из `sections`. Нужна вся статья — full=true."
+            });
+        };
+        let content = format!(
+            "{}{}{}",
+            banner,
+            knowledge_base::section_text(&doc.content, section),
+            source_line
+        );
+        // Раздел прочитан — статья считается прочитанной, а `token_cost_last`
+        // остаётся ценой статьи целиком: это её свойство, а не цена одного вызова.
+        // Фактически доставленное меряет `sys_tool_trace.tokens` (миграция 0224).
+        kb_metrics::record_read(&ArticleRef::from(doc));
+        result["mode"] = json!("section");
+        result["section"] = json!({ "n": section.number, "title": section.title });
+        result["sections"] = json!(outline_json(&sections));
+        result["delivered_tokens"] = json!(knowledge_base::estimate_tokens(&content));
+        result["content"] = json!(content);
+        result["hint"] = json!(format!(
+            "Раздел {} из {}. Другой раздел — section=\"<номер|заголовок>\", вся статья — full=true.",
+            section.number,
+            sections.len()
+        ));
+        return result;
+    }
+
+    // Крупная статья без явного запроса — оглавление вместо тела.
+    if !want_full && sections.len() >= 2 && doc.token_cost > SECTIONED_READ_TOKENS {
+        let intro = format!(
+            "{}{}",
+            banner,
+            truncate_chars(
+                knowledge_base::intro_text(&doc.content, &sections),
+                INTRO_CHARS
+            )
+        );
+        // Чтение НЕ засчитывается: тела статья не отдала. Иначе `read_hits`
+        // перестанет отличать «модель заплатила за текст» от «увидела оглавление»,
+        // а на этой разнице стоит вся метрика полезности статьи.
+        result["mode"] = json!("outline");
+        result["sections"] = json!(outline_json(&sections));
+        result["delivered_tokens"] = json!(knowledge_base::estimate_tokens(&intro));
+        result["intro"] = json!(intro);
+        result["hint"] = json!(format!(
+            "Статья крупная ({} токенов) — отдано оглавление. Возьми нужный раздел: \
+             get_knowledge(id=\"{}\", section=\"<номер|заголовок>\"). Нужна целиком — full=true. \
+             Использовал в ответе — сошлись строкой kb://article/{}.",
+            doc.token_cost, doc.id, doc.id
+        ));
+        return result;
+    }
+
+    let content = format!("{}{}{}", banner, doc.content, source_line);
+    kb_metrics::record_read(&ArticleRef::from(doc));
+    result["mode"] = json!("full");
+    result["delivered_tokens"] = json!(knowledge_base::estimate_tokens(&content));
+    result["content"] = json!(content);
     result
 }
 
@@ -1032,6 +1184,45 @@ fn transliterate(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sections_of(content: &str) -> Vec<knowledge_base::DocSection> {
+        knowledge_base::outline(content)
+    }
+
+    const SECTIONED: &str =
+        "# Статья\n\nВводка.\n\n## Расчёт ДРР\n\nтекст\n\n## Ограничения\n\nтекст\n";
+
+    #[test]
+    fn section_resolves_by_number_and_by_title_fragment() {
+        let sections = sections_of(SECTIONED);
+        assert_eq!(
+            resolve_section(&sections, "2").unwrap().title,
+            "Ограничения"
+        );
+        // Заголовок целиком, в другом регистре.
+        assert_eq!(resolve_section(&sections, "расчёт ДРР").unwrap().number, 1);
+        // Часть заголовка — модель редко цитирует его дословно.
+        assert_eq!(resolve_section(&sections, "ДРР").unwrap().number, 1);
+        assert!(resolve_section(&sections, "выкуп").is_none());
+        assert!(resolve_section(&sections, "9").is_none());
+    }
+
+    #[test]
+    fn truncate_chars_cuts_by_chars_not_bytes() {
+        // Байтовая обрезка кириллицы режет посреди буквы и роняет форматирование.
+        let out = truncate_chars("абвгде", 3);
+        assert_eq!(out, "абв…");
+        assert_eq!(truncate_chars("абв", 3), "абв");
+    }
+
+    #[test]
+    fn outline_json_carries_number_title_and_price() {
+        let rows = outline_json(&sections_of(SECTIONED));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["n"], json!(1));
+        assert_eq!(rows[0]["title"], json!("Расчёт ДРР"));
+        assert!(rows[0]["token_cost"].as_u64().unwrap() > 0);
+    }
 
     fn ctx() -> DraftContext {
         DraftContext {

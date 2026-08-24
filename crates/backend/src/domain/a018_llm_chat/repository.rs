@@ -157,6 +157,7 @@ mod tool_trace {
         pub tool: String,
         pub ok: bool,
         pub ms: i64,
+        pub tokens: i64,
         pub summary: Option<String>,
         pub input_json: Option<String>,
         pub output_json: Option<String>,
@@ -593,6 +594,7 @@ impl From<tool_trace::Model> for ToolTraceEntry {
             tool: m.tool,
             ok: m.ok,
             ms: m.ms,
+            tokens: m.tokens,
             summary: m.summary,
             input: m.input_json.and_then(|s| serde_json::from_str(&s).ok()),
             output: m.output_json.and_then(|s| serde_json::from_str(&s).ok()),
@@ -621,6 +623,7 @@ pub async fn insert_tool_trace_batch(
             tool: Set(e.tool.clone()),
             ok: Set(e.ok),
             ms: Set(e.ms),
+            tokens: Set(e.tokens),
             summary: Set(e.summary.clone()),
             input_json: Set(e.input.as_ref().and_then(|v| serde_json::to_string(v).ok())),
             output_json: Set(e

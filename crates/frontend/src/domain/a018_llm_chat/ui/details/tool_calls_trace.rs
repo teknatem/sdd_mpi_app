@@ -1,6 +1,6 @@
 //! ToolCallsTrace — компактный ряд пилюль вызовов инструментов в ответе ассистента.
 //!
-//! В сообщении хранится только минимум (`[{tool, ok, ms}]`) — его хватает на пилюли.
+//! В сообщении хранится только минимум (`[{tool, ok, ms, tokens}]`) — его хватает на пилюли.
 //! Полные детали (вход/выход/summary/stage) лежат в `sys_tool_trace` и подгружаются
 //! лениво из `/api/a018-llm-chat/message/:message_id/tool-trace` при открытии
 //! боковой панели деталей.
@@ -19,6 +19,8 @@ struct PillEntry {
     tool: String,
     ok: bool,
     ms: u64,
+    /// Доставлено в контекст модели. 0 — гард или запись до миграции 0224.
+    tokens: u64,
 }
 
 fn parse_pills(json: &str) -> Vec<PillEntry> {
@@ -34,9 +36,19 @@ fn parse_pills(json: &str) -> Vec<PillEntry> {
                 tool: v.get("tool")?.as_str()?.to_string(),
                 ok: v.get("ok").and_then(|b| b.as_bool()).unwrap_or(true),
                 ms: v.get("ms").and_then(|n| n.as_u64()).unwrap_or(0),
+                tokens: v.get("tokens").and_then(|n| n.as_u64()).unwrap_or(0),
             })
         })
         .collect()
+}
+
+/// Токены пилюли: тысячи сворачиваются, иначе число забивает подпись вызова.
+fn format_tokens(tokens: u64) -> String {
+    if tokens >= 1000 {
+        format!("{:.1}k tok", tokens as f64 / 1000.0)
+    } else {
+        format!("{} tok", tokens)
+    }
 }
 
 fn stage_label(stage: &str) -> &str {
@@ -110,6 +122,7 @@ fn ToolCallNode(entry: ToolTraceEntry) -> impl IntoView {
     let stage = stage_label(&entry.stage).to_string();
     let name = entry.tool.clone();
     let ms = entry.ms;
+    let tokens = entry.tokens.max(0) as u64;
     let summary = entry.summary.clone().unwrap_or_default();
     let input = format_value(&entry.input);
     let output = format_value(&entry.output);
@@ -147,6 +160,11 @@ fn ToolCallNode(entry: ToolTraceEntry) -> impl IntoView {
                     {if ok { "✓ Успешно" } else { "✗ Ошибка" }}
                 </span>
                 <span class="tool-call__ms">{format!("{}ms", ms)}</span>
+                {(tokens > 0).then(|| view! {
+                    <span class="tool-call__tokens" title="Доставлено в контекст модели">
+                        {format_tokens(tokens)}
+                    </span>
+                })}
             </div>
 
             <Show when=move || expanded.get()>
@@ -240,6 +258,7 @@ pub fn ToolCallsTrace(tool_trace: Option<String>, message_id: String) -> impl In
                         let ok = e.ok;
                         let label = short_tool_name(&e.tool).to_string();
                         let ms = e.ms;
+                        let tokens = e.tokens;
                         view! {
                             <span
                                 class=if ok { "tool-trace__pill tool-trace__pill--ok" } else { "tool-trace__pill tool-trace__pill--err" }
@@ -248,6 +267,9 @@ pub fn ToolCallsTrace(tool_trace: Option<String>, message_id: String) -> impl In
                                 {label}
                                 " "
                                 <span class="tool-trace__ms">{format!("{}ms", ms)}</span>
+                                {(tokens > 0).then(|| view! {
+                                    <span class="tool-trace__tokens">{format_tokens(tokens)}</span>
+                                })}
                             </span>
                         }
                     }).collect::<Vec<_>>()}

@@ -10,8 +10,8 @@
 | Metric | Value |
 |--------|-------|
 | CSS files | 48 |
-| CSS lines | 21498 |
-| Distinct classes | 2187 |
+| CSS lines | 21513 |
+| Distinct classes | 2189 |
 | Block roots | 584 |
 | Classes with no Rust reference | 373 |
 | Inline `style=` in .rs | 4191 |
@@ -600,8 +600,8 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `th-w-35p` | core | static/themes/core/utilities.css | 1 | 0 | allowed / dead |
 | `th-w-46p` | core | static/themes/core/utilities.css | 1 | 0 | allowed / dead |
 | `toolbar` | feature | static/plugin-sdk.css | 1 | 0 | allowed / dead |
-| `tool-call` | core | static/themes/core/components.css | 18 | 18 | allowed |
-| `tool-trace` | core | static/themes/core/components.css | 12 | 12 | allowed |
+| `tool-call` | core | static/themes/core/components.css | 19 | 19 | allowed |
+| `tool-trace` | core | static/themes/core/components.css | 13 | 13 | allowed |
 | `totals-row` | core | static/themes/core/utilities.css | 1 | 0 | allowed / dead |
 | `u505-match` | core | static/themes/core/layout.css | 28 | 28 | allowed |
 | `universal-dashboard` | feature | static/universal_dashboard.css | 1 | 1 | allowed |
@@ -704,7 +704,7 @@ Theme files are excluded from the hex count - defining colours is their job.
 
 | File | Layer | Lines | Classes | Hex | Raw px |
 |------|-------|-------|---------|-----|--------|
-| static/themes/core/components.css | core | 7882 | 866 | 191 | 720 |
+| static/themes/core/components.css | core | 7897 | 868 | 191 | 720 |
 | static/themes/core/layout.css | core | 2163 | 214 | 30 | 165 |
 | static/pages/plugins.css | page | 1094 | 123 | 28 | 160 |
 | static/pages/d406_wb_sales_funnel.css | page | 380 | 50 | 31 | 61 |

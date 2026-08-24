@@ -1,8 +1,6 @@
 use crate::domain::a017_llm_agent::aggregate::LlmAgentId;
 use crate::domain::a019_llm_artifact::aggregate::LlmArtifactId;
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -489,6 +487,11 @@ pub struct ToolTraceEntry {
     pub tool: String,
     pub ok: bool,
     pub ms: i64,
+    /// Сколько токенов вызов доставил в контекст модели. Считается по строке
+    /// результата, уходящей в `tool_result`, — не по усечённому `output`.
+    /// 0 у гардов (они в модель ничего не шлют) и у записей до миграции 0224.
+    #[serde(default)]
+    pub tokens: i64,
     #[serde(default)]
     pub summary: Option<String>,
     /// Аргументы вызова (JSON-контракт входа).

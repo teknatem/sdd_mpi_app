@@ -1470,6 +1470,10 @@ pub async fn send_message(
                     "tool":    tool_call.name,
                     "ok":      is_ok,
                     "ms":      call_ms,
+                    // Цена вызова в токенах — по строке, которая уходит в модель
+                    // следующей же строкой (`tool_result`), а не по `trace_output`:
+                    // тот усечён whitelist'ом и занижал бы бюджет в разы.
+                    "tokens":  crate::shared::llm::knowledge_base::estimate_tokens(&result),
                     "summary": guard_code
                         .map(|code| format!("гард: {code}"))
                         .unwrap_or(summary),
@@ -1557,6 +1561,7 @@ pub async fn send_message(
                     "tool": "plan",
                     "ok": false,
                     "ms": 0,
+                    "tokens": 0,
                     "summary": format!("гард: plan_drift ({} пункт(ов))", drift.len()),
                     "input": { "steps": drift.iter().map(|s| &s.id).collect::<Vec<_>>() },
                     "output": {
@@ -1582,6 +1587,7 @@ pub async fn send_message(
                 "tool": "workflow",
                 "ok": false,
                 "ms": 0,
+                "tokens": 0,
                 "summary": flow.completion_label(false),
                 "input": { "expected": flow.next_tool().unwrap_or("publish") },
                 "output": {
@@ -1768,7 +1774,7 @@ pub async fn send_message(
     }
 
     // Трасса вызовов инструментов теперь ведётся в двух местах с разной ролью:
-    //  - tool_trace_json на сообщении — МИНИМУМ для пилюль (tool, ok, ms);
+    //  - tool_trace_json на сообщении — МИНИМУМ для пилюль (tool, ok, ms, tokens);
     //  - sys_tool_trace — полная запись на каждый вызов (вход/выход/summary),
     //    для детальной карточки в UI и кросс-чат аналитики.
     if !tool_trace.is_empty() {
@@ -1779,6 +1785,9 @@ pub async fn send_message(
                     "tool": e.get("tool"),
                     "ok": e.get("ok"),
                     "ms": e.get("ms"),
+                    // Токены — в минимуме намеренно: цена вызова должна быть видна
+                    // на пилюле, не открывая ящик. Это одно число, а не payload.
+                    "tokens": e.get("tokens"),
                 })
             })
             .collect();
@@ -1868,6 +1877,7 @@ pub async fn send_message(
                         .to_string(),
                     ok: e.get("ok").and_then(|v| v.as_bool()).unwrap_or(true),
                     ms: e.get("ms").and_then(|v| v.as_i64()).unwrap_or(0),
+                    tokens: e.get("tokens").and_then(|v| v.as_i64()).unwrap_or(0),
                     summary: e
                         .get("summary")
                         .and_then(|v| v.as_str())

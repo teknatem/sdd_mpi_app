@@ -7091,6 +7091,14 @@ body[data-theme-base="dark"] .empty-state {
   opacity: 0.7;
 }
 
+/* Цена вызова в токенах. Рядом с длительностью намеренно: ms — «сколько ждали»,
+   tok — «сколько заплатили контекстом»; вместе они и есть стоимость шага. */
+.tool-trace__tokens {
+  margin-left: var(--spacing-xs);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
 .tool-trace__toggle svg {
   width: 12px;
   height: 12px;
@@ -7167,6 +7175,13 @@ body[data-theme-base="dark"] .empty-state {
 
 .tool-call__ms {
   margin-left: auto;
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-call__tokens {
+  margin-left: var(--spacing-sm);
   color: var(--color-text-secondary);
   opacity: 0.8;
   font-variant-numeric: tabular-nums;

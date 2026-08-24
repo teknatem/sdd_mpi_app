@@ -42,6 +42,110 @@ function Set-Metric([string]$key, $value) {
     $metrics[$key] = [double]$value
 }
 
+# --------------------------------------------------------- test code, cut out
+# `.unwrap()` inside #[cfg(test)] is not a smell — a panicking assertion is what
+# a test is for. Counting it made smells.unwrap punish exactly what
+# tests.density rewards: every commit that added tests hit the ratchet, and the
+# only way through was SKIP_HEALTH, which teaches people to ignore the gate.
+# So the smell is measured on production code only.
+#
+# The cut is brace-matched rather than "regex to end of file": a test module is
+# not always last, and a naive scan trips over braces inside strings and
+# comments. Find-BlockEnd therefore skips line/block comments, string and raw
+# string literals, and tells a char literal from a lifetime by the closing quote.
+# On anything it cannot parse it returns -1 and the file is left whole — a
+# slightly high count is better than a silently truncated file.
+
+function Find-BlockEnd([string]$s, [int]$open) {
+    $depth = 0
+    $i = $open
+    $n = $s.Length
+    while ($i -lt $n) {
+        $c = $s[$i]
+
+        if ($c -eq '/' -and $i + 1 -lt $n) {
+            $nx = $s[$i + 1]
+            if ($nx -eq '/') {
+                $nl = $s.IndexOf("`n", $i)
+                if ($nl -lt 0) { return -1 }
+                $i = $nl + 1
+                continue
+            }
+            if ($nx -eq '*') {
+                # Block comments nest in Rust.
+                $cd = 1
+                $i += 2
+                while ($i -lt $n -and $cd -gt 0) {
+                    if ($s[$i] -eq '/' -and $i + 1 -lt $n -and $s[$i + 1] -eq '*') { $cd++; $i += 2; continue }
+                    if ($s[$i] -eq '*' -and $i + 1 -lt $n -and $s[$i + 1] -eq '/') { $cd--; $i += 2; continue }
+                    $i++
+                }
+                if ($cd -gt 0) { return -1 }
+                continue
+            }
+        }
+
+        # r"..." / r#"..."# — but only when `r` starts a token, not inside `for`.
+        if ($c -eq 'r' -and ($i -eq 0 -or -not [char]::IsLetterOrDigit($s[$i - 1]) -and $s[$i - 1] -ne '_')) {
+            $j = $i + 1
+            $hashes = 0
+            while ($j -lt $n -and $s[$j] -eq '#') { $hashes++; $j++ }
+            if ($j -lt $n -and $s[$j] -eq '"') {
+                $close = '"' + ('#' * $hashes)
+                $k = $s.IndexOf($close, $j + 1)
+                if ($k -lt 0) { return -1 }
+                $i = $k + $close.Length
+                continue
+            }
+        }
+
+        if ($c -eq '"') {
+            $i++
+            $closed = $false
+            while ($i -lt $n) {
+                if ($s[$i] -eq '\') { $i += 2; continue }
+                if ($s[$i] -eq '"') { $i++; $closed = $true; break }
+                $i++
+            }
+            if (-not $closed) { return -1 }
+            continue
+        }
+
+        if ($c -eq "'") {
+            if ($i + 1 -lt $n -and $s[$i + 1] -eq '\') {
+                # Escaped char literal: '\n', '\u{1F600}'.
+                $k = $s.IndexOf("'", $i + 2)
+                if ($k -lt 0) { return -1 }
+                $i = $k + 1
+                continue
+            }
+            if ($i + 2 -lt $n -and $s[$i + 2] -eq "'") { $i += 3; continue }
+            $i++   # lifetime, not a literal
+            continue
+        }
+
+        if ($c -eq '{') { $depth++ }
+        elseif ($c -eq '}') {
+            $depth--
+            if ($depth -eq 0) { return $i }
+        }
+        $i++
+    }
+    return -1
+}
+
+function Remove-TestModules([string]$text) {
+    $pattern = [regex]'#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{'
+    while ($true) {
+        $m = $pattern.Match($text)
+        if (-not $m.Success) { break }
+        $end = Find-BlockEnd $text ($m.Index + $m.Length - 1)
+        if ($end -lt 0) { break }
+        $text = $text.Remove($m.Index, $end - $m.Index + 1)
+    }
+    return $text
+}
+
 # ---------------------------------------------------------------- source size
 # Read through .NET rather than Get-Content: 1700 files at commit time is a
 # noticeable wait otherwise.
@@ -66,11 +170,14 @@ foreach ($crate in $crates) {
         $crateFiles++
         $crateTests += ([regex]::Matches($text, '#\[test\]|#\[tokio::test\]')).Count
 
+        # Smells are counted on production code; assertions in tests are not one.
+        $prod = if ($text.Contains('#[cfg(test)]')) { Remove-TestModules $text } else { $text }
+
         $allFiles += [pscustomobject]@{
             Rel     = $file.Substring($root.Length + 1).Replace('\', '/')
             Crate   = $crate
             Lines   = $lines
-            Unwrap  = ([regex]::Matches($text, '\.unwrap\(\)')).Count
+            Unwrap  = ([regex]::Matches($prod, '\.unwrap\(\)')).Count
             Todo    = ([regex]::Matches($text, 'TODO|FIXME')).Count
         }
     }
