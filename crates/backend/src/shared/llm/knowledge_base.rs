@@ -755,6 +755,18 @@ impl KnowledgeBase {
         self.docs.values().collect()
     }
 
+    /// Записи `related` этого документа, которые никуда не ведут.
+    ///
+    /// Число `dangling_links` не чинится — чинится список. Ради этого метод и
+    /// нужен: quality-проверке требуется нарушитель поимённо, а не счётчик.
+    pub fn dangling_links_of(&self, doc: &KnowledgeDoc) -> Vec<String> {
+        doc.related
+            .iter()
+            .filter(|entry| is_dangling(entry, &self.docs, &self.by_basename, &self.index))
+            .cloned()
+            .collect()
+    }
+
     pub fn vocabulary(&self) -> &Vocabulary {
         &self.vocabulary
     }
@@ -949,14 +961,26 @@ fn count_dangling_links(
 ) -> usize {
     docs.values()
         .flat_map(|doc| doc.related.iter())
-        .filter(|entry| {
-            let normalized = super::kb_vocabulary::normalize_form(entry);
-            !docs.contains_key(*entry)
-                && !by_basename.contains_key(*entry)
-                && !tag_index.contains_key(&normalized)
-                && canonical_anchor(entry).is_none()
-        })
+        .filter(|entry| is_dangling(entry, docs, by_basename, tag_index))
         .count()
+}
+
+/// Запись `related`, не ведущая ни в статью, ни в тег, ни в объект системы.
+///
+/// Предикат вынесен, чтобы счётчик диагностики и quality-проверка (которой
+/// нужны нарушители поимённо) считали одно и то же. Два независимых определения
+/// «висячей ссылки» разъехались бы молча.
+fn is_dangling(
+    entry: &str,
+    docs: &HashMap<String, KnowledgeDoc>,
+    by_basename: &HashMap<String, Vec<String>>,
+    tag_index: &HashMap<String, Vec<String>>,
+) -> bool {
+    let normalized = super::kb_vocabulary::normalize_form(entry);
+    !docs.contains_key(entry)
+        && !by_basename.contains_key(entry)
+        && !tag_index.contains_key(&normalized)
+        && canonical_anchor(entry).is_none()
 }
 
 /// Обратные рёбра графа: если `A.related = [B]`, то из B достижим A.
@@ -1250,8 +1274,16 @@ pub fn estimate_tokens(text: &str) -> u32 {
 pub struct DocSection {
     /// Номер по порядку, с 1. Им же раздел адресуется в `get_knowledge`.
     pub number: usize,
-    /// Текст заголовка без решёток.
+    /// Текст заголовка без решёток и без якоря.
     pub title: String,
+    /// Устойчивый идентификатор раздела из `{#slug}` в заголовке (стандарт `SEC-1`).
+    ///
+    /// Номер съезжает от вставки раздела выше, заголовок исчезает при
+    /// переписывании — якорь не меняется ни от того, ни от другого. Поэтому
+    /// именно он попадает в трассу вызовов как `part` и в ссылку
+    /// `kb://article/<id>#<slug>`. `None` — раздел без якоря: адресуется
+    /// номером и заголовком, между версиями статьи не сравним.
+    pub slug: Option<String>,
     /// Уровень заголовка, по которому шло деление (2 для `##`).
     pub level: u8,
     /// Байтовый диапазон в теле статьи, включая строку заголовка.
@@ -1261,54 +1293,46 @@ pub struct DocSection {
     pub token_cost: u32,
 }
 
-/// Оглавление статьи: заголовки верхнего значащего уровня.
+/// Оглавление статьи: разделы уровня `##`.
 ///
-/// Уровень деления выбирается, а не задаётся константой: в корпусе есть и файлы
-/// с `# Заголовок` + `## Разделы`, и карты `generated`, где разделы — это `#`.
-/// Правило: делим по `##`, если они есть; иначе по `#`, но только когда таких
-/// заголовков больше одного (единственный `#` — это название статьи, а не раздел).
-/// Заголовки глубже уровня деления остаются ВНУТРИ своего раздела: дробление до
-/// `####` дало бы десятки огрызков вместо связных кусков.
+/// Уровень деления — константа, а не догадка. Раньше он выбирался по документу
+/// («делим по `##`, если есть, иначе по `#`»), потому что часть корпуса писала
+/// разделы первым уровнем, а карты `generated` не имели заголовка документа
+/// вовсе. С введением стандарта `SEC-1` (`SEC-01`/`SEC-02`: один `#` первой
+/// строкой, границы разделов — `##`) корпус приведён к одной форме, и выбор
+/// уровня стал лишней степенью свободы: автор не мог предсказать, как разойдётся
+/// его статья. Документ, нарушивший `SEC-02`, теперь не режется вовсе и виден
+/// поимённо в quality-проверке `kb_integrity`.
+///
+/// Заголовки глубже `##` остаются ВНУТРИ своего раздела: дробление до `####`
+/// дало бы десятки огрызков вместо связных кусков.
 ///
 /// Заголовки внутри ```-блоков не считаются: в техдоках корпуса `app` строка
 /// вида `# comment` в примере кода иначе рвала бы статью в произвольном месте.
+///
+/// Суффикс `{#slug}` снимается с заголовка в `DocSection::slug` и в `title` не
+/// попадает: иначе якорь поехал бы в оглавление, в выдачу поиска и в цитату.
 pub fn outline(content: &str) -> Vec<DocSection> {
+    const SPLIT_LEVEL: u8 = 2;
     let headings = scan_headings(content);
-    if headings.is_empty() {
-        return Vec::new();
-    }
-
-    let has_level_2 = headings.iter().any(|(_, level, _)| *level == 2);
-    let level_1_count = headings.iter().filter(|(_, level, _)| *level == 1).count();
-    let split_level: u8 = if has_level_2 {
-        2
-    } else if level_1_count > 1 {
-        1
-    } else {
-        return Vec::new();
-    };
-
-    let starts: Vec<(usize, String)> = headings
-        .into_iter()
-        .filter(|(_, level, _)| *level == split_level)
-        .map(|(offset, _, title)| (offset, title))
-        .collect();
+    let starts: Vec<&Heading> = headings.iter().filter(|h| h.level == SPLIT_LEVEL).collect();
 
     starts
         .iter()
         .enumerate()
-        .map(|(idx, (start, title))| {
+        .map(|(idx, head)| {
             let end = starts
                 .get(idx + 1)
-                .map(|(next, _)| *next)
+                .map(|next| next.offset)
                 .unwrap_or(content.len());
             DocSection {
                 number: idx + 1,
-                title: title.clone(),
-                level: split_level,
-                start: *start,
+                title: head.title.clone(),
+                slug: head.slug.clone(),
+                level: SPLIT_LEVEL,
+                start: head.offset,
                 end,
-                token_cost: estimate_tokens(&content[*start..end]),
+                token_cost: estimate_tokens(&content[head.offset..end]),
             }
         })
         .collect()
@@ -1328,12 +1352,26 @@ pub fn intro_text<'a>(content: &'a str, sections: &[DocSection]) -> &'a str {
     content.get(..end).unwrap_or("").trim_end()
 }
 
-/// Заголовки вне ```-блоков: `(смещение строки, уровень, текст)`.
-fn scan_headings(content: &str) -> Vec<(usize, u8, String)> {
+/// Заголовок, снятый с тела документа.
+struct Heading {
+    /// Смещение начала строки заголовка в теле.
+    offset: usize,
+    /// Номер строки с 1 — для сообщений валидатора.
+    line: usize,
+    level: u8,
+    /// Текст без решёток и без якоря.
+    title: String,
+    slug: Option<String>,
+    /// В строке есть похожее на якорь, но не прошедшее формат `SEC-07`.
+    malformed_anchor: bool,
+}
+
+/// Заголовки вне блоков кода.
+fn scan_headings(content: &str) -> Vec<Heading> {
     let mut out = Vec::new();
     let mut in_fence = false;
     let mut offset = 0usize;
-    for line in content.split_inclusive('\n') {
+    for (idx, line) in content.split_inclusive('\n').enumerate() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             in_fence = !in_fence;
@@ -1342,14 +1380,203 @@ fn scan_headings(content: &str) -> Vec<(usize, u8, String)> {
             let rest = &trimmed[level..];
             // `#текст` без пробела — не заголовок, а решётка в тексте.
             if level <= 6 && rest.starts_with(' ') {
-                let title = rest.trim().trim_end_matches('#').trim().to_string();
+                let (title, slug, malformed_anchor) = split_anchor(rest);
+                // Закрывающие решётки ATX (`## Раздел ##`) снимаем ПОСЛЕ якоря:
+                // строка с якорем оканчивается на `}`, и обратный порядок оставил
+                // бы якорь внутри заголовка.
+                let title = title.trim().trim_end_matches('#').trim().to_string();
                 if !title.is_empty() {
-                    out.push((offset, level as u8, title));
+                    out.push(Heading {
+                        offset,
+                        line: idx + 1,
+                        level: level as u8,
+                        title,
+                        slug,
+                        malformed_anchor,
+                    });
                 }
             }
         }
         offset += line.len();
     }
+    out
+}
+
+/// Разбор заголовка с якорем: `(заголовок, якорь, якорь_испорчен)`.
+///
+/// Якорь обязан быть последним на строке и отделяться пробелом — иначе фигурная
+/// скобка внутри текста заголовка молча становилась бы идентификатором раздела.
+fn split_anchor(raw: &str) -> (String, Option<String>, bool) {
+    let trimmed = raw.trim_end();
+    if !trimmed.ends_with('}') {
+        return (raw.to_string(), None, false);
+    }
+    let Some(open) = trimmed.rfind("{#") else {
+        return (raw.to_string(), None, false);
+    };
+    let head = &trimmed[..open];
+    // Заголовка нет вовсе либо якорь не отделён пробелом.
+    if head.trim().is_empty() || !(head.ends_with(' ') || head.ends_with('\t')) {
+        return (raw.to_string(), None, true);
+    }
+    let slug = &trimmed[open + 2..trimmed.len() - 1];
+    if is_section_slug(slug) {
+        (head.trim_end().to_string(), Some(slug.to_string()), false)
+    } else {
+        (head.trim_end().to_string(), None, true)
+    }
+}
+
+/// Формат slug: `[a-z0-9][a-z0-9-]{1,39}`.
+///
+/// Только ASCII и только нижний регистр, чтобы якорь одинаково читался в URL,
+/// в ссылке `kb://` и в кириллическом тексте вокруг него.
+fn is_section_slug(slug: &str) -> bool {
+    if !(2..=40).contains(&slug.len()) {
+        return false;
+    }
+    let Some(first) = slug.chars().next() else {
+        return false;
+    };
+    if !(first.is_ascii_lowercase() || first.is_ascii_digit()) {
+        return false;
+    }
+    slug.chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// Нарушение стандарта разделов `SEC-1`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StructureViolation {
+    /// Код правила — от `SEC-01` до `SEC-09`. Стабилен: по нему группируются
+    /// нарушения в quality-проверке, поэтому освободившийся код не переиспользуют.
+    pub code: &'static str,
+    /// Номер строки в теле документа, с 1. Ноль — нарушение относится к документу целиком.
+    pub line: usize,
+    pub detail: String,
+}
+
+/// Проверка тела документа на стандарт разделов `SEC-1` (норматив, §10).
+///
+/// Один проход заголовков на три контура: валидацию записи в `kb_tools`,
+/// quality-проверку `kb_integrity` по всему корпусу и генератор карт. Второй
+/// разбор заголовков означал бы, что «правильно» в этих трёх местах может
+/// разъехаться незаметно.
+///
+/// `require_anchors` включает `SEC-09` — правило крупного документа. Порог
+/// (`SECTIONED_READ_TOKENS`) живёт у вызывающего: здесь нет цены документа,
+/// а дублировать константу в двух модулях значит однажды поменять одну.
+pub fn validate_structure(content: &str, require_anchors: bool) -> Vec<StructureViolation> {
+    let mut out = Vec::new();
+    let headings = scan_headings(content);
+
+    let level_1: Vec<&Heading> = headings.iter().filter(|h| h.level == 1).collect();
+    match level_1.len() {
+        0 => out.push(StructureViolation {
+            code: "SEC-01",
+            line: 0,
+            detail: "нет заголовка документа".into(),
+        }),
+        1 => {
+            // Заголовок документа обязан быть первой значащей строкой: иначе
+            // `outline` не может отличить его от раздела.
+            let first_significant = content
+                .split_inclusive('\n')
+                .position(|l| !l.trim().is_empty())
+                .unwrap_or(0)
+                + 1;
+            if level_1[0].line != first_significant {
+                out.push(StructureViolation {
+                    code: "SEC-01",
+                    line: level_1[0].line,
+                    detail: "заголовок документа не первой значащей строкой тела".into(),
+                });
+            }
+        }
+        n => {
+            for extra in level_1.iter().skip(1) {
+                out.push(StructureViolation {
+                    code: "SEC-02",
+                    line: extra.line,
+                    detail: format!(
+                        "«{}»: заголовков уровня 1 в документе {}, а границы разделов — это уровень 2",
+                        extra.title, n
+                    ),
+                });
+            }
+        }
+    }
+
+    let level_2: Vec<&Heading> = headings.iter().filter(|h| h.level == 2).collect();
+    if level_2.len() == 1 {
+        out.push(StructureViolation {
+            code: "SEC-03",
+            line: level_2[0].line,
+            detail: format!(
+                "«{}» — единственный раздел: нужен либо второй, либо обычный текст",
+                level_2[0].title
+            ),
+        });
+    }
+
+    let mut previous: Option<u8> = None;
+    let mut seen_titles: std::collections::HashSet<String> = Default::default();
+    let mut seen_anchors: std::collections::HashMap<String, usize> = Default::default();
+    for head in &headings {
+        if let Some(prev) = previous {
+            if head.level > prev + 1 {
+                out.push(StructureViolation {
+                    code: "SEC-04",
+                    line: head.line,
+                    detail: format!(
+                        "уровень {} сразу после уровня {}: пропущен промежуточный",
+                        head.level, prev
+                    ),
+                });
+            }
+        }
+        previous = Some(head.level);
+
+        // Уникальность требуется только от адресуемых заголовков — названия
+        // документа и разделов. Глубже дубли законны и полезны: «Назначение» под
+        // четырьмя разными разделами — это хорошая статья, а не дефект, и
+        // переименование их в «Назначение классификатора» ничего не улучшает.
+        if head.level <= 2 && !seen_titles.insert(head.title.to_lowercase()) {
+            out.push(StructureViolation {
+                code: "SEC-05",
+                line: head.line,
+                detail: format!("заголовок раздела «{}» повторяется", head.title),
+            });
+        }
+
+        if head.malformed_anchor {
+            out.push(StructureViolation {
+                code: "SEC-07",
+                line: head.line,
+                detail: "якорь не по формату: slug из [a-z0-9-], 2..40 символов, через пробел в конце строки"
+                    .into(),
+            });
+        }
+
+        if let Some(slug) = &head.slug {
+            if let Some(first) = seen_anchors.insert(slug.clone(), head.line) {
+                out.push(StructureViolation {
+                    code: "SEC-08",
+                    line: head.line,
+                    detail: format!("якорь «{}» уже занят строкой {}", slug, first),
+                });
+            }
+        }
+
+        if require_anchors && head.level == 2 && head.slug.is_none() {
+            out.push(StructureViolation {
+                code: "SEC-09",
+                line: head.line,
+                detail: format!("«{}» — раздел крупного документа без якоря", head.title),
+            });
+        }
+    }
+
     out
 }
 
@@ -1663,14 +1890,115 @@ author: llm
     }
 
     #[test]
-    fn outline_falls_back_to_level_one_only_when_it_is_not_the_title() {
-        // Карты `generated` пишут разделы первым уровнем — их делим по `#`.
-        let many = "# Один\n\nтекст\n\n# Два\n\nтекст\n";
-        assert_eq!(outline(many).len(), 2);
-        // Единственный `#` — это название статьи, а не раздел: делить нечего.
+    fn outline_splits_only_by_level_two() {
+        // Разделы первым уровнем не режутся: `SEC-02` их запрещает, и документ
+        // с ними отдаётся целиком, а нарушение видно в `kb_integrity`. Раньше
+        // здесь была ветка «делим по `#`», из-за которой уровень деления зависел
+        // от документа и автор не мог предсказать, как разойдётся его статья.
+        let level_one = "# Один\n\nтекст\n\n# Два\n\nтекст\n";
+        assert!(outline(level_one).is_empty());
+        assert!(validate_structure(level_one, false)
+            .iter()
+            .any(|v| v.code == "SEC-02"));
+        // Статья без разделов — тоже норма: делить нечего, вводка это весь текст.
         let single = "# Только заголовок\n\nтекст без разделов\n";
         assert!(outline(single).is_empty());
         assert_eq!(intro_text(single, &[]).trim_end(), single.trim_end());
+    }
+
+    #[test]
+    fn outline_lifts_anchor_out_of_the_heading_text() {
+        let content =
+            "# Статья\n\n## Расчёт ДРР {#drr-calc}\n\nтекст\n\n## Источники {#sources}\n\nтекст\n";
+        let sections = outline(content);
+        assert_eq!(sections[0].slug.as_deref(), Some("drr-calc"));
+        // Якорь не должен просочиться в заголовок: иначе он поедет в оглавление,
+        // в выдачу поиска и в цитату статьи.
+        assert_eq!(sections[0].title, "Расчёт ДРР");
+        assert_eq!(sections[1].slug.as_deref(), Some("sources"));
+    }
+
+    #[test]
+    fn anchor_is_recognised_only_at_the_end_of_the_line_after_a_space() {
+        // Фигурная скобка в середине заголовка — часть текста, а не якорь.
+        let inline = "# Статья\n\n## Формат {#slug} в заголовке\n\nтекст\n\n## Второй\n\nтекст\n";
+        assert!(outline(inline)[0].slug.is_none());
+        // Без пробела перед скобкой — нарушение, а не якорь: иначе опечатка
+        // молча превращается в идентификатор раздела.
+        let glued = "# Статья\n\n## Раздел{#slug}\n\nтекст\n\n## Второй\n\nтекст\n";
+        assert!(outline(glued)[0].slug.is_none());
+        assert!(validate_structure(glued, false)
+            .iter()
+            .any(|v| v.code == "SEC-07"));
+    }
+
+    #[test]
+    fn anchor_format_is_ascii_lowercase_only() {
+        let upper = "# Статья\n\n## Раздел {#Slug}\n\nтекст\n\n## Второй\n\nтекст\n";
+        assert!(outline(upper)[0].slug.is_none());
+        assert!(validate_structure(upper, false)
+            .iter()
+            .any(|v| v.code == "SEC-07"));
+        let cyrillic = "# Статья\n\n## Раздел {#расчёт}\n\nтекст\n\n## Второй\n\nтекст\n";
+        assert!(outline(cyrillic)[0].slug.is_none());
+    }
+
+    #[test]
+    fn structure_validator_catches_each_rule() {
+        // SEC-01: заголовка документа нет вовсе.
+        let no_title = "## Раздел\n\nтекст\n\n## Второй\n\nтекст\n";
+        assert!(validate_structure(no_title, false)
+            .iter()
+            .any(|v| v.code == "SEC-01"));
+
+        // SEC-02: `#` ниже первой строки — так писали 8 файлов корпуса `app`.
+        let many_h1 = "# Один\n\nтекст\n\n# Два\n\nтекст\n";
+        assert!(validate_structure(many_h1, false)
+            .iter()
+            .any(|v| v.code == "SEC-02"));
+
+        // SEC-03: единственный раздел — это заголовок, притворяющийся разделом.
+        let lonely = "# Статья\n\n## Единственный\n\nтекст\n";
+        assert!(validate_structure(lonely, false)
+            .iter()
+            .any(|v| v.code == "SEC-03"));
+
+        // SEC-04: пропуск уровня.
+        let skipped = "# Статья\n\n## Раздел\n\n#### Глубоко\n\nтекст\n\n## Второй\n\nтекст\n";
+        assert!(validate_structure(skipped, false)
+            .iter()
+            .any(|v| v.code == "SEC-04"));
+
+        // SEC-05: дубль заголовка раздела — по нему нельзя адресоваться однозначно.
+        let dup = "# Статья\n\n## Раздел\n\nтекст\n\n## раздел\n\nтекст\n";
+        assert!(validate_structure(dup, false)
+            .iter()
+            .any(|v| v.code == "SEC-05"));
+        // А одноимённые подпункты в РАЗНЫХ разделах — норма: адресуются только
+        // разделы, и «Назначение» под каждым из них ничему не мешает.
+        let repeated_sub =
+            "# Статья\n\n## Первый\n\n### Назначение\n\nтекст\n\n## Второй\n\n### Назначение\n\nтекст\n";
+        assert!(validate_structure(repeated_sub, false).is_empty());
+
+        // SEC-08: дубль якоря.
+        let dup_slug = "# Статья\n\n## Первый {#same}\n\nтекст\n\n## Второй {#same}\n\nтекст\n";
+        assert!(validate_structure(dup_slug, false)
+            .iter()
+            .any(|v| v.code == "SEC-08"));
+
+        // Чистый документ не даёт ни одного нарушения — иначе проверку выключат.
+        let clean = "# Статья\n\nВводка.\n\n## Первый {#one}\n\n### Подпункт\n\nтекст\n\n## Второй {#two}\n\nтекст\n";
+        assert!(validate_structure(clean, true).is_empty());
+    }
+
+    #[test]
+    fn anchors_are_required_only_for_large_documents() {
+        let content = "# Статья\n\n## Первый\n\nтекст\n\n## Второй\n\nтекст\n";
+        // Порог живёт у вызывающего: мелкая статья отдаётся целиком, режим
+        // `section` для неё не включается, и якорь ей не нужен.
+        assert!(validate_structure(content, false).is_empty());
+        let strict = validate_structure(content, true);
+        assert_eq!(strict.iter().filter(|v| v.code == "SEC-09").count(), 2);
     }
 
     #[test]

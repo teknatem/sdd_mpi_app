@@ -261,6 +261,7 @@ enum Route {
     SkillRuntime,
     Kb,
     KbAdmin,
+    KnowledgeInventory,
     LlmQuality,
     AgentTask,
     Workspace,
@@ -320,6 +321,7 @@ const ROUTING_TABLE: &[(Route, &[&str])] = &[
     (Route::SkillRuntime, SKILL_RUNTIME_TOOL_NAMES),
     (Route::Kb, super::kb_tools::KB_TOOL_NAMES),
     (Route::KbAdmin, KB_ADMIN_TOOL_NAMES),
+    (Route::KnowledgeInventory, &["knowledge_inventory"]),
     (
         Route::LlmQuality,
         super::llm_quality_tools::LLM_QUALITY_TOOL_NAMES,
@@ -506,6 +508,12 @@ pub async fn execute_tool_call(call: &ToolCall, cx: &ToolContext<'_>) -> String 
             super::kb_tools::execute_kb_tool(name, &call.arguments, cx.chat_id, cx.agent_id).await
         }
         Route::KbAdmin => execute_kb_admin_tool(name, &call.arguments, cx.agent_id).await,
+        Route::KnowledgeInventory => {
+            let args = serde_json::from_str::<serde_json::Value>(&call.arguments)
+                .unwrap_or_else(|_| serde_json::json!({}));
+            crate::knowledge::llm_view::execute(crate::shared::data::db::get_connection(), &args)
+                .await
+        }
         Route::LlmQuality => {
             super::llm_quality_tools::execute_llm_quality_tool(name, &call.arguments).await
         }

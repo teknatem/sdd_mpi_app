@@ -3,7 +3,7 @@ id: kb-curation
 title: База знаний
 description: Работа с базой знаний: чтение статей, подготовка правок, тикеты, анализ пробелов.
 intents: [kb_curation]
-tools: [list_kb_documents, get_kb_document, create_kb_edit, update_kb_edit_articles, list_open_kb_edits, write_kb_document, execute_query, kb_propose_article, list_kb_vocabulary, search_knowledge, get_knowledge]
+tools: [list_kb_documents, get_kb_document, create_kb_edit, update_kb_edit_articles, list_open_kb_edits, write_kb_document, execute_query, kb_propose_article, list_kb_vocabulary, search_knowledge, get_knowledge, knowledge_inventory]
 default_for: [kb_admin]
 ---
 
@@ -22,6 +22,11 @@ default_for: [kb_admin]
 
 Якоря (привязка статьи к объекту системы):
 - Статья привязывается к объекту кодом в `related` (`a012`, `p904`) или явным полем `entities: [a012, p907]` во frontmatter — оба дают один и тот же якорь.
+- Структура файла: один `# Заголовок` первой строкой, разделы — `##` (ноль или два и больше),
+  уровни не пропускаются. У статьи крупнее 2 000 токенов разделы помечаются якорями
+  `## Заголовок {#slug}` — иначе её нельзя прочитать по частям. Якорь при правке заголовка
+  **не меняют**: он адрес, а не подпись. Нарушения по всему корпусу показывает проверка
+  `kb_integrity` — нарушителя видно поимённо, а не счётчиком.
 - Обратный ход: `search_knowledge(entities=["a012"])` — жёсткая выборка всего привязанного к объекту, работает и без текста запроса.
 - Якорь на несуществующий объект молча не работает: такие записи видны в карточке статьи как «якоря вне реестра» и в `/api/kb/stats`. Проверяй их при разборе пробелов.
 - Если проблема качества связана с техническим знанием приложения, создай тикет на уточнение поведения/контекста ответа, но `target_articles` указывай только для бизнес-статей организации или оставляй пустым.

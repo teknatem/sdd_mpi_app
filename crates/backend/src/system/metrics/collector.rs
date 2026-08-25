@@ -55,6 +55,7 @@ pub async fn collect_and_store(trigger: &str) -> anyhow::Result<(String, i64, us
     collect_access(&mut draft);
     collect_tasks(&mut draft).await;
     collect_instance(&mut draft).await;
+    collect_knowledge(&mut draft).await;
 
     let (app_version, git_commit, build_profile, schema_version) = build_passport().await;
     let collect_ms = started.elapsed().as_millis() as i64;
@@ -292,6 +293,38 @@ async fn collect_instance(draft: &mut Draft) {
         Ok(count) => draft.put("instance.restarts_7d", count as f64 + 1.0),
         Err(error) => tracing::warn!("[metrics] число рестартов не получено: {error}"),
     }
+}
+
+/// Агрегаты инвентаризации знаний из её последнего снимка.
+///
+/// Здесь ничего не считается заново: инвентаризация — свой механизм со своими
+/// таблицами и своей страницей. Сюда переезжают два числа — разрывы
+/// цепочки достижимости, единственное в инвентаризации, у чего есть
+/// направление и пороги. Объём корпуса и число статей направления не имеют и
+/// остаются на своей странице.
+///
+/// Храповик коммита их не видит: он сравнивает `codebase_metrics.json`, а это
+/// рантайм. Пороги работают на странице, гейта нет — и не должно быть, число
+/// сирот зависит от файлов навыков экземпляра.
+///
+/// Снимка может ещё не быть (первый старт) — тогда метрик просто не будет, и
+/// это честнее нуля.
+async fn collect_knowledge(draft: &mut Draft) {
+    let db = crate::shared::data::db::get_connection();
+    let latest = match crate::knowledge::repository::latest(db).await {
+        Ok(Some(found)) => found,
+        Ok(None) => return,
+        Err(error) => {
+            tracing::warn!("[metrics] снимок знаний не прочитан: {error}");
+            return;
+        }
+    };
+    let (_snapshot, summary) = latest;
+    draft.put(
+        "knowledge.unreachable_surfaces",
+        summary.unreachable_surfaces.len() as f64,
+    );
+    draft.put("knowledge.orphan_tools", summary.orphan_tools.len() as f64);
 }
 
 async fn scalar(sql: &str) -> Option<i64> {

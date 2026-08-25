@@ -5,7 +5,9 @@ related: [data-view, dv001_revenue, p904]
 updated: 2026-04-19
 ---
 
-# BI Индикаторы (a024_bi_indicator)
+# BI Индикаторы и Дашборды (a024, a025)
+
+## BI Индикаторы (a024_bi_indicator)
 
 BI Индикатор — единица отображения данных на дашборде. Каждый индикатор:
 - привязан к источнику данных (DataView + метрика) через `data_spec_json`
@@ -107,7 +109,7 @@ POST /api/a024-bi-indicator/{id}/compute
 }
 ```
 
-# BI Дашборды (a025_bi_dashboard)
+## BI Дашборды (a025_bi_dashboard)
 
 Дашборд компонует несколько индикаторов в сетку. 
 

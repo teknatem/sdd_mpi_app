@@ -1,7 +1,7 @@
 //! Точка входа. Вся структура крейта — в `lib.rs`; здесь только стартовая
 //! процедура, чтобы интеграционные тесты могли линковаться против библиотеки.
 
-use backend::{api, processes, quality, shared, system, AppState};
+use backend::{api, knowledge, processes, quality, shared, system, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -263,10 +263,18 @@ async fn main() -> anyhow::Result<()> {
             shared::llm::kb_generated::regenerate_all().await;
         }
 
-        // Снимок метрик проекта — последним в этой же цепочке, а не отдельной
-        // задачей: он читает `sys_data_profile`, который обновляет именно
-        // `regenerate_all`. Собери раньше — и в снимок уйдут числа строк с
-        // прошлого запуска.
+        // Инвентаризация знаний — в этой же цепочке, а не отдельной задачей: она
+        // читает `sys_data_profile` и корпус `generated`, а оба обновляет
+        // `regenerate_all` выше. Снимок, снятый раньше, показал бы прошлый
+        // состав карт и назвал бы это состоянием базы знаний.
+        let db = shared::data::db::get_connection();
+        if let Err(error) = knowledge::service::collect_and_store(db, "startup").await {
+            tracing::warn!("[knowledge] снимок при старте не собран: {error}");
+        }
+
+        // Метрики проекта — последними, и порядок здесь значим: девять метрик
+        // группы «Знания» берутся из снимка инвентаризации. Собери метрики
+        // раньше — и они будут отставать от знаний ровно на один рестарт.
         if let Err(error) = system::metrics::collect_and_store("startup").await {
             tracing::warn!("[metrics] снимок при старте не собран: {error}");
         }

@@ -8,9 +8,7 @@
 //! экономия ради экономии: под ним лежит mjs Этапа целиком, а Этапов на
 //! странице столько же, сколько заведено в каталоге.
 
-use contracts::processes::{
-    ActionMode, DefinitionStatus, EffectRecord, EffectStatus, StageRecord,
-};
+use contracts::processes::{ActionMode, DefinitionStatus, EffectRecord, EffectStatus, StageRecord};
 use leptos::prelude::*;
 use serde_json::Value;
 
@@ -76,9 +74,17 @@ pub fn short_digest(digest: &str) -> String {
 pub fn deadline_label(minutes: i64) -> String {
     let day = 24 * 60;
     if minutes >= day && minutes % day == 0 {
-        format!("{} {}", minutes / day, plural(minutes / day, "сутки", "суток", "суток"))
+        format!(
+            "{} {}",
+            minutes / day,
+            plural(minutes / day, "сутки", "суток", "суток")
+        )
     } else if minutes >= 60 && minutes % 60 == 0 {
-        format!("{} {}", minutes / 60, plural(minutes / 60, "час", "часа", "часов"))
+        format!(
+            "{} {}",
+            minutes / 60,
+            plural(minutes / 60, "час", "часа", "часов")
+        )
     } else {
         format!("{minutes} мин")
     }
@@ -320,12 +326,20 @@ fn field_note(spec: &Value) -> String {
         notes.push(format!("формат {format}"));
     }
     if let Some(min) = spec.get("minLength").and_then(Value::as_u64) {
-        notes.push(format!("минимум {min} символ{}", if min == 1 { "" } else { "ов" }));
+        notes.push(format!(
+            "минимум {min} символ{}",
+            if min == 1 { "" } else { "ов" }
+        ));
     }
     if let Some(values) = spec.get("enum").and_then(Value::as_array) {
         let list = values
             .iter()
-            .map(|value| value.as_str().map(str::to_string).unwrap_or_else(|| value.to_string()))
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| value.to_string())
+            })
             .collect::<Vec<_>>()
             .join(", ");
         notes.push(format!("одно из: {list}"));

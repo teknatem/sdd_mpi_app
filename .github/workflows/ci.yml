@@ -46,30 +46,20 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # cargo fmt, then drop the generated files from its report — rather than
-      # feeding rustfmt an explicit file list.
+      # Plain `cargo fmt --all --check` — CI runs exactly what a developer runs.
       #
-      # Two things make the obvious alternatives wrong:
-      #   * plain `cargo fmt --all --check` always fails. contracts/build.rs
-      #     emits 61 metadata_gen.rs files plus registry_gen.rs straight into
-      #     src/ (not OUT_DIR); they are committed with the generator's own
-      #     formatting, and write_if_changed rewrites them unformatted on the
-      #     next build. Formatting them is futile, so the check would flap.
-      #   * `git ls-files | xargs rustfmt` reaches FILES CARGO NEVER COMPILES.
-      #     Six .rs files under crates/*/src are not declared by any `mod`, so
-      #     they are dead code; demanding formatting of files that are not part
-      #     of any crate makes the gate disagree with what `cargo fmt` does
-      #     locally, which is the fastest way to make a gate untrustworthy.
+      # It used to need a `grep -v '_gen\.rs'` filter over cargo's output: the 62
+      # files contracts/build.rs emits into src/ (not OUT_DIR) carried the
+      # generator's own formatting, write_if_changed compared against precisely
+      # that, and so every `cargo fmt --all` was undone by the next build. The
+      # generator now emits `#![cfg_attr(rustfmt, rustfmt::skip)]`, rustfmt leaves
+      # those files alone, and the gate no longer has to disagree with the tool.
       #
-      # Filtering cargo's own output keeps CI and local `cargo fmt` in agreement.
+      # Note `cargo fmt`, not `git ls-files | xargs rustfmt`: the latter reaches
+      # .rs files under crates/*/src that no `mod` declares, i.e. files cargo
+      # never compiles — a gate that formats dead code is a gate nobody trusts.
       - name: Format
-        run: |
-          cargo fmt --all -- --check > fmt.log 2>&1 || true
-          if grep '^Diff in ' fmt.log | grep -v '_gen\.rs'; then
-            echo "::error::Unformatted sources above. Run: cargo fmt --all"
-            exit 1
-          fi
-          echo "formatting OK (generated *_gen.rs excluded)"
+        run: cargo fmt --all -- --check
 
       # Split per crate rather than --workspace: frontend cannot be checked for
       # the host target, and a single failing crate should name itself.

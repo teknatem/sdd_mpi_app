@@ -6,17 +6,19 @@ related: [a024_bi_indicator]
 updated: 2026-03-17
 ---
 
-# Summary
+# A025 BI Dashboard
+
+## Summary
 
 `a025_bi_dashboard` хранит компоновку набора индикаторов. Это слой отображения и организации экрана, а не слой вычисления продаж.
 
-# Structure
+## Structure
 
 - `layout.groups` — дерево групп.
 - `layout.groups[].items[].indicator_id` — ссылка на `a024_bi_indicator`.
 - `filters` — глобальные фильтры дашборда.
 
-# WB Indicator Display Path
+## WB Indicator Display Path
 
 Для WB dashboard flow типовой путь такой:
 
@@ -25,10 +27,10 @@ updated: 2026-03-17
 3. `dv001_revenue` читает `p904_sales_data`
 4. `p904_sales_data` содержит проекции WB продаж из `a012_wb_sales`
 
-# Important Note
+## Important Note
 
 Строка формата `a025_bi_dashboard_view_<uuid>` в frontend — это ключ UI-вкладки, а не отдельная таблица данных.
 
-# Pitfalls
+## Pitfalls
 
 - Если нужно объяснить, откуда взялось значение на дашборде, LLM должна спускаться по ссылке `indicator_id`, а не останавливаться на самом `a025`.

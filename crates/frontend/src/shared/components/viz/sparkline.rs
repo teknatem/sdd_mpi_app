@@ -104,10 +104,7 @@ pub fn Sparkline(
     let points_for_marker = points.clone();
     let marker = move || {
         let index = hovered.get().unwrap_or(count - 1);
-        let value = points_for_marker
-            .get(index)
-            .copied()
-            .unwrap_or(last_value);
+        let value = points_for_marker.get(index).copied().unwrap_or(last_value);
         let (x, y) = (scale.x_of(index), scale.y_of(value));
         view! {
             <path

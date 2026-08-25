@@ -231,6 +231,7 @@
 | Code | Description |
 |------|-------------|
 | `gl_projection_integrity` | Проверка: целостность GL ↔ ProjectionLinked-проекции |
+| `kb_integrity` | Проверка: целостность базы знаний |
 | `marketplace_product_ref_required` | Checks that marketplace_product_ref is filled in active marketplace tables. |
 | `nomenclature_in_projections` | Проверка: заполненность `nomenclature_ref` в проекциях |
 | `p903_gl_integrity` | Проверка: целостность GL ↔ p903_wb_finance_report (ExternalLinked) |
@@ -357,7 +358,7 @@
 | `a042_agent_task` | Aggregate | ai | Поручения AI-сотрудникам | Очередь задач, которые агенты передают друг другу: постановка, статус, результат |
 | `a032_wb_returns_claims` | Aggregate | wildberries | Заявки на возврат WB | Заявки покупателей на возврат товара Wildberries (feedbacks-api /api/v1/claims) |
 | `a033_wb_day_close` | Aggregate | wildberries | Закрытие дня WB | Документ-снапшот итогов дня WB-кабинета: 10 колонок по заказам, проверка рекламной атрибуции |
-| `knowledge_base` | System | ai | База знаний | Просмотр статей базы знаний, словаря тегов, статистики и замечаний; \ полный доступ добавляет перечитывание базы с диска |
+| `knowledge_base` | System | ai | Инвентаризация знаний | Полный учёт источников знания: статьи, карты, навыки, проверки, \ плагины, Процессы, Действия, сущности реестра, источни… |
 | `p900_mp_sales_register` | Projection | analytics | Реестр продаж | Сводный аналитический реестр всех продаж по маркетплейсам |
 | `p901_nomenclature_barcodes` | Projection | references | Штрихкоды номенклатуры | Справочник штрихкодов, привязанных к номенклатуре |
 | `p902_ozon_finance_realization` | Projection | analytics | Финансовая реализация Ozon | Данные финансовой реализации по кабинетам Ozon |
@@ -404,11 +405,11 @@
 | `d403_ym_order_flow` | YM История заказов |  | YmOrderFlowDashboard |
 | `d406_wb_sales_funnel` | Воронка продаж |  | WbSalesFunnelDashboard |
 
-### `knowledge_base` База знаний
+### `knowledge_base` Знания
 
 | Tab key | Label | Scope | Component |
 |---------|-------|-------|-----------|
-| `knowledge_base` | База знаний | `knowledge_base` | KnowledgeBaseWorkspace |
+| `knowledge_base` | Инвентаризация знаний | `knowledge_base` | KnowledgeInventoryPage |
 | `a031_kb_edit` | Редактирование базы знаний | `a031_kb_edit` | KbEditList |
 
 ### `references` Справочники
@@ -560,7 +561,7 @@
 | `sys_thaw_test` | Тест Thaw UI |  | ThawTestPage |
 | `sys_style_guide` | Гид по стилям |  | StyleGuidePage |
 
-## API routes (471)
+## API routes (476)
 
 ### `/a004`
 - `GET` /api/a004/nomenclature
@@ -976,6 +977,13 @@
 - `GET` /api/kb/stats
 - `GET` /api/kb/tree
 - `GET` /api/kb/vocabulary
+
+### `/knowledge`
+- `GET` /api/knowledge/inventory
+- `POST` /api/knowledge/inventory/collect
+- `GET` /api/knowledge/inventory/history
+- `GET` /api/knowledge/inventory/surfaces
+- `GET` /api/knowledge/inventory/unit/:id
 
 ### `/llm-knowledge`
 - `GET` /api/llm-knowledge

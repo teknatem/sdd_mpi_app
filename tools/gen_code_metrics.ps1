@@ -199,13 +199,25 @@ Set-Metric 'code.files.total' $totalFiles
 if ($totalFiles -gt 0) {
     Set-Metric 'code.avg_lines' ([math]::Round($totalLines / $totalFiles, 0))
 }
-Set-Metric 'code.files_over_1000' (@($allFiles | Where-Object { $_.Lines -gt 1000 }).Count)
+# The two size counters below measure pressure to SPLIT a file, so they count
+# only what a person wrote. A *_gen.rs is written by contracts/build.rs out of
+# metadata.json: nobody can split it, and its length tracks the field count of
+# the projection, not anyone's design choice. Counting them made the metric
+# report work that cannot be done -- and worse, made it move on its own: adding
+# the one-line `#![cfg_attr(rustfmt, rustfmt::skip)]` header to the generator
+# tipped two files sitting at 999 lines over the threshold and blocked a commit
+# in which no authored file had grown at all.
+# Everything else (max_file_lines, top10_share, the smell counters) still spans
+# the whole tree -- those describe the codebase as it is, not a backlog.
+$authoredFiles = @($allFiles | Where-Object { $_.Rel -notlike '*_gen.rs' })
+
+Set-Metric 'code.files_over_1000' (@($authoredFiles | Where-Object { $_.Lines -gt 1000 }).Count)
 
 # 2000 is the line above which a file stops being "large" and starts being a hub:
 # every file over it in this repo either aggregates the whole project (routes.rs,
 # registry.rs) or bundles several roles into one. Tracked separately from the
 # 1000-line count because these are the ones the plan actually splits.
-Set-Metric 'code.files_over_2000' (@($allFiles | Where-Object { $_.Lines -gt 2000 }).Count)
+Set-Metric 'code.files_over_2000' (@($authoredFiles | Where-Object { $_.Lines -gt 2000 }).Count)
 if ($allFiles.Count -gt 0) {
     Set-Metric 'code.max_file_lines' (($allFiles | Measure-Object Lines -Maximum).Maximum)
 }

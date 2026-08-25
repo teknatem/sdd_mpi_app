@@ -30,6 +30,7 @@ pub mod dashboards;
 pub mod data_view;
 pub mod domain;
 pub mod general_ledger;
+pub mod knowledge;
 pub mod layout;
 pub mod navigator;
 pub mod plugins;

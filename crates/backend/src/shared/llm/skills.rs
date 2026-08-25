@@ -174,6 +174,15 @@ const CORE_TOOLS: &[&str] = &[
     "switch_activity",
 ];
 
+/// Имена инструментов ядра — доступны без активации навыка.
+///
+/// Нужны инвентаризации знаний: она отличает поверхность, до которой чат
+/// дотянется всегда (`tool_gated`), от той, что требует активации навыка
+/// (`skill_gated`), и разница эта считается именно по этому списку.
+pub fn core_tool_names() -> &'static [&'static str] {
+    CORE_TOOLS
+}
+
 // Бандл интроспекции БД (`list_entities`, `get_join_hint`, `execute_query`) переиспользуется
 // несколькими навыками — имена перечислены в их `tool_names` (дедуп при сборке).
 
@@ -1439,6 +1448,9 @@ fn tool_bundles() -> Vec<(&'static str, Vec<ToolDefinition>)> {
         ("admin", super::admin_tools::admin_tool_definitions()),
         ("kb_search", super::kb_tools::kb_tool_definitions()),
         ("kb", super::kb_admin_tools::kb_admin_tool_definitions()),
+        // Инвентаризация знаний — отдельный механизм, но бандл тот же: вопрос
+        // «что вообще есть в базе знаний» возникает ровно там же, где поиск по ней.
+        ("kb", crate::knowledge::llm_view::tool_definitions()),
         ("plugin", super::plugin_tools::plugin_tool_definitions()),
         ("chart", super::chart_tools::chart_tool_definitions()),
         ("table", super::table_tools::table_tool_definitions()),

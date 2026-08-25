@@ -6,6 +6,7 @@
 // so consumers (LLM metadata registry, dashboards) never miss a new entity.
 // Filter with `EntityRegistration::meta.ai.llm_visible` / `.ai.tags`.
 
+#![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(dead_code)]
 
 use super::{EntityMetadataInfo, FieldMetadata};

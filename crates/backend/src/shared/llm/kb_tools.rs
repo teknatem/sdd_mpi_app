@@ -33,7 +33,7 @@ pub(super) const LARGE_ARTICLE_TOKENS: u32 = 6000;
 /// 2 992. Порог в 2 000 задевает единицы самых крупных документов и не трогает
 /// большинство: дробить статью, которая дешевле одного ответа модели, — лишний
 /// раунд без выигрыша.
-const SECTIONED_READ_TOKENS: u32 = 2000;
+pub const SECTIONED_READ_TOKENS: u32 = 2000;
 
 /// Сколько вводки отдавать вместе с оглавлением: её задача — дать понять, о чём
 /// статья, чтобы модель выбрала раздел, а не заменить собой чтение.
@@ -109,8 +109,9 @@ pub fn kb_tool_definitions() -> Vec<ToolDefinition> {
                     },
                     "section": {
                         "type": "string",
-                        "description": "Раздел статьи: номер из оглавления ('3') или часть его заголовка \
-                                        ('расчёт ДРР'). Само оглавление приходит в ответе без этого параметра."
+                        "description": "Раздел статьи: якорь из оглавления ('drr-calc'), номер ('3') \
+                                        или часть заголовка. Якорь надёжнее: он не меняется при правке статьи. \
+                                        Само оглавление приходит в ответе без этого параметра."
                     },
                     "full": {
                         "type": "boolean",
@@ -363,18 +364,31 @@ fn parse_corpus(raw: Option<&str>) -> Vec<DocKind> {
 fn outline_json(sections: &[knowledge_base::DocSection]) -> Vec<Value> {
     sections
         .iter()
-        .map(|s| json!({ "n": s.number, "title": s.title, "token_cost": s.token_cost }))
+        .map(|s| {
+            let mut item = json!({ "n": s.number, "title": s.title, "token_cost": s.token_cost });
+            // Якорь отдаём только когда он есть: пустое поле у каждого раздела —
+            // это строка контекста на статью в обмен на ноль информации.
+            if let Some(slug) = &s.slug {
+                item["slug"] = json!(slug);
+            }
+            item
+        })
         .collect()
 }
 
-/// Раздел по номеру из оглавления или по части заголовка.
+/// Раздел по якорю, номеру из оглавления или части заголовка.
 ///
-/// Оба способа нужны: номер модель берёт из выдачи без ошибок, а заголовок
-/// переживает переписывание статьи, после которого номера съезжают.
+/// Порядок разрешения не произволен. Якорь первым: это единственный способ
+/// адресации, переживающий и вставку раздела выше (съезжает номер), и
+/// переписывание формулировки (исчезает заголовок). Номер вторым — модель берёт
+/// его из выдачи без ошибок. Заголовок последним — им пользуется человек.
 fn resolve_section<'a>(
     sections: &'a [knowledge_base::DocSection],
     raw: &str,
 ) -> Option<&'a knowledge_base::DocSection> {
+    if let Some(by_slug) = sections.iter().find(|s| s.slug.as_deref() == Some(raw)) {
+        return Some(by_slug);
+    }
     if let Ok(number) = raw.parse::<usize>() {
         return sections.iter().find(|s| s.number == number);
     }
@@ -474,7 +488,7 @@ fn get_knowledge(args: &Value) -> Value {
             return json!({
                 "error": format!("Раздел '{}' в статье '{}' не найден.", raw, doc.id),
                 "sections": outline_json(&sections),
-                "hint": "Возьми номер или заголовок из `sections`. Нужна вся статья — full=true."
+                "hint": "Возьми `slug` или `n` из `sections`. Нужна вся статья — full=true."
             });
         };
         let content = format!(
@@ -488,12 +502,18 @@ fn get_knowledge(args: &Value) -> Value {
         // Фактически доставленное меряет `sys_tool_trace.tokens` (миграция 0224).
         kb_metrics::record_read(&ArticleRef::from(doc));
         result["mode"] = json!("section");
-        result["section"] = json!({ "n": section.number, "title": section.title });
+        // `slug` уходит в ответ, чтобы трасса вызовов (Ш2) брала `part` готовым,
+        // а не разбирала заголовок повторно своим парсером.
+        let mut section_ref = json!({ "n": section.number, "title": section.title });
+        if let Some(slug) = &section.slug {
+            section_ref["slug"] = json!(slug);
+        }
+        result["section"] = section_ref;
         result["sections"] = json!(outline_json(&sections));
         result["delivered_tokens"] = json!(knowledge_base::estimate_tokens(&content));
         result["content"] = json!(content);
         result["hint"] = json!(format!(
-            "Раздел {} из {}. Другой раздел — section=\"<номер|заголовок>\", вся статья — full=true.",
+            "Раздел {} из {}. Другой раздел — section=\"<slug|n>\", вся статья — full=true.",
             section.number,
             sections.len()
         ));
@@ -519,7 +539,7 @@ fn get_knowledge(args: &Value) -> Value {
         result["intro"] = json!(intro);
         result["hint"] = json!(format!(
             "Статья крупная ({} токенов) — отдано оглавление. Возьми нужный раздел: \
-             get_knowledge(id=\"{}\", section=\"<номер|заголовок>\"). Нужна целиком — full=true. \
+             get_knowledge(id=\"{}\", section=\"<slug|n>\"). Нужна целиком — full=true. \
              Использовал в ответе — сошлись строкой kb://article/{}.",
             doc.token_cost, doc.id, doc.id
         ));
@@ -780,6 +800,34 @@ pub fn validate_draft(args: &Value, ctx: &DraftContext) -> Result<DraftPlan, Str
              добавь контекст, следствия и что с этим делать.",
             body.chars().count(),
             MIN_BODY_CHARS
+        ));
+    }
+
+    // Стандарт разделов `SEC-1`. Якоря требуем только у статьи, которая перерастёт
+    // порог чтения: у мелкой режим `section` не включается, и `{#slug}` в
+    // заголовке был бы видимой разметкой в обмен на неработающий механизм.
+    let structure = knowledge_base::validate_structure(
+        &body,
+        knowledge_base::estimate_tokens(&body) > SECTIONED_READ_TOKENS,
+    );
+    if !structure.is_empty() {
+        let list = structure
+            .iter()
+            .map(|v| {
+                if v.line == 0 {
+                    format!("{}: {}", v.code, v.detail)
+                } else {
+                    format!("{} (строка {}): {}", v.code, v.line, v.detail)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(format!(
+            "Структура не по стандарту разделов: {}. Правила: один `# Заголовок` первой \
+             строкой, границы разделов — `##` (их либо ноль, либо два и больше), уровни не \
+             пропускаются, заголовки не повторяются. У крупной статьи каждый раздел \
+             помечается якорем `## Заголовок {{#slug}}` — по нему её потом читают по частям.",
+            list
         ));
     }
 
@@ -1191,6 +1239,33 @@ mod tests {
 
     const SECTIONED: &str =
         "# Статья\n\nВводка.\n\n## Расчёт ДРР\n\nтекст\n\n## Ограничения\n\nтекст\n";
+
+    const ANCHORED: &str = "# Статья\n\nВводка.\n\n## Расчёт ДРР {#drr-calc}\n\nтекст\n\n## Ограничения {#limits}\n\nтекст\n";
+
+    #[test]
+    fn section_resolves_by_anchor_before_anything_else() {
+        let sections = sections_of(ANCHORED);
+        assert_eq!(resolve_section(&sections, "drr-calc").unwrap().number, 1);
+        assert_eq!(resolve_section(&sections, "limits").unwrap().number, 2);
+        // Ради этого якорь и заводится: заголовок переписали — адрес уцелел.
+        let renamed = ANCHORED.replace("Расчёт ДРР", "Как считается ДРР");
+        assert_eq!(
+            resolve_section(&sections_of(&renamed), "drr-calc")
+                .unwrap()
+                .title,
+            "Как считается ДРР"
+        );
+    }
+
+    #[test]
+    fn outline_json_carries_the_anchor_only_when_it_exists() {
+        let anchored = outline_json(&sections_of(ANCHORED));
+        assert_eq!(anchored[0]["slug"], json!("drr-calc"));
+        // Пустое поле у каждого раздела — строка контекста в обмен на ноль
+        // информации, поэтому его просто нет.
+        let plain = outline_json(&sections_of(SECTIONED));
+        assert!(plain[0].get("slug").is_none());
+    }
 
     #[test]
     fn section_resolves_by_number_and_by_title_fragment() {

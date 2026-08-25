@@ -1,6 +1,4 @@
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use crate::enums::marketplace_type::MarketplaceType;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -1,5 +1,7 @@
 use crate::app::ThawThemeContext;
-use crate::shared::theme::registry::{theme_by_id, ThemeContext, ThemeDef, DEFAULT_THEME_ID, THEMES};
+use crate::shared::theme::registry::{
+    theme_by_id, ThemeContext, ThemeDef, DEFAULT_THEME_ID, THEMES,
+};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 

@@ -9,22 +9,22 @@
 
 | Metric | Value |
 |--------|-------|
-| CSS files | 48 |
-| CSS lines | 21513 |
-| Distinct classes | 2189 |
-| Block roots | 584 |
+| CSS files | 49 |
+| CSS lines | 21941 |
+| Distinct classes | 2241 |
+| Block roots | 585 |
 | Classes with no Rust reference | 373 |
-| Inline `style=` in .rs | 4191 |
+| Inline `style=` in .rs | 4185 |
 | Hardcoded hex outside themes | 380 |
 | Raw px in spacing/size props | 1832 |
-| Tokens defined | 327 |
+| Tokens defined | 343 |
 | Tokens undefined with NO fallback (broken) | 0 |
 | Tokens undefined but with a fallback (dormant) | 1 |
 | Tokens set by Rust at runtime | 6 |
-| Tokens used but undefined (Thaw runtime) | 57 |
-| Allowlist entries | 588 |
+| Tokens used but undefined (Thaw runtime) | 61 |
+| Allowlist entries | 589 |
 
-## Block roots (584)
+## Block roots (585)
 
 One row per top-level BEM block. `Used` counts the block's classes that appear
 in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
@@ -388,6 +388,7 @@ in Rust (literal or `format!` stem). `Status` is the allowlist verdict.
 | `kb-meta` | page | static/pages/knowledge_base.css | 7 | 7 | allowed |
 | `kb-vocabulary` | page | static/pages/knowledge_base.css | 8 | 8 | allowed |
 | `kb-workspace` | page | static/pages/knowledge_base.css | 1 | 1 | allowed |
+| `knowledge-inventory` | page | static/pages/knowledge_inventory.css | 52 | 52 | allowed |
 | `list-container` | core | static/themes/core/layout.css | 1 | 1 | allowed |
 | `list-summary-bar` | core | static/themes/core/components.css | 1 | 1 | allowed |
 | `llm-skills` | page | static/pages/llm_skills.css | 10 | 10 | allowed |
@@ -677,11 +678,11 @@ the CSS by design. Not bugs.
 
 `--drill-cols`, `--from-x`, `--from-y`, `--mp-color`, `--spec-cat`, `--tabs-z`
 
-### Thaw runtime tokens (57)
+### Thaw runtime tokens (61)
 
 Injected by the Thaw component library at runtime - undefined in our CSS by design.
 
-`--borderRadiusLarge`, `--borderRadiusMedium`, `--borderRadiusSmall`, `--colorBrandBackground`, `--colorBrandBackground2`, `--colorBrandBackgroundHover`, `--colorBrandBackgroundPressed`, `--colorBrandForeground1`, `--colorBrandForeground2`, `--colorBrandStroke1`, `--colorBrandStroke2`, `--colorNeutralBackground1Hover`, `--colorNeutralBackground1Pressed`, `--colorNeutralBackground2`, `--colorNeutralBackground3`, `--colorNeutralBackground6`, `--colorNeutralBackgroundOverlay`, `--colorNeutralForeground1`, `--colorNeutralForeground2`, `--colorNeutralForeground3`, `--colorNeutralForegroundOnBrand`, `--colorNeutralStroke1`, `--colorNeutralStroke1Hover`, `--colorNeutralStroke2`, `--colorNeutralStroke3`, `--colorNeutralStrokeAccessible`, `--colorNeutralStrokeAccessibleHover`, `--colorPaletteRedForeground1`, `--fontFamilyMonospace`, `--fontWeightSemibold`, `--spacingHorizontalMNudge`, `--spacingHorizontalXS`, `--spacingHorizontalXXS`, `--spacingVerticalS`, `--thaw-color-brand-background-2`, `--thaw-color-brand-foreground-1`, `--thaw-color-brand-foreground-2`, `--thaw-color-brand-stroke-1`, `--thaw-color-danger-background-1`, `--thaw-color-danger-border-1`, `--thaw-color-danger-foreground-1`, `--thaw-color-neutral-background-1`, `--thaw-color-neutral-background-2`, `--thaw-color-neutral-background-3`, `--thaw-color-neutral-foreground-1`, `--thaw-color-neutral-foreground-2`, `--thaw-color-neutral-foreground-3`, `--thaw-color-neutral-stroke-1`, `--thaw-color-palette-red-background-2`, `--thaw-color-palette-red-background-3`, `--thaw-color-palette-red-border-1`, `--thaw-color-palette-red-border-2`, `--thaw-color-palette-red-foreground-1`, `--thaw-color-palette-red-foreground-2`, `--thaw-color-success-border-1`, `--thaw-color-success-foreground-1`, `--thaw-color-warning-foreground-1`
+`--borderRadiusLarge`, `--borderRadiusMedium`, `--borderRadiusSmall`, `--colorBrandBackground`, `--colorBrandBackground2`, `--colorBrandBackgroundHover`, `--colorBrandBackgroundPressed`, `--colorBrandForeground1`, `--colorBrandForeground2`, `--colorBrandStroke1`, `--colorBrandStroke2`, `--colorNeutralBackground1Hover`, `--colorNeutralBackground1Pressed`, `--colorNeutralBackground2`, `--colorNeutralBackground3`, `--colorNeutralBackground6`, `--colorNeutralBackgroundOverlay`, `--colorNeutralForeground1`, `--colorNeutralForeground2`, `--colorNeutralForeground3`, `--colorNeutralForegroundOnBrand`, `--colorNeutralStroke1`, `--colorNeutralStroke1Hover`, `--colorNeutralStroke2`, `--colorNeutralStroke3`, `--colorNeutralStrokeAccessible`, `--colorNeutralStrokeAccessibleHover`, `--colorPaletteRedBackground2`, `--colorPaletteRedBorderActive`, `--colorPaletteRedForeground1`, `--colorPaletteYellowBackground2`, `--colorPaletteYellowForeground1`, `--fontFamilyMonospace`, `--fontWeightSemibold`, `--spacingHorizontalMNudge`, `--spacingHorizontalXS`, `--spacingHorizontalXXS`, `--spacingVerticalS`, `--thaw-color-brand-background-2`, `--thaw-color-brand-foreground-1`, `--thaw-color-brand-foreground-2`, `--thaw-color-brand-stroke-1`, `--thaw-color-danger-background-1`, `--thaw-color-danger-border-1`, `--thaw-color-danger-foreground-1`, `--thaw-color-neutral-background-1`, `--thaw-color-neutral-background-2`, `--thaw-color-neutral-background-3`, `--thaw-color-neutral-foreground-1`, `--thaw-color-neutral-foreground-2`, `--thaw-color-neutral-foreground-3`, `--thaw-color-neutral-stroke-1`, `--thaw-color-palette-red-background-2`, `--thaw-color-palette-red-background-3`, `--thaw-color-palette-red-border-1`, `--thaw-color-palette-red-border-2`, `--thaw-color-palette-red-foreground-1`, `--thaw-color-palette-red-foreground-2`, `--thaw-color-success-border-1`, `--thaw-color-success-foreground-1`, `--thaw-color-warning-foreground-1`
 
 ### Theme drift
 
@@ -729,8 +730,8 @@ Theme files are excluded from the hex count - defining colours is their job.
 | static/pages/sys_raw_storage.css | page | 173 | 22 | 0 | 17 |
 | static/pages/maintenance.css | page | 118 | 13 | 1 | 12 |
 | static/themes/core/dashboards/d405_metadata_dashboard.css | core | 154 | 26 | 0 | 13 |
-| static/pages/sys_roles_matrix.css | page | 122 | 16 | 0 | 9 |
 | static/themes/core/fields.css | core | 80 | 11 | 3 | 6 |
+| static/pages/sys_roles_matrix.css | page | 122 | 16 | 0 | 9 |
 | static/pages/sys_task_type_registry.css | page | 110 | 15 | 0 | 7 |
 | static/pages/login.css | page | 286 | 19 | 0 | 7 |
 | static/themes/core/thaw-patches.css | core | 220 | 23 | 1 | 5 |

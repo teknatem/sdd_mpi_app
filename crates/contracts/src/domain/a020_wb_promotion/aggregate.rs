@@ -1,6 +1,4 @@
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

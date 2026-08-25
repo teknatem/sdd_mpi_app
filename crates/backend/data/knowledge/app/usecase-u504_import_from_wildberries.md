@@ -6,17 +6,19 @@ related: [app__wb-api-overview, app__wb-api-statistics-sales, a012_wb_sales, p90
 updated: 2026-08-11
 ---
 
-# Summary
+# U504 Import From Wildberries
+
+## Summary
 
 `u504_import_from_wildberries` отвечает за получение данных из Wildberries API, преобразование ответа в локальные структуры и сохранение документов WB в систему.
 
-# API Role
+## API Role
 
 - Этот модуль является владельцем знаний о внешнем WB API для продаж.
 - Основная DTO для строк продаж: `WbSaleRow`.
 - Поля DTO отражают API-имена WB, например `nmId`, `supplierArticle`, `forPay`, `finishedPrice`, `saleID`.
 
-# Where To Look For Endpoints
+## Where To Look For Endpoints
 
 Описание самих эндпоинтов WB — их параметров, лимитов, глубины хранения, расписания и цепочек
 потребления — вынесено в отдельный справочник, каталог `api/` рядом с этим файлом. Точка
@@ -25,7 +27,7 @@ updated: 2026-08-11
 Здесь остаётся то, что справочник не описывает: семантика полей продаж и правила их
 преобразования в `a012_wb_sales`.
 
-# WB Sales Field Semantics
+## WB Sales Field Semantics
 
 - `srid`
   Стабильный идентификатор строки заказа/продажи в отчетах WB. В документации WB именно `srid` рекомендуется использовать для идентификации строки. В проекте он участвует как внешний id строки и используется для `header.document_no` и `line.line_id`.
@@ -54,14 +56,14 @@ updated: 2026-08-11
 - `lastChangeDate`
   Момент последнего изменения строки на стороне WB. Полезен для инкрементального чтения, повторной синхронизации и cursor/backfill логики. Маппится в `state.last_change_dt`.
 
-# Interpretation Priority
+## Interpretation Priority
 
 - Если нужно понять "что получил покупатель", сначала смотреть на `finishedPrice`.
 - Если нужно понять "что причитается продавцу по строке", сначала смотреть на `forPay`.
 - Если нужно понять "какая была базовая цена до скидок", смотреть на `totalPrice`.
 - Если нужна точная финансовая аналитика по удержаниям и выплатам, `Sales API` недостаточно; нужно дополнительно использовать `reportDetailByPeriod`.
 
-# Mapping To A012
+## Mapping To A012
 
 - `srid` -> `header.document_no` и `line.line_id`
 - `saleID` -> `header.sale_id`
@@ -80,19 +82,19 @@ updated: 2026-08-11
 - `isSupply` -> `state.is_supply`
 - `isRealization` -> `state.is_realization`
 
-# Rules
+## Rules
 
 - Перед сохранением выполняется дедупликация по `sale_id`.
 - Если `sale_id` отсутствует, генерируется surrogate key.
 - Даты парсятся в несколько форматов; при неуспехе используется текущее UTC время.
 - `event_type = return`, если `quantity < 0`, иначе `sale`.
 
-# Downstream
+## Downstream
 
 - Результат импорта сохраняется как `a012_wb_sales`.
 - После posting данные попадают в `p904_sales_data`, где уже формируются BI-суммы и показатели для индикаторов.
 
-# Pitfalls
+## Pitfalls
 
 - В коде `saleID` — это идентификатор строки операции, а не номер заказа.
 - Для построения индикаторов по выручке и прибыли правильным downstream-источником является `p904_sales_data`, не raw DTO и не `a012_wb_sales`.

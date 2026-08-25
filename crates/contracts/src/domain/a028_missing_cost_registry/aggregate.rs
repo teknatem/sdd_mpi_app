@@ -1,6 +1,4 @@
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

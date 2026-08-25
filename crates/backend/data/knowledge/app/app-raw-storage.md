@@ -19,7 +19,7 @@ JSON-ответ API маркетплейса при импорте докуме�
 (модель + бизнес-логика) и `crates/backend/src/system/api/handlers/raw_storage.rs` (HTTP-обработчики).
 Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
 
-# Захват (capture)
+## Захват (capture) {#capture}
 
 - Управляется настройкой `sys_settings.raw_json_capture_enabled` (по умолчанию `false` —
   в штатном режиме raw JSON не пишется).
@@ -30,7 +30,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
 - Включать стоит только на время расследования конкретной проблемы с маппингом —
   каждый API-ответ маркетплейса может быть большим, и таблица быстро растёт.
 
-# Кто пишет raw JSON
+## Кто пишет raw JSON {#writers}
 
 Вызывают `save_raw_json(marketplace, document_type, document_no, raw_json, fetched_at)` при импорте:
 
@@ -50,7 +50,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
 который агрегат сохраняет у себя в `source_meta_json`). Если capture выключен,
 `save_raw_json` сразу возвращает `None`, ничего не пишет и не трогает БД.
 
-# Просмотр raw JSON конкретного документа
+## Просмотр raw JSON конкретного документа {#viewing}
 
 Каждый из перечисленных выше обработчиков документов (a010/a012/a013/a015/a016/a020/a029)
 имеет свой HTTP-эндпоинт, который вызывает `get_json_value_by_ref(ref_id)` и отдаёт
@@ -62,7 +62,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
 ```
 Это ожидаемое поведение, а не баг — raw JSON всегда опционален.
 
-# Referenced / Unreferenced
+## Referenced / Unreferenced {#referenced}
 
 «Referenced» — строки `document_raw_storage`, на `id` которых ссылается хотя бы один
 документ через `raw_payload_ref`/`marketplace_raw_payload_ref` в `source_meta_json`
@@ -76,7 +76,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
 суммарный объём в МБ), `Referenced`, `Unreferenced`. Плюс разбивка `by_type`
 (marketplace × document_type: строк и объём) в таблице «По типам» внизу страницы.
 
-# Очистка (cleanup)
+## Очистка (cleanup) {#cleanup}
 
 Четыре режима (`RawStorageCleanupMode` в `contracts::system::raw_storage`), UI всегда
 сначала показывает precision-preview (`POST /cleanup/preview`, кол-во строк + оценка МБ)
@@ -94,7 +94,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
   пока документ не будет переимпортирован. На странице это подсвечено как опасное
   действие (`button--danger`, красная строка списка).
 
-# VACUUM
+## VACUUM {#vacuum}
 
 Отдельная секция — обслуживание всего файла SQLite, не только этой таблицы.
 `DELETE`/`UPDATE` в SQLite не уменьшают файл на диске — освобождённые страницы
@@ -109,7 +109,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
   задания-импортёры) встанут в очередь на `busy_timeout`. UI явно предупреждает
   через `window.confirm` — выполнять вне рабочего времени/пиковой нагрузки.
 
-# API routes
+## API routes {#api}
 
 | Метод | Путь | Назначение |
 |---|---|---|
@@ -120,7 +120,7 @@ Frontend: `crates/frontend/src/system/raw_storage/ui/mod.rs`.
 | GET | `/api/sys/raw-storage/vacuum` | Статус файла БД / реклеймable |
 | POST | `/api/sys/raw-storage/vacuum` | Выполнить VACUUM |
 
-# Pitfalls
+## Pitfalls {#pitfalls}
 
 - Capture по умолчанию выключен и должен оставаться выключенным вне сессий отладки —
   это не механизм аудита и не замена событийного лога.

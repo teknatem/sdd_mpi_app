@@ -1,8 +1,6 @@
 use crate::domain::a017_llm_agent::aggregate::LlmAgentId;
 use crate::domain::a018_llm_chat::aggregate::LlmChatId;
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

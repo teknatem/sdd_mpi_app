@@ -24,7 +24,7 @@ updated: 2026-04-03
 
 # General Ledger (Главная книга)
 
-## Что это такое
+## Что это такое {#overview}
 
 General Ledger (GL) — центральный учётный регистр всех хозяйственных операций.
 Хранится в таблице `sys_general_ledger`. Каждая строка — одна проводка:
@@ -32,7 +32,7 @@ General Ledger (GL) — центральный учётный регистр в�
 
 Это не аналитическая projection-таблица, а факт учёта, порождённый агрегатами при posting.
 
-## Таблица sys_general_ledger
+## Таблица sys_general_ledger {#table}
 
 | Колонка             | Тип       | Описание                                                                            |
 | ------------------- | --------- | ----------------------------------------------------------------------------------- |
@@ -52,7 +52,7 @@ General Ledger (GL) — центральный учётный регистр в�
 | `resource_sign`     | INT       | Знак ресурса относительно оборота: `+1` или `-1`                                    |
 | `created_at`        | TEXT      | Время создания записи                                                               |
 
-## API эндпоинты
+## API эндпоинты {#api}
 
 ```text
 GET  /api/general-ledger            -> список проводок
@@ -70,7 +70,7 @@ GET  /api/general-ledger/turnovers  -> реестр видов оборотов 
 - `connection_mp_ref` — фильтр по подключению МП
 - `limit`, `offset` — пагинация
 
-## Слои данных
+## Слои данных {#layers}
 
 | Слой   | Значение                                                        |
 | ------ | --------------------------------------------------------------- |
@@ -78,7 +78,7 @@ GET  /api/general-ledger/turnovers  -> реестр видов оборотов 
 | `fact` | Фактический слой из финансовых документов маркетплейса          |
 | `plan` | Плановый слой, резерв под будущие сценарии                      |
 
-## План счетов
+## План счетов {#accounts}
 
 | Счёт | Название                         | Тип                        |
 | ---- | -------------------------------- | -------------------------- |
@@ -97,7 +97,7 @@ GET  /api/general-ledger/turnovers  -> реестр видов оборотов 
 | 91   | Прочие доходы и расходы          | Активно-пассивный (P&L)    |
 | 9102 | Штрафы от МП                     | —                          |
 
-## Виды оборотов
+## Виды оборотов {#turnover-classes}
 
 Каждый оборот привязан к `report_group`. Инструмент `list_gl_turnovers` даёт полный список.
 
@@ -114,7 +114,7 @@ GET  /api/general-ledger/turnovers  -> реестр видов оборотов 
 | `advert_clicks_no_order`         | Реклама (WB Advert)         | 9102 | 7609 | advertising  |
 | `voluntary_return_compensation` | Добровольная компенсация    | 7609 | 91   | other        |
 
-## Источники проводок
+## Источники проводок {#sources}
 
 | Источник             | registrator_type         | Метод                     |
 | -------------------- | ------------------------ | ------------------------- |
@@ -125,7 +125,7 @@ GET  /api/general-ledger/turnovers  -> реестр видов оборотов 
 Проводки создаются функцией `general_ledger::service::save_entries()`.
 При обновлении документа старые проводки удаляются через `remove_by_registrator_ref()`.
 
-## Связь sys_general_ledger -> detail projection
+## Связь sys_general_ledger -> detail projection {#detail-link}
 
 `sys_general_ledger` хранит учётный факт. Детализация хранится в отдельных projection-таблицах.
 Этот раздел является каноническим описанием маршрутизации drilldown из GL в detail projection.
@@ -169,13 +169,13 @@ GET  /api/general-ledger/turnovers  -> реестр видов оборотов 
 - drilldown по регистратору начинается с `registrator_type + registrator_ref`
 - переход из GL в detail выполняется через `resource_table / resource_field / resource_sign`, а связь со строкой GL при необходимости задаётся как `detail.general_ledger_ref = gl.id`
 
-## Связь с BI и DataView
+## Связь с BI и DataView {#bi-link}
 
 BI-индикаторы (`a024`) могут агрегировать данные GL через DataView.
 Часть DataView работает напрямую по `sys_general_ledger`, часть использует detail-проекции,
 которые строятся поверх GL или связаны с ним.
 
-## Примеры SQL
+## Примеры SQL {#sql-examples}
 
 ```sql
 -- Обороты по счетам за период
@@ -194,7 +194,7 @@ WHERE registrator_type = 'p903_wb_finance_report'
 ORDER BY entry_date;
 ```
 
-## Ключевые особенности
+## Ключевые особенности {#gotchas}
 
 1. `registrator_ref` — это чистый id документа; тип документа хранится отдельно в `registrator_type`
 2. `resource_table / resource_field / resource_sign` — каноническая связь записи GL с detail projection

@@ -2,6 +2,8 @@
 // AUTO-GENERATED FROM metadata.json - DO NOT EDIT MANUALLY
 // ============================================================================
 
+#![cfg_attr(rustfmt, rustfmt::skip)]
+
 #![allow(dead_code)]
 
 use crate::shared::metadata::{

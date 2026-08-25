@@ -3,9 +3,7 @@
 //! Один агрегат соответствует одному ежедневному `reportId`. Детализация хранится
 //! внутри документа без проекций и без влияния на legacy p903/Главную книгу.
 
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;

@@ -4474,10 +4474,7 @@ pub struct WildberriesDimensions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WildberriesCharacteristic {
-    #[serde(
-        rename = "Наименование характеристики",
-        default
-    )]
+    #[serde(rename = "Наименование характеристики", default)]
     pub name: Option<String>,
     #[serde(rename = "Значение характеристики", default)]
     pub value: Option<String>,

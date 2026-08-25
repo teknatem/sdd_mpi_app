@@ -111,7 +111,7 @@ fn get_menu_groups() -> Vec<MenuGroup> {
         },
         MenuGroup {
             id: "knowledge_base",
-            label: "База знаний",
+            label: "Знания",
             icon: "book-open",
             items: vec![
                 SidebarItem::with_scope(

@@ -12,9 +12,7 @@
 //! Фактические заказы/отмены/выкупы YM живут в стадии `fulfillment` из a013/a016 и
 //! с этими счётчиками НЕ совпадают: тут дневной счётчик самого маркетплейса.
 
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

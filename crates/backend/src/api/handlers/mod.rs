@@ -104,6 +104,7 @@ pub mod quality;
 // Debug endpoints (dev only)
 pub mod debug;
 pub mod kb_read;
+pub mod knowledge;
 pub mod llm_knowledge;
 pub mod llm_quality;
 pub mod llm_skills;

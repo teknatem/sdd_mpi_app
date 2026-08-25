@@ -27,6 +27,7 @@ pub enum RustCheck {
     ProjectionOrphanRegistrators,
     GlProjectionIntegrity,
     P903GlIntegrity,
+    KbIntegrity,
 }
 
 #[derive(Debug, Clone)]
@@ -144,6 +145,11 @@ fn rust_definitions() -> Vec<CheckDefinition> {
             "QC-005",
             checks::p903_gl_integrity::info(),
             RustCheck::P903GlIntegrity,
+        ),
+        (
+            "QC-011",
+            checks::kb_integrity::info(),
+            RustCheck::KbIntegrity,
         ),
     ]
     .into_iter()
@@ -793,7 +799,7 @@ mod tests {
     #[test]
     fn stable_codes_and_unique_ids_are_loaded() {
         let snapshot = build_snapshot(7).expect("registry");
-        assert_eq!(snapshot.definitions.len(), 10);
+        assert_eq!(snapshot.definitions.len(), 11);
         assert_eq!(
             snapshot
                 .definitions
@@ -903,7 +909,7 @@ mod tests {
             .find(|item| item.info.id == "p907_gl_coverage")
             .expect("overridden definition");
         assert_eq!(definition.info.name, "External override");
-        assert_eq!(snapshot.definitions.len(), 10);
+        assert_eq!(snapshot.definitions.len(), 11);
 
         std::fs::remove_dir_all(root).expect("remove temporary catalog");
     }
@@ -926,7 +932,7 @@ mod tests {
         let candidate = build_snapshot_from_root(previous.generation + 1, Some(&root));
         assert!(candidate.is_err());
         assert_eq!(previous.generation, 11);
-        assert_eq!(previous.definitions.len(), 10);
+        assert_eq!(previous.definitions.len(), 11);
 
         std::fs::remove_dir_all(root).expect("remove temporary catalog");
     }

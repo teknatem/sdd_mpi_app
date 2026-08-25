@@ -123,6 +123,14 @@ async fn execute_definition(
                     ..Default::default()
                 }
             }
+            RustCheck::KbIntegrity => {
+                let result = checks::kb_integrity::run().await?;
+                registry::CheckOutput {
+                    metrics: result.metrics,
+                    violations: result.violations,
+                    ..Default::default()
+                }
+            }
         },
         CheckExecutor::Javascript(js) => {
             let (value, logs) = crate::plugins::engine::invoke_ephemeral_server_script_with_limits(

@@ -6,16 +6,18 @@ related: [p904_sales_data, a024_bi_indicator]
 updated: 2026-03-17
 ---
 
-# Summary
+# DV001 Revenue
+
+## Summary
 
 `dv001_revenue` — семантический слой BI над `p904_sales_data`. Он превращает строки проекции в метрики и drilldown, пригодные для индикаторов и дашбордов.
 
-# Data Source
+## Data Source
 
 - Источник данных: `p904_sales_data`.
 - Контекст фильтрации: `date_from`, `date_to`, опционально `period2_from`, `period2_to`, `connection_mp_refs`.
 
-# Supported Metrics
+## Supported Metrics
 
 - `revenue` = `customer_in + customer_out`
 - `order_count` = `COUNT(DISTINCT registrator_ref)`
@@ -26,7 +28,7 @@ updated: 2026-03-17
 - `profit` = `-seller_out`
 - `profit_d` = `(customer_in + customer_out) + cost`
 
-# Supported Drilldown Dimensions
+## Supported Drilldown Dimensions
 
 - `date`
 - `article`
@@ -36,12 +38,12 @@ updated: 2026-03-17
 - `nomenclature_ref`
 - `dim1` .. `dim6`
 
-# Role For A024
+## Role For A024
 
 Если в `a024_bi_indicator.data_spec.view_id = dv001_revenue`, то индикатор вычисляется именно через этот DataView.
 `metric_id` из индикатора пробрасывается в `ViewContext.params["metric"]`.
 
-# Pitfalls
+## Pitfalls
 
 - Для WB KPI правильнее описывать метрику через `metric_id`, а не писать свободный SQL.
 - `order_count` считает distinct `registrator_ref`, а не количество строк в `p904_sales_data`.

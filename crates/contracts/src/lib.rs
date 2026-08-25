@@ -2,6 +2,7 @@ pub mod dashboards;
 pub mod domain;
 pub mod enums;
 pub mod general_ledger;
+pub mod knowledge;
 pub mod plugins;
 pub mod processes;
 pub mod projections;

@@ -163,9 +163,12 @@ cargo test -p backend router_builds   # после правок роутов: к
 >
 > **CI** — `.github/workflows/ci.yml`: fmt, `check` по трём крейтам, тесты
 > backend, clippy (пока advisory), и храповик против базовой ветки на PR.
-> Проверка форматирования фильтрует `*_gen.rs`: их пишет `contracts/build.rs`
-> прямо в `src/`, и `write_if_changed` вернёт неформатированный вид на
-> следующей сборке.
+> Проверка форматирования — обычный `cargo fmt --all -- --check`, без фильтров:
+> генератор `contracts/build.rs` ставит в каждый `*_gen.rs` первой строкой
+> `#![cfg_attr(rustfmt, rustfmt::skip)]`, и rustfmt их не трогает. **Не убирай
+> этот атрибут**: файлы пишутся прямо в `src/`, а `write_if_changed` сверяет их
+> с выводом генератора — отформатированный файл откатывается на следующей же
+> сборке, и `cargo fmt --all` снова начнёт «менять 61 файл» вхолостую.
 >
 > **Стоимость сборки** измеряется отдельно: `tools/measure_build.ps1` (10–20 мин,
 > в хук не входит) пишет `build_timings.json`, оттуда числа попадают в метрики.
@@ -324,6 +327,7 @@ p907 = YM payment report; u503 = import from Yandex; ds01–ds03 — базов�
 | `data_schemes/` | dsXX — схемы для universal dashboard |
 | `dashboards/` | d4XX |
 | `processes/` | Механизм Процессов: `actions/`, `stages/`, `graph`, `worker`, `effect_log` |
+| `knowledge/` | Инвентаризация знаний: реестр поверхностей, разметка инструментов, снимки |
 | `quality/checks/` | Quality-checks (популяция/нарушения/доля) |
 | `system/` | `auth`, `access`, `roles`, `users`, `tasks` (планировщик), `audit`, `history`, `favorites`, `settings`, `middleware`, `initialization` |
 | `shared/` | `analytics` (account/turnover registry, нормализация, wb_mapping), `indicators` (BI compute), `llm`, `marketplaces`, `representation`, `universal_dashboard`, `drilldown`, `format`, `config` |

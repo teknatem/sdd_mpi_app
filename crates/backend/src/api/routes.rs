@@ -2748,6 +2748,25 @@ fn kb_read_routes() -> Router<AppState> {
         .route("/api/kb/articles/:id", get(handlers::kb_read::get_article))
         .route("/api/kb/vocabulary", get(handlers::kb_read::vocabulary))
         .route("/api/kb/issues", get(handlers::kb_read::issues))
+        // Инвентаризация знаний живёт под тем же scope: она отвечает на тот же
+        // вопрос — «что в базе знаний есть», — только шире, чем статьи. Свой
+        // scope сломал бы уже розданные роли ради переименования.
+        .route(
+            "/api/knowledge/inventory",
+            get(handlers::knowledge::inventory),
+        )
+        .route(
+            "/api/knowledge/inventory/surfaces",
+            get(handlers::knowledge::surfaces),
+        )
+        .route(
+            "/api/knowledge/inventory/unit/:id",
+            get(handlers::knowledge::unit),
+        )
+        .route(
+            "/api/knowledge/inventory/history",
+            get(handlers::knowledge::history),
+        )
         .layer(middleware::from_fn(
             |req: Request<Body>, next: Next| async move {
                 check_scope_read("knowledge_base", req, next).await
@@ -2759,6 +2778,10 @@ fn kb_read_routes() -> Router<AppState> {
     let mutating = Router::new()
         .route("/api/kb/reload", post(handlers::kb_read::reload))
         .route("/api/kb/generate", post(handlers::kb_read::generate))
+        .route(
+            "/api/knowledge/inventory/collect",
+            post(handlers::knowledge::collect),
+        )
         .layer(middleware::from_fn(
             |req: Request<Body>, next: Next| async move {
                 check_scope("knowledge_base", req, next).await

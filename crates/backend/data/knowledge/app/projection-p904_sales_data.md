@@ -6,11 +6,13 @@ related: [a012_wb_sales, dv001_revenue, a024_bi_indicator, a025_bi_dashboard]
 updated: 2026-03-17
 ---
 
-# Summary
+# P904 Sales Data
+
+## Summary
 
 `p904_sales_data` — единая BI-проекция продаж маркетплейсов. Для WB именно она является главным источником сумм, расходов, комиссии, прибыли и других агрегируемых показателей.
 
-# WB Projection Logic
+## WB Projection Logic
 
 Для документа `a012_wb_sales` проекция рассчитывает:
 
@@ -25,18 +27,18 @@ updated: 2026-03-17
 - `seller_out` = `-(customer_out + customer_in) - (acquiring_out + coinvest_in + commission_out)`
 - `total` = `-seller_out`
 
-# Additional Enrichment
+## Additional Enrichment
 
 - `cost` подтягивается из `p906_nomenclature_prices` по `nomenclature_ref` и дате продажи.
 - Для продаж `cost` хранится со знаком минус.
 - Для возвратов `cost` хранится со знаком плюс.
 
-# Role For Indicators
+## Role For Indicators
 
 Индикаторы WB не должны читать `a012_wb_sales` напрямую, если нужен KPI уровень.
 Они должны использовать `DataView` поверх `p904_sales_data`.
 
-# Typical Metrics
+## Typical Metrics
 
 - `revenue` = `customer_in + customer_out`
 - `cost` = `cost`
@@ -44,7 +46,7 @@ updated: 2026-03-17
 - `expenses` = `acquiring_out + penalty_out + logistics_out`
 - `profit` = `-seller_out`
 
-# Pitfalls
+## Pitfalls
 
 - В этой проекции знаки полей важны. Многие расходы уже записаны отрицательными величинами.
 - `registrator_type = WB_Sales` указывает, что строка пришла из `a012_wb_sales`.

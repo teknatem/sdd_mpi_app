@@ -26,6 +26,7 @@ pub mod data_schemes;
 pub mod data_view;
 pub mod domain;
 pub mod general_ledger;
+pub mod knowledge;
 pub mod plugins;
 pub mod processes;
 pub mod projections;

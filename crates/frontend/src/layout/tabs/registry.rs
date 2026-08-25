@@ -93,6 +93,7 @@ use crate::general_ledger::ui::{
     GlAccountViewPage, GlDrilldownPage, SupplierBalancePage, WbWeeklyReconciliationPage,
     YmRevenueReconciliationPage,
 };
+use crate::knowledge::page::KnowledgeInventoryPage;
 use crate::layout::global_context::AppGlobalContext;
 use crate::navigator::marketplace::MarketplaceNavigator;
 use crate::projections::p900_mp_sales_register::ui::list::SalesRegisterList;
@@ -111,7 +112,7 @@ use crate::projections::p913_wb_advert_order_attr::ui::list::WbAdvertOrderAttrLi
 use crate::projections::p914_mp_finance_turnovers::ui::list::MpFinanceTurnoverList;
 use crate::shared::bi_timeline::ui::{BiTimelineInitial, BiTimelinePage};
 use crate::shared::drilldown_report::DrilldownReportPage;
-use crate::shared::knowledge_base::ui::{KnowledgeArticlePage, KnowledgeBaseWorkspace};
+use crate::shared::knowledge_base::ui::KnowledgeArticlePage;
 use crate::shared::universal_dashboard::{SchemaBrowser, UniversalDashboard};
 use crate::system::datasets::ui::DatasetsPage;
 use crate::system::pages::style_guide::StyleGuidePage;
@@ -725,7 +726,7 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
             }
             .into_any()
         }
-        "knowledge_base" => view! { <KnowledgeBaseWorkspace /> }.into_any(),
+        "knowledge_base" => view! { <KnowledgeInventoryPage /> }.into_any(),
         k if k.starts_with("kb_article_") => {
             let id = k.strip_prefix("kb_article_").unwrap().to_string();
             view! {

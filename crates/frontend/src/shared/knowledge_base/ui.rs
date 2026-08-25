@@ -1,322 +1,23 @@
+//! Компоненты базы знаний: дерево статей, панель чтения, словарь, разметка.
+//!
+//! Страницей этот модуль быть перестал. Каркас переехал в
+//! `crate::knowledge` — на страницу «Инвентаризация знаний», где дерево статей
+//! стало одной вкладкой из шести. Здесь остались части, которые нужны в двух
+//! местах сразу: на той вкладке и в отдельной вкладке статьи (`kb_article_*`).
+//! Вторая копия любого из них разошлась бы с первой молча.
+
 use super::api::{
-    fetch_kb_article, fetch_kb_stats, fetch_kb_tree, fetch_kb_vocabulary, post_kb_generate,
-    post_kb_reload, KbArticleDetail, KbArticleSummary, KbStatsResponse, KbTreeNode,
-    KbVocabularyResponse,
+    fetch_kb_article, KbArticleDetail, KbArticleSummary, KbTreeNode, KbVocabularyResponse,
 };
 use super::links::KbLinkedText;
 use crate::layout::global_context::AppGlobalContext;
-use crate::shared::components::close_page_button::ClosePageButton;
-use crate::shared::components::ui::badge::Badge as UiBadge;
 use crate::shared::icons::icon;
 use crate::shared::page_frame::PageFrame;
-use crate::shared::page_standard::{PAGE_CAT_DETAIL, PAGE_CAT_LIST};
+use crate::shared::page_standard::PAGE_CAT_DETAIL;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::collections::BTreeSet;
 use thaw::*;
-
-#[component]
-pub fn KnowledgeBaseWorkspace() -> impl IntoView {
-    let tabs_store =
-        leptos::context::use_context::<AppGlobalContext>().expect("AppGlobalContext not found");
-    let (stats, set_stats) = signal::<Option<KbStatsResponse>>(None);
-    let (tree, set_tree) = signal::<Vec<KbTreeNode>>(Vec::new());
-    let (selected, set_selected) = signal::<Option<KbArticleDetail>>(None);
-    let (loading, set_loading) = signal(false);
-    let (error, set_error) = signal::<Option<String>>(None);
-    let (vocabulary, set_vocabulary) = signal::<Option<KbVocabularyResponse>>(None);
-    let (reloading, set_reloading) = signal(false);
-    let (generating, set_generating) = signal(false);
-    let (notice, set_notice) = signal::<Option<String>>(None);
-    let collapsed_paths = RwSignal::new(BTreeSet::<String>::new());
-    let tab = RwSignal::new("business".to_string());
-
-    let open_article_tab = move |article: KbArticleSummary| {
-        tabs_store.open_tab(
-            &format!("kb_article_{}", article.id),
-            &format!("KB {}", article.title),
-        );
-    };
-
-    let select_article = Callback::new(move |article: KbArticleSummary| {
-        spawn_local(async move {
-            set_error.set(None);
-            match fetch_kb_article(&article.id).await {
-                Ok(detail) => set_selected.set(Some(detail)),
-                Err(err) => set_error.set(Some(err)),
-            }
-        });
-    });
-
-    let load = move || {
-        spawn_local(async move {
-            set_loading.set(true);
-            set_error.set(None);
-            match fetch_kb_stats().await {
-                Ok(payload) => set_stats.set(Some(payload)),
-                Err(err) => set_error.set(Some(err)),
-            }
-            match fetch_kb_tree().await {
-                Ok(payload) => set_tree.set(payload.roots),
-                Err(err) => set_error.set(Some(err)),
-            }
-            match fetch_kb_vocabulary().await {
-                Ok(payload) => set_vocabulary.set(Some(payload)),
-                Err(err) => set_error.set(Some(err)),
-            }
-            set_loading.set(false);
-        });
-    };
-
-    // Статьи правятся в Obsidian снаружи приложения, поэтому нужна явная
-    // перезагрузка с диска — иначе правка видна только после рестарта бэкенда.
-    let reload_from_disk = move || {
-        spawn_local(async move {
-            set_reloading.set(true);
-            set_error.set(None);
-            set_notice.set(None);
-            match post_kb_reload().await {
-                Ok(payload) => {
-                    set_notice.set(Some(format!(
-                        "База перечитана: {} статей ({} бизнес), словарь — {} терминов, тегов вне словаря — {}.",
-                        payload.total_articles,
-                        payload.file_articles,
-                        payload.vocabulary_terms,
-                        payload.unknown_tag_count,
-                    )));
-                    load();
-                }
-                Err(err) => set_error.set(Some(err)),
-            }
-            set_reloading.set(false);
-        });
-    };
-
-    // Карты корпуса `generated` собираются из БД и рантайма: после импорта или
-    // установки плагина их нужно пересобрать, иначе в базе висят прошлые цифры.
-    let regenerate_maps = move || {
-        spawn_local(async move {
-            set_generating.set(true);
-            set_error.set(None);
-            set_notice.set(None);
-            match post_kb_generate().await {
-                Ok(payload) => {
-                    set_notice.set(Some(format!(
-                        "Карты пересобраны: {} файлов, таблиц в профиле — {}, плагинов — {}, навыков — {}, проверок — {}.{}",
-                        payload.files.len(),
-                        payload.tables_profiled,
-                        payload.plugins,
-                        payload.skills,
-                        payload.quality_checks,
-                        if payload.errors.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" Ошибки: {}", payload.errors.join("; "))
-                        },
-                    )));
-                    load();
-                }
-                Err(err) => set_error.set(Some(err)),
-            }
-            set_generating.set(false);
-        });
-    };
-
-    Effect::new(move |_| load());
-
-    view! {
-        <PageFrame page_id="knowledge_base--list" category=PAGE_CAT_LIST class="kb-workspace">
-            <div class="page__header">
-                <div class="page__header-left">
-                    <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
-                        <h2 class="page__title" style="font-size: 20px; line-height: 1.2; margin: 0;">"База знаний"</h2>
-                        <UiBadge variant="primary".to_string()>
-                            {move || stats.get().map(|s| s.total_articles).unwrap_or(0).to_string()}
-                        </UiBadge>
-                        {move || stats.get().map(|s| view! {
-                            <span style="font-size: 12px; color: var(--colorNeutralForeground3);">
-                                {format!(
-                                    "{} бизнес · {} документация · {} карты · якорей у {} объектов",
-                                    s.business_articles, s.app_articles, s.generated_articles, s.anchored_entities,
-                                )}
-                            </span>
-                        })}
-                        {move || stats.get().filter(|s| s.drafts > 0).map(|s| view! {
-                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Warning>
-                                {format!("черновиков: {}", s.drafts)}
-                            </Badge>
-                        })}
-                        {move || stats.get().filter(|s| s.stale_articles > 0).map(|s| view! {
-                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Danger>
-                                {format!("протухло: {}", s.stale_articles)}
-                            </Badge>
-                        })}
-                        {move || stats.get().filter(|s| s.open_issues > 0).map(|s| view! {
-                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Danger>
-                                {format!("замечаний: {}", s.open_issues)}
-                            </Badge>
-                        })}
-                        {move || stats.get().filter(|s| s.dangling_links > 0).map(|s| view! {
-                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Warning>
-                                {format!("связей в никуда: {}", s.dangling_links)}
-                            </Badge>
-                        })}
-                        {move || stats.get().filter(|s| s.unknown_anchor_count > 0).map(|s| view! {
-                            <Badge appearance=BadgeAppearance::Tint color=BadgeColor::Warning>
-                                {format!("якорей вне реестра: {}", s.unknown_anchor_count)}
-                            </Badge>
-                        })}
-                    </div>
-                </div>
-                <div class="page__header-right">
-                    <Space>
-                        <Button
-                            appearance=ButtonAppearance::Secondary
-                            on_click=move |_| reload_from_disk()
-                            disabled=Signal::derive(move || reloading.get())
-                        >
-                            {move || if reloading.get() { "Читаю..." } else { "Перечитать базу" }}
-                        </Button>
-                        <Button
-                            appearance=ButtonAppearance::Secondary
-                            on_click=move |_| regenerate_maps()
-                            disabled=Signal::derive(move || generating.get())
-                        >
-                            {move || if generating.get() { "Собираю..." } else { "Собрать карты" }}
-                        </Button>
-                        <Button
-                            appearance=ButtonAppearance::Primary
-                            on_click=move |_| load()
-                            disabled=Signal::derive(move || loading.get())
-                        >
-                            {move || if loading.get() { "Загрузка..." } else { "Обновить" }}
-                        </Button>
-                        <ClosePageButton />
-                    </Space>
-                </div>
-            </div>
-
-            <div class="page__content">
-                {move || error.get().map(|msg| view! { <div class="alert alert--error">{msg}</div> })}
-                {move || notice.get().map(|msg| view! { <div class="alert alert--success">{msg}</div> })}
-
-                <div class="detail-grid">
-                    <div class="detail-grid__col">
-                        <Card>
-                            <TabList selected_value=tab>
-                                <Tab value="business">
-                                    "Obsidian: бизнес"
-                                    {move || stats.get().map(|s| format!(" ({})", s.business_articles)).unwrap_or_default()}
-                                </Tab>
-                                <Tab value="app">
-                                    "Документация приложения"
-                                    {move || stats.get().map(|s| format!(" ({})", s.app_articles)).unwrap_or_default()}
-                                </Tab>
-                                <Tab value="generated">
-                                    "Карты из данных"
-                                    {move || stats.get().map(|s| format!(" ({})", s.generated_articles)).unwrap_or_default()}
-                                </Tab>
-                                <Tab value="vocabulary">
-                                    "Словарь"
-                                    {move || stats.get().map(|s| format!(" ({})", s.vocabulary_terms)).unwrap_or_default()}
-                                </Tab>
-                            </TabList>
-
-                            {move || (tab.get() == "vocabulary").then(|| view! {
-                                <KbVocabularyView vocabulary=vocabulary.get() />
-                            })}
-
-                            <div
-                                style="display: flex; gap: var(--spacing-xs); margin: var(--spacing-xs) 0;"
-                                class:hidden=move || tab.get() == "vocabulary"
-                            >
-                                <Button
-                                    appearance=ButtonAppearance::Subtle
-                                    on_click=move |_| collapsed_paths.set(BTreeSet::new())
-                                >
-                                    "Развернуть"
-                                </Button>
-                                <Button
-                                    appearance=ButtonAppearance::Subtle
-                                    on_click=move |_| {
-                                        let current_tree = filter_tree_by_corpus(
-                                            &tree.get(),
-                                            &tab.get_untracked(),
-                                        );
-                                        collapsed_paths.set(collect_folder_paths(&current_tree));
-                                    }
-                                >
-                                    "Свернуть"
-                                </Button>
-                            </div>
-                            {move || if tab.get() == "vocabulary" {
-                                view! { <span></span> }.into_any()
-                            } else if loading.get() && tree.get().is_empty() {
-                                view! {
-                                    <Flex gap=FlexGap::Small align=FlexAlign::Center>
-                                        <Spinner />
-                                        <span>"Загрузка..."</span>
-                                    </Flex>
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <div class="kb-tree">
-                                        {move || {
-                                            let corpus = tab.get();
-                                            let current_tree = filter_tree_by_corpus(&tree.get(), &corpus);
-                                            if current_tree.is_empty() {
-                                                view! {
-                                                    <p style="color: var(--colorNeutralForeground3);">
-                                                        {match corpus.as_str() {
-                                                            "app" => "Документация приложения не найдена.",
-                                                            "generated" => "Карт нет — соберите их кнопкой «Собрать карты».",
-                                                            _ => "В Obsidian-базе пока нет бизнес-статей организации.",
-                                                        }}
-                                                    </p>
-                                                }.into_any()
-                                            } else {
-                                                view! {
-                                                    {flatten_visible_tree(&current_tree, &collapsed_paths.get()).into_iter().map(|node| view! {
-                                                        <KbTreeRow
-                                                            node=node
-                                                            collapsed_paths=collapsed_paths
-                                                            on_select=select_article
-                                                        />
-                                                    }).collect_view()}
-                                                }.into_any()
-                                            }
-                                        }}
-                                    </div>
-                                }.into_any()
-                            }}
-                        </Card>
-                    </div>
-
-                    <div class="detail-grid__col">
-                        {move || {
-                            if let Some(article) = selected.get() {
-                                let summary = article_summary(&article);
-                                view! {
-                                    <KnowledgeArticlePanel
-                                        article=article
-                                        show_header=true
-                                        on_open=Callback::new(move |_| open_article_tab(summary.clone()))
-                                    />
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <Card>
-                                        <p style="color: var(--colorNeutralForeground3); margin: 0;">"Выберите статью в дереве слева."</p>
-                                    </Card>
-                                }.into_any()
-                            }
-                        }}
-                    </div>
-                </div>
-            </div>
-        </PageFrame>
-    }
-}
 
 #[component]
 pub fn KnowledgeArticlePage(id: String, #[prop(into)] on_close: Callback<()>) -> impl IntoView {
@@ -398,7 +99,7 @@ pub fn KnowledgeArticlePage(id: String, #[prop(into)] on_close: Callback<()>) ->
 }
 
 #[derive(Debug, Clone)]
-struct FlatKbTreeNode {
+pub struct FlatKbTreeNode {
     level: usize,
     name: String,
     path: String,
@@ -407,7 +108,7 @@ struct FlatKbTreeNode {
 }
 
 #[component]
-fn KbTreeRow(
+pub fn KbTreeRow(
     node: FlatKbTreeNode,
     collapsed_paths: RwSignal<BTreeSet<String>>,
     on_select: Callback<KbArticleSummary>,
@@ -457,7 +158,7 @@ fn KbTreeRow(
 
 /// Словарь тегов: канонические термины по группам + рабочий список куратора.
 #[component]
-fn KbVocabularyView(vocabulary: Option<KbVocabularyResponse>) -> impl IntoView {
+pub fn KbVocabularyView(vocabulary: Option<KbVocabularyResponse>) -> impl IntoView {
     let Some(vocabulary) = vocabulary else {
         return view! {
             <p style="color: var(--colorNeutralForeground3);">"Словарь тегов загружается..."</p>
@@ -555,7 +256,7 @@ fn status_badge(status: &str) -> Option<(&'static str, BadgeColor)> {
 }
 
 #[component]
-fn KnowledgeArticlePanel(
+pub fn KnowledgeArticlePanel(
     article: KbArticleDetail,
     /// Show the article title as a clickable link (set false when the page header already shows it).
     #[prop(default = true)]
@@ -835,7 +536,7 @@ fn KbMarkdown(text: String) -> impl IntoView {
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
-fn flatten_visible_tree(
+pub fn flatten_visible_tree(
     nodes: &[KbTreeNode],
     collapsed_paths: &BTreeSet<String>,
 ) -> Vec<FlatKbTreeNode> {
@@ -865,7 +566,7 @@ fn corpus_label(corpus: &str) -> &'static str {
 }
 
 /// Дерево одного корпуса: `business` | `app` | `generated`.
-fn filter_tree_by_corpus(nodes: &[KbTreeNode], corpus: &str) -> Vec<KbTreeNode> {
+pub fn filter_tree_by_corpus(nodes: &[KbTreeNode], corpus: &str) -> Vec<KbTreeNode> {
     nodes
         .iter()
         .filter_map(|node| filter_tree_node_by_corpus(node, corpus))
@@ -913,7 +614,7 @@ fn flatten_visible_tree_node(
     }
 }
 
-fn collect_folder_paths(nodes: &[KbTreeNode]) -> BTreeSet<String> {
+pub fn collect_folder_paths(nodes: &[KbTreeNode]) -> BTreeSet<String> {
     let mut paths = BTreeSet::new();
     for node in nodes {
         collect_folder_paths_node(node, &mut paths);
@@ -930,7 +631,7 @@ fn collect_folder_paths_node(node: &KbTreeNode, paths: &mut BTreeSet<String>) {
     }
 }
 
-fn article_summary(article: &KbArticleDetail) -> KbArticleSummary {
+pub fn article_summary(article: &KbArticleDetail) -> KbArticleSummary {
     KbArticleSummary {
         id: article.id.clone(),
         title: article.title.clone(),

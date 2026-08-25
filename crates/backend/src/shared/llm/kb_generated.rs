@@ -129,6 +129,10 @@ fn write_map(report: &mut GenerateReport, file_name: &str, content: &str) {
 
 /// Шапка карты. `entities` — якоря: по ним карта находится вместе со статьями
 /// об этих же объектах, в том числе из `get_entity_schema`.
+///
+/// Заголовок документа (`# ...`) пишется здесь, а не в каждой карте: `SEC-01`
+/// требует его первой значащей строкой тела, и одно место записи — гарантия,
+/// что новая карта не заведётся без него.
 fn front_matter(title: &str, summary: &str, tags: &[&str], entities: &[String]) -> String {
     let mut out = String::from("---\nkind: generated\n");
     let _ = writeln!(out, "title: {title}");
@@ -139,7 +143,73 @@ fn front_matter(title: &str, summary: &str, tags: &[&str], entities: &[String]) 
     }
     let _ = writeln!(out, "updated: {}", chrono::Utc::now().format("%Y-%m-%d"));
     out.push_str("---\n\n");
+    let _ = writeln!(out, "# {title}\n");
     out
+}
+
+/// Заголовок раздела с якорем — стандарт `SEC-1`, уровень 1.
+///
+/// Якорь у машинной карты берётся из ключа объекта, а не из формулировки:
+/// заголовок раздела перепишут, ключ переживёт. Ради этого якоря и заводятся.
+fn section(out: &mut String, title: &str, slug: &str) {
+    let _ = write!(out, "## {title} {{#{slug}}}\n\n");
+}
+
+/// Русское название → якорь `[a-z0-9-]`.
+///
+/// Нужна там, где ключа объекта нет и заголовок — единственное, что есть
+/// (категории разделов UI). Транслитерация, а не хеш: якорь читает человек.
+fn slugify(raw: &str) -> String {
+    const CYRILLIC: [(char, &str); 33] = [
+        ('а', "a"),
+        ('б', "b"),
+        ('в', "v"),
+        ('г', "g"),
+        ('д', "d"),
+        ('е', "e"),
+        ('ё', "e"),
+        ('ж', "zh"),
+        ('з', "z"),
+        ('и', "i"),
+        ('й', "y"),
+        ('к', "k"),
+        ('л', "l"),
+        ('м', "m"),
+        ('н', "n"),
+        ('о', "o"),
+        ('п', "p"),
+        ('р', "r"),
+        ('с', "s"),
+        ('т', "t"),
+        ('у', "u"),
+        ('ф', "f"),
+        ('х', "h"),
+        ('ц', "c"),
+        ('ч', "ch"),
+        ('ш', "sh"),
+        ('щ', "sch"),
+        ('ъ', ""),
+        ('ы', "y"),
+        ('ь', ""),
+        ('э', "e"),
+        ('ю', "yu"),
+        ('я', "ya"),
+    ];
+    let mut out = String::new();
+    for ch in raw.to_lowercase().chars() {
+        if ch.is_ascii_lowercase() || ch.is_ascii_digit() {
+            out.push(ch);
+        } else if let Some((_, latin)) = CYRILLIC.iter().find(|(c, _)| *c == ch) {
+            out.push_str(latin);
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    let trimmed = out.trim_matches('-');
+    // Верхняя граница якоря по `SEC-07` — 40 символов; режем по границе слова,
+    // чтобы обрубок оставался читаемым.
+    let capped: String = trimmed.chars().take(40).collect();
+    capped.trim_matches('-').to_string()
 }
 
 fn generated_note() -> &'static str {
@@ -178,6 +248,7 @@ async fn data_profile_map() -> String {
         return out;
     }
 
+    section(&mut out, "Таблицы, строки и периоды", "tables");
     out.push_str("| Объект | Таблица | Строк | Период | Колонка даты | Незаполненные ссылки |\n");
     out.push_str("|---|---|---:|---|---|---|\n");
     for row in &rows {
@@ -221,11 +292,21 @@ async fn data_profile_map() -> String {
         .filter(|r| r.row_count == 0)
         .map(|r| r.table_name.as_str())
         .collect();
-    if !empty.is_empty() {
-        let _ = write!(
+    // Раздел пишется всегда, даже когда пустых таблиц нет: структура карты не
+    // должна зависеть от данных — иначе `SEC-03` срабатывает через раз, а модель
+    // не может опереться на оглавление.
+    out.push('\n');
+    section(
+        &mut out,
+        &format!("Пустые таблицы ({})", empty.len()),
+        "empty",
+    );
+    if empty.is_empty() {
+        out.push_str("Пустых таблиц нет.\n");
+    } else {
+        let _ = writeln!(
             out,
-            "\n## Пустые таблицы ({})\n\nЗапрос к ним вернёт ноль строк независимо от фильтров: {}\n",
-            empty.len(),
+            "Запрос к ним вернёт ноль строк независимо от фильтров: {}",
             empty
                 .iter()
                 .map(|t| format!("`{t}`"))
@@ -273,7 +354,9 @@ async fn plugins_map(report: &mut GenerateReport) -> String {
         return out;
     }
 
-    out.push_str("| Код | Название | Назначение | Рантайм | Статус | Включён | Версия | SQL-ресурсы |\n");
+    out.push_str(
+        "| Код | Название | Назначение | Рантайм | Статус | Включён | Версия | SQL-ресурсы |\n",
+    );
     out.push_str("|---|---|---|---|---|---|---:|---|\n");
     for plugin in &plugins {
         let manifest = &plugin.bundle.manifest;
@@ -351,7 +434,7 @@ async fn processes_map(report: &mut GenerateReport) -> String {
     match crate::processes::repository::list_process_head_records(db).await {
         Ok(processes) => {
             report.processes = processes.len();
-            out.push_str("## Процессы\n\n");
+            section(&mut out, "Процессы", "processes");
             if processes.is_empty() {
                 out.push_str("_Процессов нет._\n\n");
             } else {
@@ -382,15 +465,18 @@ async fn processes_map(report: &mut GenerateReport) -> String {
             }
         }
         Err(error) => {
-            report.errors.push(format!("Процессы не прочитаны: {error}"));
-            out.push_str("## Процессы\n\n_Список недоступен._\n\n");
+            report
+                .errors
+                .push(format!("Процессы не прочитаны: {error}"));
+            section(&mut out, "Процессы", "processes");
+            out.push_str("_Список недоступен._\n\n");
         }
     }
 
     match crate::processes::repository::list_stage_head_records(db).await {
         Ok(stages) => {
             report.stages = stages.len();
-            out.push_str("## Этапы\n\n");
+            section(&mut out, "Этапы", "stages");
             if stages.is_empty() {
                 out.push_str("_Этапов нет._\n");
             } else {
@@ -425,7 +511,8 @@ async fn processes_map(report: &mut GenerateReport) -> String {
         }
         Err(error) => {
             report.errors.push(format!("Этапы не прочитаны: {error}"));
-            out.push_str("## Этапы\n\n_Список недоступен._\n");
+            section(&mut out, "Этапы", "stages");
+            out.push_str("_Список недоступен._\n");
         }
     }
 
@@ -451,6 +538,7 @@ fn skills_map(report: &mut GenerateReport) -> String {
         return out;
     }
 
+    section(&mut out, "Каталог навыков", "catalog");
     out.push_str("| Навык | Название | Интенты | Инструментов | Ресурсы | По умолчанию для |\n");
     out.push_str("|---|---|---|---:|---|---|\n");
     for skill in snapshot.skills.iter() {
@@ -466,9 +554,11 @@ fn skills_map(report: &mut GenerateReport) -> String {
         );
     }
 
+    out.push('\n');
+    section(&mut out, "Инструменты по навыкам", "tools");
     let _ = write!(
         out,
-        "\n## Инструменты по навыкам\n\n{}",
+        "{}",
         snapshot
             .skills
             .iter()
@@ -485,9 +575,11 @@ fn skills_map(report: &mut GenerateReport) -> String {
     );
 
     if !snapshot.diagnostics.is_empty() {
+        out.push('\n');
+        section(&mut out, "Замечания загрузки", "diagnostics");
         let _ = write!(
             out,
-            "\n## Замечания загрузки\n\n{}",
+            "{}",
             snapshot
                 .diagnostics
                 .iter()
@@ -579,6 +671,7 @@ fn actions_map(report: &mut GenerateReport) -> String {
         return out;
     }
 
+    section(&mut out, "Каталог", "catalog");
     out.push_str("| Имя | host.actions | Право | Название | Обратимо | Пишет в |\n");
     out.push_str("|---|---|---|---|---|---|\n");
     for info in &actions {
@@ -594,12 +687,17 @@ fn actions_map(report: &mut GenerateReport) -> String {
             info.method,
             info.capability,
             one_line(info.title, 80),
-            if info.reversible { "да" } else { "**нет**" },
+            if info.reversible {
+                "да"
+            } else {
+                "**нет**"
+            },
             dash_join(&writes),
         );
     }
 
-    out.push_str("\n## Что делает каждое\n\n");
+    out.push('\n');
+    section(&mut out, "Что делает каждое", "details");
     for info in &actions {
         let _ = writeln!(
             out,
@@ -654,7 +752,7 @@ fn ui_map(report: &mut GenerateReport) -> String {
     }
 
     for category in order {
-        let _ = writeln!(out, "## {category}\n");
+        section(&mut out, category, &slugify(category));
         out.push_str("| Ключ раздела | Название в UI | Тип | Про что |\n");
         out.push_str("|---|---|---|---|\n");
         for scope in SCOPE_CATALOG.iter().filter(|s| s.category == category) {
@@ -675,6 +773,68 @@ fn ui_map(report: &mut GenerateReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Карты обязаны соответствовать стандарту разделов `SEC-1`.
+    ///
+    /// Проверяются синхронные карты — асинхронным нужна живая БД. Этого хватает:
+    /// заголовок документа пишет общий `front_matter`, и он один на все семь.
+    #[test]
+    fn generated_maps_follow_the_section_standard() {
+        let mut report = GenerateReport::default();
+        let maps = [
+            ("actions", actions_map(&mut report)),
+            ("skills", skills_map(&mut report)),
+            ("quality-checks", quality_checks_map(&mut report)),
+            ("ui-map", ui_map(&mut report)),
+        ];
+        for (name, content) in &maps {
+            let body = content
+                .splitn(3, "---\n")
+                .nth(2)
+                .expect("у карты есть frontmatter");
+            let violations = super::super::knowledge_base::validate_structure(body, false);
+            assert!(
+                violations.is_empty(),
+                "карта '{}' нарушает SEC-1: {:?}",
+                name,
+                violations
+            );
+        }
+    }
+
+    /// Карта без разделов отдаётся целиком — ради этого разделы и заводились.
+    #[test]
+    fn multi_part_maps_have_an_outline() {
+        let mut report = GenerateReport::default();
+        for (name, content) in [
+            ("actions", actions_map(&mut report)),
+            ("skills", skills_map(&mut report)),
+            ("ui-map", ui_map(&mut report)),
+        ] {
+            let sections = super::super::knowledge_base::outline(&content);
+            assert!(
+                sections.len() >= 2,
+                "карта '{}' не режется на разделы: {}",
+                name,
+                sections.len()
+            );
+            // Якорь у каждого: номер съедет от первой же новой категории.
+            assert!(
+                sections.iter().all(|s| s.slug.is_some()),
+                "карта '{}': раздел без якоря",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn slugify_transliterates_and_stays_within_the_anchor_format() {
+        assert_eq!(slugify("Справочники"), "spravochniki");
+        assert_eq!(slugify("Документы и отчёты"), "dokumenty-i-otchety");
+        // Длинное название режется до предела `SEC-07` и не оканчивается дефисом.
+        let long = slugify("Очень длинное название категории раздела интерфейса");
+        assert!(long.len() <= 40 && !long.ends_with('-'));
+    }
 
     /// Карта Действий обязана покрывать каталог целиком: она — единственный
     /// источник, по которому чат вообще узнаёт о существовании Действия.

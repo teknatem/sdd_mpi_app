@@ -1,6 +1,4 @@
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use crate::shared::analytics::ValueFormat;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

@@ -1,0 +1,427 @@
+/* Страница «Инвентаризация знаний».
+   Все правила — под корневым классом страницы (см. memory `per-page-css-convention`).
+   Собственный блок только один — `knowledge-inventory`; кнопки, плашки и рамка
+   страницы берутся из ядра, новых модификаторов к ним не заводится.
+
+   Размеры выражены токенами, а не пикселями: общие берутся из `--spacing-*`,
+   остальные объявлены здесь под корневым классом. Смысл тот же, что у глобальных
+   токенов — значение живёт в одном месте, а не размазано по сорока правилам. */
+
+.knowledge-inventory {
+    /* Плотная сетка: страница показывает четыреста строк, и воздух ядра тут
+       обошёлся бы половиной видимых данных. */
+    --ki-pad-tight: 2px;
+    --ki-pad-hair: 1px;
+    --ki-rule: 1px;
+    --ki-accent-rule: 3px;
+    --ki-indent-list: 18px;
+    --ki-pad-cell: 5px;
+    --ki-pad-chip: 6px;
+    --ki-pad-box: 10px;
+    --ki-pad-wide: 12px;
+    --ki-fs-note: 10px;
+    --ki-fs-sm: 11px;
+    --ki-fs: 12px;
+    --ki-fs-title: 14px;
+    --ki-fs-value: 22px;
+    --ki-facet-label: 150px;
+    --ki-chip-radius: 12px;
+}
+
+.knowledge-inventory__banner {
+    margin: var(--spacing-xs) 0;
+    padding: var(--spacing-sm) var(--ki-pad-wide);
+    border-radius: 4px;
+    background: var(--colorNeutralBackground3);
+    border-left: var(--ki-accent-rule) solid var(--colorBrandBackground);
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__banner--error {
+    border-left-color: var(--colorPaletteRedBorderActive);
+    color: var(--colorPaletteRedForeground1);
+}
+
+.knowledge-inventory__empty {
+    padding: var(--spacing-lg);
+    text-align: center;
+    color: var(--colorNeutralForeground3);
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin: var(--spacing-xs) 0;
+    font-size: var(--ki-fs-sm);
+    color: var(--colorNeutralForeground3);
+}
+
+/* ─── блоки сводки ─────────────────────────────────────────────────────── */
+
+.knowledge-inventory__block {
+    margin: var(--spacing-md) 0;
+}
+
+.knowledge-inventory__block-title {
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--ki-fs-title);
+    font-weight: 600;
+}
+
+.knowledge-inventory__hint {
+    margin: 0 0 var(--ki-pad-wide);
+    font-size: var(--ki-fs);
+    color: var(--colorNeutralForeground3);
+}
+
+.knowledge-inventory__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.knowledge-inventory__tile {
+    padding: var(--ki-pad-box) var(--ki-pad-wide);
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 4px;
+    background: var(--colorNeutralBackground1);
+}
+
+.knowledge-inventory__tile-value {
+    font-size: var(--ki-fs-value);
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.knowledge-inventory__tile-label {
+    margin-top: var(--ki-pad-tight);
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__tile-note {
+    margin-top: var(--ki-pad-tight);
+    font-size: var(--ki-fs-note);
+    color: var(--colorNeutralForeground3);
+}
+
+/* ─── поимённые списки: то, что нельзя заменить числом ──────────────────── */
+
+.knowledge-inventory__named {
+    margin: var(--ki-pad-box) 0;
+}
+
+.knowledge-inventory__named-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__named-label {
+    font-weight: 500;
+}
+
+.knowledge-inventory__count {
+    min-width: 20px;
+    padding: 0 var(--ki-pad-chip);
+    border-radius: 10px;
+    background: var(--colorNeutralBackground3);
+    font-size: var(--ki-fs-sm);
+    text-align: center;
+}
+
+.knowledge-inventory__count--bad {
+    background: var(--colorPaletteRedBackground2);
+    color: var(--colorPaletteRedForeground1);
+}
+
+.knowledge-inventory__named-empty {
+    margin-top: var(--ki-pad-tight);
+    font-size: var(--ki-fs-sm);
+    color: var(--colorNeutralForeground3);
+}
+
+.knowledge-inventory__named-list {
+    margin: var(--spacing-xs) 0 0;
+    padding-left: var(--ki-indent-list);
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__named-list li {
+    margin: var(--ki-pad-tight) 0;
+}
+
+/* ─── фильтры ──────────────────────────────────────────────────────────── */
+
+.knowledge-inventory__filters {
+    margin: var(--spacing-xs) 0;
+    padding: var(--ki-pad-box) var(--ki-pad-wide);
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 4px;
+}
+
+.knowledge-inventory__filters-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ki-pad-wide);
+    margin-bottom: var(--spacing-sm);
+}
+
+.knowledge-inventory__search {
+    flex: 1 1 320px;
+    max-width: 420px;
+    padding: var(--ki-pad-cell) var(--spacing-sm);
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: 4px;
+    background: var(--colorNeutralBackground1);
+    color: inherit;
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--ki-pad-chip);
+    font-size: var(--ki-fs);
+    white-space: nowrap;
+}
+
+.knowledge-inventory__facet {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ki-pad-box);
+    margin: var(--spacing-xs) 0;
+}
+
+.knowledge-inventory__facet-label {
+    flex: 0 0 150px;
+    font-size: var(--ki-fs-sm);
+    color: var(--colorNeutralForeground3);
+}
+
+.knowledge-inventory__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.knowledge-inventory__chip {
+    padding: var(--ki-pad-tight) var(--spacing-sm);
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 12px;
+    background: var(--colorNeutralBackground1);
+    color: inherit;
+    font-size: var(--ki-fs-sm);
+    cursor: pointer;
+}
+
+.knowledge-inventory__chip:hover {
+    border-color: var(--colorNeutralStroke1);
+}
+
+.knowledge-inventory__chip--on {
+    border-color: var(--colorBrandBackground);
+    background: var(--colorBrandBackground);
+    color: var(--colorNeutralForegroundOnBrand);
+}
+
+/* Значение, которого в системе нет. Не прячем: пустая строка фильтра сообщает
+   «такого не бывает» — это тоже ответ, и он бывает нужнее непустых. */
+.knowledge-inventory__chip--empty {
+    opacity: 0.45;
+}
+
+.knowledge-inventory__chip-count {
+    margin-left: var(--ki-pad-cell);
+    opacity: 0.7;
+}
+
+/* ─── таблица ──────────────────────────────────────────────────────────── */
+
+.knowledge-inventory__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-xs) 0;
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__pager {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Широкая таблица прокручивается внутри своего контейнера, а не тянет страницу. */
+.knowledge-inventory__table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 4px;
+}
+
+.knowledge-inventory__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--ki-fs);
+}
+
+.knowledge-inventory__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: var(--ki-pad-chip) var(--spacing-sm);
+    background: var(--colorNeutralBackground3);
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.knowledge-inventory__table td {
+    padding: var(--ki-pad-cell) var(--spacing-sm);
+    border-top: var(--ki-rule) solid var(--colorNeutralStroke2);
+    vertical-align: top;
+}
+
+.knowledge-inventory__table tbody tr {
+    cursor: pointer;
+}
+
+.knowledge-inventory__table tbody tr:hover {
+    background: var(--colorNeutralBackground2);
+}
+
+.knowledge-inventory__table tbody tr.knowledge-inventory__row--selected {
+    background: var(--colorNeutralBackground3);
+}
+
+.knowledge-inventory__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.knowledge-inventory__id {
+    font-family: var(--fontFamilyMonospace, monospace);
+    font-size: var(--ki-fs-sm);
+    color: var(--colorNeutralForeground2);
+}
+
+.knowledge-inventory__sub {
+    font-size: var(--ki-fs-sm);
+    color: var(--colorNeutralForeground3);
+}
+
+.knowledge-inventory__issues {
+    max-width: 320px;
+    font-size: var(--ki-fs-sm);
+    color: var(--colorPaletteRedForeground1);
+}
+
+/* Уровень достижимости. Красится только недостижимость — это дефект,
+   а не свойство; остальные уровни равноправны и цвета не заслуживают. */
+.knowledge-inventory__pill {
+    display: inline-block;
+    padding: var(--ki-pad-hair) var(--ki-pad-chip);
+    border-radius: 3px;
+    background: var(--colorNeutralBackground3);
+    font-size: var(--ki-fs-sm);
+    white-space: nowrap;
+}
+
+.knowledge-inventory__pill--bad {
+    background: var(--colorPaletteRedBackground2);
+    color: var(--colorPaletteRedForeground1);
+}
+
+.knowledge-inventory__pill--warn {
+    background: var(--colorPaletteYellowBackground2);
+    color: var(--colorPaletteYellowForeground1);
+}
+
+/* ─── вкладка «Статьи»: дерево и панель чтения ──────────────────────────── */
+
+.knowledge-inventory__split {
+    display: grid;
+    grid-template-columns: minmax(280px, 380px) 1fr;
+    gap: var(--spacing-md);
+    align-items: start;
+}
+
+@media (max-width: 960px) {
+    .knowledge-inventory__split {
+        grid-template-columns: 1fr;
+    }
+}
+
+.knowledge-inventory__tree {
+    max-height: 70vh;
+    overflow-y: auto;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 4px;
+    padding: var(--spacing-xs);
+}
+
+.knowledge-inventory__article {
+    min-width: 0;
+}
+
+/* ─── вкладка «Проблемы» ───────────────────────────────────────────────── */
+
+.knowledge-inventory__issue-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.knowledge-inventory__issue {
+    padding: var(--spacing-sm) var(--ki-pad-wide);
+    border: 1px solid var(--colorNeutralStroke2);
+    border-left: var(--ki-accent-rule) solid var(--colorPaletteRedBorderActive);
+    border-radius: 4px;
+}
+
+.knowledge-inventory__issue-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ki-pad-box);
+    font-size: var(--ki-fs);
+    font-weight: 500;
+}
+
+/* Карточка выбранной единицы: все поля, а не только колонки таблицы. */
+.knowledge-inventory__detail {
+    margin-top: var(--spacing-xs);
+    padding: var(--ki-pad-wide);
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 4px;
+    background: var(--colorNeutralBackground2);
+}
+
+.knowledge-inventory__dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--ki-pad-tight) var(--spacing-md);
+    margin: var(--spacing-sm) 0 0;
+}
+
+.knowledge-inventory__dl-row {
+    display: flex;
+    gap: var(--spacing-sm);
+    font-size: var(--ki-fs);
+    border-bottom: var(--ki-rule) dotted var(--colorNeutralStroke2);
+    padding: var(--ki-pad-tight) 0;
+}
+
+.knowledge-inventory__dl-row dt {
+    flex: 0 0 45%;
+    color: var(--colorNeutralForeground3);
+}
+
+.knowledge-inventory__dl-row dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}

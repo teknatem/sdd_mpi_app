@@ -434,6 +434,16 @@ scope = "crates/frontend/src/usecases/u*"
 files = ["mod.rs", "view.rs", "api.rs"]
 
 [[rules]]
+# Инвентаризация знаний — механизм, а не набор файлов: реестр поверхностей,
+# разметка инструментов, сбор, хранение и сборка ответа. Роль без файла
+# означает, что её обязанность расползлась по соседям.
+id = "be_knowledge_roles"
+type = "required_files"
+severity = "error"
+scope = "crates/backend/src/knowledge"
+files = ["mod.rs", "catalog.rs", "tool_map.rs", "collector.rs", "repository.rs", "service.rs"]
+
+[[rules]]
 id = "be_data_view_roles"
 type = "required_files"
 severity = "error"

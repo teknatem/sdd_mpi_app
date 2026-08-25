@@ -293,6 +293,7 @@ fn generate_registry_code(items: &[RegistryItem]) -> String {
          // Every aggregate/projection that has a metadata.json lands here automatically,\n\
          // so consumers (LLM metadata registry, dashboards) never miss a new entity.\n\
          // Filter with `EntityRegistration::meta.ai.llm_visible` / `.ai.tags`.\n\n\
+         #![cfg_attr(rustfmt, rustfmt::skip)]\n\
          #![allow(dead_code)]\n\n\
          use super::{EntityMetadataInfo, FieldMetadata};\n\n\
          /// One entity exposed through [`ALL_ENTITIES`].\n\
@@ -325,11 +326,18 @@ fn generate_registry_code(items: &[RegistryItem]) -> String {
 fn generate_rust_code(meta: &MetadataJson) -> String {
     let mut code = String::new();
 
-    // Header
+    // Header.
+    //
+    // rustfmt is told to skip the file rather than left to fight over it: the
+    // formatting here is the generator's, and `write_if_changed` compares against
+    // exactly that, so `cargo fmt --all` was reverted on the next build — 61 files
+    // flipping back and forth. `cfg(rustfmt)` is never set by rustc, so the
+    // attribute is invisible to the compiler and legal in a non-root module.
     code.push_str(
         "// ============================================================================\n\
          // AUTO-GENERATED FROM metadata.json - DO NOT EDIT MANUALLY\n\
-         // ============================================================================\n\n",
+         // ============================================================================\n\n\
+         #![cfg_attr(rustfmt, rustfmt::skip)]\n\n",
     );
 
     // Imports

@@ -1702,6 +1702,39 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
         scope_id: Some("knowledge_base"),
         mode: PolicyMode::Auto,
     },
+    // Инвентаризация знаний — тот же scope: она отвечает на тот же вопрос, что и
+    // страница базы знаний, только шире. Свой scope сломал бы розданные роли.
+    RoutePolicy {
+        method: "*",
+        path: "/api/knowledge/inventory",
+        scope_id: Some("knowledge_base"),
+        mode: PolicyMode::ReadOnly,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/knowledge/inventory/surfaces",
+        scope_id: Some("knowledge_base"),
+        mode: PolicyMode::ReadOnly,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/knowledge/inventory/unit/:id",
+        scope_id: Some("knowledge_base"),
+        mode: PolicyMode::ReadOnly,
+    },
+    RoutePolicy {
+        method: "*",
+        path: "/api/knowledge/inventory/history",
+        scope_id: Some("knowledge_base"),
+        mode: PolicyMode::ReadOnly,
+    },
+    // Пересбор снимка — действие: он пишет в БД.
+    RoutePolicy {
+        method: "*",
+        path: "/api/knowledge/inventory/collect",
+        scope_id: Some("knowledge_base"),
+        mode: PolicyMode::Auto,
+    },
     // Sys-drilldown session store (internal; tied to data_view usage)
     RoutePolicy {
         method: "*",

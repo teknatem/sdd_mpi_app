@@ -5,19 +5,21 @@ related: [sys_general_ledger, a024_bi_indicator, p909_mp_order_line_turnovers, p
 updated: 2026-05-10
 ---
 
-# Summary
+# DV004 General Ledger Turnovers
+
+## Summary
 
 `dv004_general_ledger_turnovers` — универсальный DataView для KPI на базе проводок General Ledger (`sys_general_ledger`).
 Используй его, когда пользователь спрашивает про сумму оборота GL: комиссию, рекламу, логистику, штрафы,
 выручку, возвраты или другие `turnover_code`.
 
-# Data Source
+## Data Source
 
 - Основной источник: `sys_general_ledger`.
 - Детализация по номенклатуре возможна, если GL-строки указывают на detail projection через `resource_table` и `general_ledger_ref`.
 - Перед выбором `turnover_code` вызывай `list_gl_turnovers([report_group])`.
 
-# Required Params
+## Required Params
 
 `dv004` требует дополнительные параметры в `params`:
 
@@ -27,12 +29,12 @@ updated: 2026-05-10
 
 Если указан `turnover_items`, `turnover_code` не нужен.
 
-# Metrics
+## Metrics
 
 - `amount` — подписанная сумма оборота.
 - `entry_count` — количество GL-строк по выбранной формуле.
 
-# Dimensions
+## Dimensions
 
 Базовые измерения:
 
@@ -52,7 +54,7 @@ updated: 2026-05-10
 - `dim5_sink`
 - `dim6_size`
 
-# Common Turnovers
+## Common Turnovers
 
 Для точного списка всегда используй `list_gl_turnovers`.
 
@@ -62,7 +64,7 @@ updated: 2026-05-10
 - Штрафы: `report_group=penalty`, обычно `turnover_code=mp_penalty`, `layer=fact`.
 - Выручка: `report_group=revenue`, обычно `turnover_code=customer_revenue`, слой зависит от вопроса.
 
-# Drilldown Examples
+## Drilldown Examples
 
 Комиссия WB по дням:
 
@@ -116,7 +118,7 @@ updated: 2026-05-10
 }
 ```
 
-# SQL Fallback
+## SQL Fallback
 
 Если нужно быстро ответить числом без drilldown-артефакта, используй `execute_query`:
 
@@ -130,7 +132,7 @@ WHERE layer = 'fact'
   AND connection_mp_ref = '<a006_connection_mp.id>';
 ```
 
-# Pitfalls
+## Pitfalls
 
 - Не угадывай `turnover_code`; сначала вызови `list_gl_turnovers`.
 - Для месяца в SQL лучше использовать полуоткрытый период: `entry_date >= 'YYYY-MM-01' AND entry_date < 'YYYY-MM+1-01'`.

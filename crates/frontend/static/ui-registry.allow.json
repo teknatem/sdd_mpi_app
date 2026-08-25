@@ -363,6 +363,7 @@
     { "block": "kb-meta", "layer": "page", "reason": "bootstrap" },
     { "block": "kb-vocabulary", "layer": "page", "reason": "bootstrap" },
     { "block": "kb-workspace", "layer": "page", "reason": "bootstrap" },
+    { "block": "knowledge-inventory", "layer": "page", "reason": "страница инвентаризации знаний; заменила kb-workspace" },
     { "block": "list-container", "layer": "core", "reason": "bootstrap" },
     { "block": "list-summary-bar", "layer": "core", "reason": "Итоговая полоса над списком; переехала из pages/p903 в core — применяется на нескольких страницах" },
     { "block": "llm-skills", "layer": "page", "reason": "bootstrap" },

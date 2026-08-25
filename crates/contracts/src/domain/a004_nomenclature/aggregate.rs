@@ -1,6 +1,4 @@
-use crate::domain::common::{
-    AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin,
-};
+use crate::domain::common::{AggregateId, AggregateRoot, BaseAggregate, EntityMetadata, Origin};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -228,35 +226,22 @@ impl Nomenclature {
 
         // Валидация длины измерений
         if self.dim1_category.len() > 40 {
-            return Err(
-                "Категория не должна превышать 40 символов"
-                    .into(),
-            );
+            return Err("Категория не должна превышать 40 символов".into());
         }
         if self.dim2_line.len() > 40 {
-            return Err(
-                "Линейка не должна превышать 40 символов".into(),
-            );
+            return Err("Линейка не должна превышать 40 символов".into());
         }
         if self.dim3_model.len() > 80 {
-            return Err(
-                "Модель не должна превышать 80 символов".into(),
-            );
+            return Err("Модель не должна превышать 80 символов".into());
         }
         if self.dim4_format.len() > 40 {
-            return Err(
-                "Формат не должен превышать 20 символов".into(),
-            );
+            return Err("Формат не должен превышать 20 символов".into());
         }
         if self.dim5_sink.len() > 40 {
-            return Err(
-                "Р Р°РєРѕРІРёРЅР° не должна превышать 40 символов".into(),
-            );
+            return Err("Р Р°РєРѕРІРёРЅР° не должна превышать 40 символов".into());
         }
         if self.dim6_size.len() > 20 {
-            return Err(
-                "Р Р°Р·РјРµСЂ не должен превышать 20 символов".into(),
-            );
+            return Err("Р Р°Р·РјРµСЂ не должен превышать 20 символов".into());
         }
 
         Ok(())

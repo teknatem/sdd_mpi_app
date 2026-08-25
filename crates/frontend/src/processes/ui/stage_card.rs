@@ -8,7 +8,9 @@
 //! Сухой прогон здесь же: допуск Этапа в работу — это просмотр плана эффектов
 //! человеком (ADR-0011 п.8), а план получается только прогоном.
 
-use contracts::processes::{DefinitionStatus, EdgeTarget, ProcessRecord, StageRecord, StageVerdict};
+use contracts::processes::{
+    DefinitionStatus, EdgeTarget, ProcessRecord, StageRecord, StageVerdict,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
