@@ -100,8 +100,15 @@ function Test-Sandbox([string]$relPath) {
 # BI-card HTML and iframe srcdoc (shared/bi_card/renderer.rs, plugins/frame/srcdoc.rs),
 # so they live in their own sandboxed cascade. App-level BEM rules do not apply to
 # them, and their generic names (.value, .line, .name, .ring) would drown the registry.
+# plugin-flow.css тоже вне зоны: это не рукописный стиль, а ВЫВОД СБОРКИ
+# (esbuild склеивает вендорный @xyflow/react + js/plugin-flow.css -> static/).
+# Правится он в crates/frontend/js/, а сюда только кладётся, как plugin-editor.js.
+# Причина исключения та же, что у assets/**: чужая песочница iframe, где правила
+# BEM приложения не действуют, а родовые имена (.dark, .center, .bottom, .dots)
+# топят реестр — 62 «мёртвых» класса за один файл.
 $cssFiles = @()
-$cssFiles += Get-ChildItem $staticDir -Recurse -File -Filter '*.css'
+$cssFiles += Get-ChildItem $staticDir -Recurse -File -Filter '*.css' |
+    Where-Object { $_.Name -ne 'plugin-flow.css' }
 
 $classDefs   = @{}   # class      -> [string[]] relative files
 $blockFiles  = @{}   # blockRoot  -> hashtable of files (used as a set)

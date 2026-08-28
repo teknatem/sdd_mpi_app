@@ -24,11 +24,10 @@
 | `clicks` (Клики по товарам) | `open_count` | Переходы в карточку, как `open_count` у WB |
 | `toCart` (Добавления в корзину) | `cart_count` | |
 | `orderItems` (Заказанные товары) | `funnel_order_count` | Счётчик маркетплейса, ≠ `order_count` из a013 |
+| `orderItemsTotalAmount` (Заказано на сумму, ₽) | `funnel_order_sum` | Целые рубли. `null` в источнике → 0 в p916 (колонка не nullable) |
 | `orderItemsCanceledCount` (Отмены и невыкупы) | `funnel_cancel_count` | **Основной показатель отказов YM** |
 | `byMskuShows` (Показы всех продавцов) | — | Не проецируется: это объём рынка. Делить свои клики на чужие показы нельзя |
-| `orderItemsDeliveredCount`, `orderItemsReturnedCount` | — | Остаются в `a041`; низ воронки берётся из документов a013/a016 |
-
-Сумм отчёт не отдаёт → `funnel_order_sum` у YM = 0.
+| `orderItemsDeliveredCount`, `orderItemsDeliveredTotalAmount`, `orderItemsReturnedCount` | — | Остаются в `a041` и во внешнем `/ym-sales-funnel`; низ воронки берётся из документов a013/a016 |
 
 ## Маппинг метрик — стадия `fulfillment`
 

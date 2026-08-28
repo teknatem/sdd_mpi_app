@@ -30,7 +30,9 @@ fn append_totals(target: &mut YmShowsSalesDailyMetrics, source: &YmShowsSalesDai
     add_optional(&mut target.clicks, source.clicks);
     add_optional(&mut target.to_cart, source.to_cart);
     add_optional(&mut target.order_items, source.order_items);
+    add_optional(&mut target.order_sum, source.order_sum);
     add_optional(&mut target.delivered_count, source.delivered_count);
+    add_optional(&mut target.delivered_sum, source.delivered_sum);
     add_optional(&mut target.canceled_count, source.canceled_count);
     add_optional(&mut target.returned_count, source.returned_count);
 }
@@ -98,7 +100,9 @@ pub async fn build_documents(
                     clicks: row.clicks,
                     to_cart: row.to_cart,
                     order_items: row.order_items,
+                    order_sum: row.order_items_total_amount,
                     delivered_count: row.order_items_delivered_count,
+                    delivered_sum: row.order_items_delivered_total_amount,
                     canceled_count: row.order_items_canceled_count,
                     returned_count: row.order_items_returned_count,
                 },

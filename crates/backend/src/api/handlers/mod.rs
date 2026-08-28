@@ -84,6 +84,8 @@ pub mod usecases;
 
 // External integration API (1C, etc.)
 pub mod ext_1c_wb_supply;
+// External BI API (Power BI) — 1C nomenclature a004 + marketplace SKU bridge
+pub mod ext_bi_nomenclature;
 // External BI API (Power BI) — WB sales funnel a036
 pub mod ext_bi_wb_advert;
 pub mod ext_bi_wb_funnel;

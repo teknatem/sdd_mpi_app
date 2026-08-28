@@ -330,7 +330,7 @@
       "validation": {
         "required": false
       },
-      "ai_hint": "Сумма заказов по счётчику воронки a036."
+      "ai_hint": "Сумма заказов по счётчику воронки: a036 у WB и a041 у YM (`orderItemsTotalAmount`, целые рубли). Стадия marketing. Не путать с order_sum стадии fulfillment — тот считается по документам заказов."
     },
     {
       "name": "funnel_cancel_count",

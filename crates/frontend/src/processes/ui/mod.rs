@@ -27,6 +27,7 @@ pub mod journals;
 pub mod parts;
 pub mod process_card;
 pub mod stage_card;
+pub mod stage_details;
 
 use contracts::processes::{InstanceStatus, ProcessInstance};
 use leptos::prelude::*;

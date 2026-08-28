@@ -23,6 +23,7 @@
 //!   его шагов и то, что его двигает.
 //!
 //! - `pilot` — определения `pr0001` «Закрытие дня WB», засеваемые черновиками.
+//! - `pr0002_nomenclature` — определения `pr0002` «Проверка номенклатуры».
 //!
 //! Чего ещё нет: точки публикации `import.day.completed` (её ставит тот, кто
 //! знает, каким импортом день считается собранным) и экранов механизма. План —
@@ -35,6 +36,7 @@ pub mod events;
 pub mod graph;
 pub mod instances;
 pub mod pilot;
+pub mod pr0002_nomenclature;
 pub mod repository;
 pub mod stages;
 pub mod steps;

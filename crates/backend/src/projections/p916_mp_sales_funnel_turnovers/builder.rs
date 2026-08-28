@@ -397,13 +397,14 @@ pub fn from_wb_sales(
 ///   там счётчика органических показов нет, а `show_paid_count` — только реклама);
 /// - `clicks` → `open_count` (переходы в карточку, как у a036);
 /// - `to_cart` → `cart_count`;
-/// - `order_items` → `funnel_order_count`, `canceled_count` → `funnel_cancel_count`
+/// - `order_items` → `funnel_order_count`, `order_sum` → `funnel_order_sum`,
+///   `canceled_count` → `funnel_cancel_count`
 ///   (счётчики маркетплейса, отличны от фактических заказов/отмен стадии fulfillment).
 ///
 /// `by_msku_shows` (показы всех продавцов по MSKU) НЕ проецируется: это объём рынка,
-/// делить на него свои клики нельзя. `delivered_count`/`returned_count` тоже остаются
-/// в a041 — низ воронки берётся из документов a013/a016, как у WB из a015/a012.
-/// Суммы (`funnel_order_sum`) отчёт не отдаёт → 0.
+/// делить на него свои клики нельзя. `delivered_count`/`delivered_sum`/`returned_count`
+/// тоже остаются в a041 — низ воронки берётся из документов a013/a016, как у WB из a015/a012.
+/// `order_sum` → `funnel_order_sum` (целые рубли из `orderItemsTotalAmount`).
 pub fn from_ym_shows_sales_daily(
     doc: &contracts::domain::a041_ym_shows_sales_daily::aggregate::YmShowsSalesDaily,
     registrator_ref: &str,
@@ -437,6 +438,7 @@ pub fn from_ym_shows_sales_daily(
         row.open_count = m.clicks.unwrap_or(0);
         row.cart_count = m.to_cart.unwrap_or(0);
         row.funnel_order_count = m.order_items.unwrap_or(0);
+        row.funnel_order_sum = m.order_sum.unwrap_or(0) as f64;
         row.funnel_cancel_count = m.canceled_count;
         rows.push(row);
     }
@@ -674,6 +676,10 @@ mod tests {
     use contracts::domain::a036_wb_sales_funnel_daily::aggregate::{
         WbSalesFunnelDailyHeader, WbSalesFunnelDailyLine, WbSalesFunnelDailyMetrics,
         WbSalesFunnelDailySourceMeta,
+    };
+    use contracts::domain::a041_ym_shows_sales_daily::aggregate::{
+        YmShowsSalesDailyHeader, YmShowsSalesDailyLine, YmShowsSalesDailyMetrics,
+        YmShowsSalesDailySourceMeta,
     };
 
     fn utc(s: &str) -> DateTime<Utc> {
@@ -1309,6 +1315,56 @@ mod tests {
         let refs = std::collections::HashMap::new();
         let rows = from_ym_return(&doc, "reg-ret-2", None, &refs);
         assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn ym_shows_sales_maps_order_sum_and_keeps_delivered_in_source() {
+        let header = YmShowsSalesDailyHeader {
+            document_no: "YM-SF-2026-08-24".to_string(),
+            document_date: "2026-08-24".to_string(),
+            connection_id: "conn-ym".to_string(),
+            organization_id: "org-1".to_string(),
+            marketplace_id: "mp-ym".to_string(),
+            campaign_id: Some("136982050".to_string()),
+        };
+        let line = YmShowsSalesDailyLine {
+            offer_id: "SKU-1".to_string(),
+            offer_name: "Товар".to_string(),
+            marketplace_product_ref: Some("mp-1".to_string()),
+            nomenclature_ref: Some("nom-1".to_string()),
+            metrics: YmShowsSalesDailyMetrics {
+                shows: Some(44),
+                clicks: Some(5),
+                to_cart: Some(1),
+                order_items: Some(1),
+                order_sum: Some(40826),
+                delivered_count: Some(1),
+                delivered_sum: Some(7054),
+                ..Default::default()
+            },
+        };
+        let doc = contracts::domain::a041_ym_shows_sales_daily::aggregate::YmShowsSalesDaily::new_for_insert(
+            header,
+            YmShowsSalesDailyMetrics::default(),
+            vec![line],
+            YmShowsSalesDailySourceMeta {
+                source: "ym_shows_sales_report".to_string(),
+                fetched_at: "2026-08-28T00:00:00Z".to_string(),
+            },
+        );
+
+        let rows = from_ym_shows_sales_daily(&doc, "reg-a041-1");
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row.stage, "marketing");
+        assert_eq!(row.funnel_order_count, 1);
+        assert_eq!(row.funnel_order_sum, 40826.0);
+        assert_eq!(row.total_impressions, Some(44));
+        assert_eq!(row.open_count, 5);
+        assert_eq!(row.cart_count, 1);
+        // Доставки остаются в a041, в p916 marketing не проецируются.
+        assert_eq!(row.buyout_count, 0);
+        assert_eq!(row.buyout_sum, 0.0);
     }
 
     #[test]

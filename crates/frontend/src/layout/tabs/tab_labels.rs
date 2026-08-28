@@ -150,6 +150,7 @@ pub fn tab_label_for_key(key: &str) -> &'static str {
         "sys_audit" => "Аудит доступа",
         "sys_metrics" => "Метрики проекта",
         "sys_processes" => "Процессы",
+        k if k.starts_with("sys_stage_details_") => "Этап",
         "sys_datasets" => "Наборы данных и перенос",
         "sys_raw_storage" => "Настройка raw JSON",
         "sys_tasks" => "Регламентные задания",

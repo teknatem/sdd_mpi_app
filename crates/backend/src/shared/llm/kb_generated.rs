@@ -16,6 +16,8 @@
 //! которые генератор проставляет сам.
 
 use super::knowledge_base::{knowledge_base_dir, GENERATED_DOCS_SUBDIR};
+use contracts::processes::{EdgeTarget, ProcessRecord, StageOutput, StageRecord, WaitSpec};
+use serde_json::Value;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -412,10 +414,55 @@ fn one_line(raw: &str, limit: usize) -> String {
 /// точно так же не находятся поиском по коду. Механизм (что такое Процесс, Этап
 /// и Действие, где их код) описан в `ARCHITECTURE.md`; здесь — что именно
 /// заведено здесь и в каком состоянии.
+///
+/// Обе выборки читаются до отрисовки, а не по разделу на запрос: граф и колонка
+/// «где используется» связывают Процессы с Этапами, и разложи мы эту связь по
+/// двум независимым веткам, каждая отвечала бы на половину вопроса.
 async fn processes_map(report: &mut GenerateReport) -> String {
+    let db = crate::shared::data::db::get_connection();
+
+    let processes = match crate::processes::repository::list_process_head_records(db).await {
+        Ok(records) => {
+            report.processes = records.len();
+            Some(records)
+        }
+        Err(error) => {
+            report
+                .errors
+                .push(format!("Процессы не прочитаны: {error}"));
+            None
+        }
+    };
+    let stages = match crate::processes::repository::list_stage_head_records(db).await {
+        Ok(records) => {
+            report.stages = records.len();
+            Some(records)
+        }
+        Err(error) => {
+            report.errors.push(format!("Этапы не прочитаны: {error}"));
+            None
+        }
+    };
+
+    render_processes_map(processes.as_deref(), stages.as_deref())
+}
+
+/// Собрать карту из уже прочитанных головных версий.
+///
+/// Отделено от чтения ради теста: это единственная карта корпуса, разделы
+/// которой ссылаются друг на друга, и проверить её структуру, не подняв базу,
+/// иначе было бы нечем.
+///
+/// `None` — «выборка не удалась», и это не то же самое, что пустой список:
+/// «Процессов нет» и «список недоступен» ведут читателя к разным выводам.
+fn render_processes_map(
+    processes: Option<&[ProcessRecord]>,
+    stages: Option<&[StageRecord]>,
+) -> String {
     let mut out = front_matter(
         "Процессы и Этапы: что заведено в этом экземпляре",
-        "Головные версии Процессов и Этапов из БД: коды, статусы, триггеры, выходы и права.",
+        "Головные версии Процессов и Этапов из БД: коды, статусы, триггеры, граф переходов, \
+         контракт Этапа и то, какие Процессы на него ссылаются.",
         &["процессы", "этапы", "pr", "st"],
         &[],
     );
@@ -426,97 +473,367 @@ async fn processes_map(report: &mut GenerateReport) -> String {
     out.push_str(
         "Определения Процессов и Этапов хранятся в БД и версионируются, — их не найти поиском\n\
          по коду. Что такое Процесс, Этап, Действие и Плагин — статья `app-mechanisms`;\n\
-         каталог Действий — карта `actions`.\n\n",
+         каталог Действий — карта `actions`.\n\n\
+         Этап лежит в общем каталоге и адресуется Процессом по коду, поэтому один и тот же\n\
+         Этап может стоять в нескольких графах. Кто на него ссылается — колонка «Где\n\
+         используется»; куда ведёт каждый его выход — раздел «Граф».\n\n",
     );
 
-    let db = crate::shared::data::db::get_connection();
-
-    match crate::processes::repository::list_process_head_records(db).await {
-        Ok(processes) => {
-            report.processes = processes.len();
-            section(&mut out, "Процессы", "processes");
-            if processes.is_empty() {
-                out.push_str("_Процессов нет._\n\n");
-            } else {
-                out.push_str(
-                    "| Код | Название | Статус | Версия | Триггер | Вход | Рёбер | QC |\n\
-                     |---|---|---|---:|---|---|---:|---|\n",
-                );
-                for record in &processes {
-                    let manifest = &record.definition.manifest;
-                    let _ = writeln!(
-                        out,
-                        "| `{}` | {} | {} | {} | `{}` | `{}` | {} | {} |",
-                        manifest.code,
-                        manifest.title,
-                        record.status.as_str(),
-                        record.version,
-                        manifest.trigger.event,
-                        manifest.entry,
-                        manifest.edges.len(),
-                        manifest
-                            .quality_check
-                            .as_deref()
-                            .map(|code| format!("`{code}`"))
-                            .unwrap_or_else(|| String::from("—")),
-                    );
-                }
-                out.push('\n');
-            }
-        }
-        Err(error) => {
-            report
-                .errors
-                .push(format!("Процессы не прочитаны: {error}"));
-            section(&mut out, "Процессы", "processes");
-            out.push_str("_Список недоступен._\n\n");
-        }
-    }
-
-    match crate::processes::repository::list_stage_head_records(db).await {
-        Ok(stages) => {
-            report.stages = stages.len();
-            section(&mut out, "Этапы", "stages");
-            if stages.is_empty() {
-                out.push_str("_Этапов нет._\n");
-            } else {
-                out.push_str(
-                    "| Код | Название | Статус | Версия | Выходы | Права |\n\
-                     |---|---|---|---:|---|---|\n",
-                );
-                for record in &stages {
-                    let manifest = &record.definition.manifest;
-                    let outputs: Vec<String> = manifest
-                        .outputs
-                        .iter()
-                        .map(|output| format!("`{}`", output.name))
-                        .collect();
-                    let capabilities: Vec<String> = manifest
-                        .capabilities
-                        .iter()
-                        .map(|capability| format!("`{capability}`"))
-                        .collect();
-                    let _ = writeln!(
-                        out,
-                        "| `{}` | {} | {} | {} | {} | {} |",
-                        manifest.code,
-                        manifest.title,
-                        record.status.as_str(),
-                        record.version,
-                        dash_join(&outputs),
-                        dash_join(&capabilities),
-                    );
-                }
-            }
-        }
-        Err(error) => {
-            report.errors.push(format!("Этапы не прочитаны: {error}"));
-            section(&mut out, "Этапы", "stages");
-            out.push_str("_Список недоступен._\n");
-        }
-    }
+    processes_section(&mut out, processes);
+    graph_section(&mut out, processes);
+    stages_section(&mut out, stages, processes);
+    stage_contract_section(&mut out, stages);
 
     out
+}
+
+/// Процессы: строка на головную версию.
+fn processes_section(out: &mut String, processes: Option<&[ProcessRecord]>) {
+    section(out, "Процессы", "processes");
+    let Some(processes) = processes else {
+        out.push_str("_Список недоступен._\n\n");
+        return;
+    };
+    if processes.is_empty() {
+        out.push_str("_Процессов нет._\n\n");
+        return;
+    }
+
+    out.push_str(
+        "| Код | Название | Статус | Версия | Триггер | Вход | Рёбер | QC |\n\
+         |---|---|---|---:|---|---|---:|---|\n",
+    );
+    for record in processes {
+        let manifest = &record.definition.manifest;
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | {} | {} | `{}` | `{}` | {} | {} |",
+            manifest.code,
+            one_line(&manifest.title, 80),
+            record.status.as_str(),
+            record.version,
+            manifest.trigger.event,
+            manifest.entry,
+            manifest.edges.len(),
+            manifest
+                .quality_check
+                .as_deref()
+                .map(|code| format!("`{code}`"))
+                .unwrap_or_else(|| String::from("—")),
+        );
+    }
+    out.push('\n');
+}
+
+/// Граф: строка на ребро.
+///
+/// Раньше от графа в карте было одно число — сколько рёбер, — и ответить по
+/// ней на вопрос «куда ведёт выход „расхождение“» было нельзя: у механизма,
+/// который целиком и есть граф, перечислялись узлы без связей.
+fn graph_section(out: &mut String, processes: Option<&[ProcessRecord]>) {
+    section(out, "Граф: куда ведёт каждый выход", "graph");
+    let Some(processes) = processes else {
+        out.push_str("_Список недоступен._\n\n");
+        return;
+    };
+    let edges: usize = processes
+        .iter()
+        .map(|record| record.definition.manifest.edges.len())
+        .sum();
+    if edges == 0 {
+        out.push_str("_Рёбер нет._\n\n");
+        return;
+    }
+
+    out.push_str(
+        "Экземпляр идёт по одному ребру за раз: Этап возвращает имя выхода, и оно выбирает\n\
+         следующий шаг. Вход следующего Этапа собирается из ключа корреляции экземпляра и\n\
+         данных этого выхода — больше взять неоткуда.\n\n\
+         Ожидание на ребре означает, что экземпляр встаёт в `waiting` и просыпается по\n\
+         событию с тем же ключом корреляции. По дедлайну он уходит в запасную цель, а если\n\
+         её нет — остаётся человеку, а не идёт по графу дальше сам.\n\n",
+    );
+    out.push_str("| Процесс | Этап | Выход | Ведёт в | Ожидание |\n|---|---|---|---|---|\n");
+    for record in processes {
+        let manifest = &record.definition.manifest;
+        for edge in &manifest.edges {
+            let _ = writeln!(
+                out,
+                "| `{}` | `{}` | `{}` | {} | {} |",
+                manifest.code,
+                edge.from,
+                edge.outcome,
+                target_cell(&edge.to),
+                wait_cell(edge.wait.as_ref()),
+            );
+        }
+    }
+    out.push('\n');
+}
+
+/// Цель ребра одной клеткой.
+///
+/// Терминал показывается словом, а не прочерком: «выход завершает Процесс» и
+/// «ребро забыли» — разные вещи, и вторую валидатор графа не пропускает.
+fn target_cell(target: &EdgeTarget) -> String {
+    match target.stage_code() {
+        Some(code) => format!("`{code}`"),
+        None => String::from("завершение"),
+    }
+}
+
+/// Ожидание на ребре одной клеткой.
+fn wait_cell(wait: Option<&WaitSpec>) -> String {
+    let Some(wait) = wait else {
+        return String::from("переход сразу");
+    };
+    let on_timeout = match &wait.on_timeout {
+        Some(target) => format!("по дедлайну → {}", target_cell(target)),
+        None => String::from("по дедлайну — человеку"),
+    };
+    format!(
+        "ждёт `{}`, дедлайн {}, {on_timeout}",
+        wait.event,
+        deadline_label(wait.deadline_minutes)
+    )
+}
+
+/// Дедлайн человеческими единицами: в манифесте он в минутах, но «1440 мин»
+/// читателю карты ничего не говорит.
+///
+/// Единицы сокращены до «ч» и «сут» намеренно — так клетка таблицы обходится
+/// без склонения по числу, которого ради одной строки заводить не стоит.
+fn deadline_label(minutes: i64) -> String {
+    const DAY: i64 = 24 * 60;
+    if minutes >= DAY && minutes % DAY == 0 {
+        format!("{} сут", minutes / DAY)
+    } else if minutes >= 60 && minutes % 60 == 0 {
+        format!("{} ч", minutes / 60)
+    } else {
+        format!("{minutes} мин")
+    }
+}
+
+/// Этапы: строка на головную версию, с обратной ссылкой на Процессы.
+fn stages_section(
+    out: &mut String,
+    stages: Option<&[StageRecord]>,
+    processes: Option<&[ProcessRecord]>,
+) {
+    section(out, "Этапы", "stages");
+    let Some(stages) = stages else {
+        out.push_str("_Список недоступен._\n\n");
+        return;
+    };
+    if stages.is_empty() {
+        out.push_str("_Этапов нет._\n\n");
+        return;
+    }
+
+    out.push_str(
+        "| Код | Название | Статус | Версия | Выходы | Права | Где используется |\n\
+         |---|---|---|---:|---|---|---|\n",
+    );
+    for record in stages {
+        let manifest = &record.definition.manifest;
+        let outputs: Vec<String> = manifest
+            .outputs
+            .iter()
+            .map(|output| format!("`{}`", output.name))
+            .collect();
+        let capabilities: Vec<String> = manifest
+            .capabilities
+            .iter()
+            .map(|capability| format!("`{capability}`"))
+            .collect();
+        let usage = match processes {
+            Some(processes) => {
+                let usage = stage_usage(&manifest.code, processes);
+                if usage.is_empty() {
+                    String::from("ни один Процесс не ссылается")
+                } else {
+                    usage.join("; ")
+                }
+            }
+            None => String::from("неизвестно: список Процессов недоступен"),
+        };
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | {} | {} | {} | {} | {} |",
+            manifest.code,
+            one_line(&manifest.title, 80),
+            record.status.as_str(),
+            record.version,
+            dash_join(&outputs),
+            dash_join(&capabilities),
+            usage,
+        );
+    }
+    out.push('\n');
+}
+
+/// Процессы, ссылающиеся на Этап, с его ролью в графе каждого.
+///
+/// Обратной таблицы в БД нет и не нужно: Процесс адресует Этап кодом, и связь
+/// выводится из графа. Ровно это же считает карточка Этапа во фронте —
+/// «в каких Процессах я участвую» есть главный вопрос про Этап, раз он заявлен
+/// самостоятельной единицей, а не узлом одного графа.
+fn stage_usage(code: &str, processes: &[ProcessRecord]) -> Vec<String> {
+    processes
+        .iter()
+        .filter_map(|record| {
+            let manifest = &record.definition.manifest;
+            let mut roles: Vec<&str> = Vec::new();
+            if manifest.entry == code {
+                roles.push("вход");
+            }
+            if manifest
+                .edges
+                .iter()
+                .any(|edge| edge.to.stage_code() == Some(code))
+            {
+                roles.push("цель ребра");
+            }
+            if manifest.edges.iter().any(|edge| {
+                edge.wait
+                    .as_ref()
+                    .and_then(|wait| wait.on_timeout.as_ref())
+                    .and_then(EdgeTarget::stage_code)
+                    == Some(code)
+            }) {
+                roles.push("запасной по дедлайну");
+            }
+            // Ребро от Этапа, до которого не дойти, — дефект графа, а не
+            // участие: сказать «используется» про такой Этап значило бы скрыть
+            // ошибку автора за обычной строкой.
+            if roles.is_empty() && manifest.edges.iter().any(|edge| edge.from == code) {
+                roles.push("источник рёбер, но недостижим");
+            }
+            if roles.is_empty() {
+                return None;
+            }
+            Some(format!("`{}` ({})", manifest.code, roles.join(", ")))
+        })
+        .collect()
+}
+
+/// Что подаётся Этапу и что он возвращает.
+///
+/// В таблице выше выходы стоят голыми именами, а «`сходится`, `расхождение`»
+/// не объясняет, что эти слова значат, — при том что по ним читается весь граф.
+/// Описания выходов и схема входа в манифесте есть; терялись они только по
+/// дороге в карту.
+fn stage_contract_section(out: &mut String, stages: Option<&[StageRecord]>) {
+    section(out, "Что подаётся и что возвращает", "contract");
+    let Some(stages) = stages else {
+        out.push_str("_Список недоступен._\n");
+        return;
+    };
+    if stages.is_empty() {
+        out.push_str("_Этапов нет._\n");
+        return;
+    }
+
+    out.push_str(
+        "Вход — то, что Этап требует от ключа корреляции и предыдущего выхода вместе.\n\
+         Необъявленная схема означает, что вход не проверяется вовсе, а не что его нет.\n\n",
+    );
+    for record in stages {
+        let manifest = &record.definition.manifest;
+        let _ = writeln!(
+            out,
+            "- **`{}` — {}**",
+            manifest.code,
+            one_line(&manifest.title, 80)
+        );
+        if !manifest.description.trim().is_empty() {
+            let _ = writeln!(out, "  {}", one_line(&manifest.description, 400));
+        }
+        let _ = writeln!(
+            out,
+            "  - Вход: {}",
+            input_summary(manifest.input_schema.as_ref())
+        );
+        // Выход на строку, а не списком через разделитель: описания — обычные
+        // предложения с точкой, и в одну строку они склеиваются в «нет.; ...».
+        if manifest.outputs.is_empty() {
+            out.push_str("  - Выходы: —\n");
+        } else {
+            out.push_str("  - Выходы:\n");
+            for output in &manifest.outputs {
+                let _ = writeln!(out, "    - {}", output_summary(output));
+            }
+        }
+        out.push('\n');
+    }
+}
+
+/// Вход Этапа одной строкой: имя поля, тип, обязательность.
+///
+/// Разбор намеренно мелкий — карта отвечает на вопрос «что подавать», а не
+/// воспроизводит валидатор; вложенность и `oneOf` тут не разворачиваются.
+fn input_summary(schema: Option<&Value>) -> String {
+    let Some(schema) = schema else {
+        return String::from("схема не описана — вход не проверяется");
+    };
+    let required: Vec<&str> = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+
+    // `required` без `properties` — законная схема: поля названы, типы нет.
+    // Промолчать про них было бы хуже всего: именно они и обязательны.
+    let Some(properties) = schema.get("properties").and_then(Value::as_object) else {
+        if required.is_empty() {
+            return String::from("схема без полей верхнего уровня");
+        }
+        return required
+            .iter()
+            .map(|name| format!("`{name}` — обязательное"))
+            .collect::<Vec<_>>()
+            .join("; ");
+    };
+
+    let fields: Vec<String> = properties
+        .iter()
+        .map(|(name, spec)| {
+            let kind = spec
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or("тип не указан");
+            let mark = if required.contains(&name.as_str()) {
+                ", обязательное"
+            } else {
+                ""
+            };
+            format!("`{name}` — {kind}{mark}")
+        })
+        .collect();
+    if fields.is_empty() {
+        String::from("схема без полей верхнего уровня")
+    } else {
+        fields.join("; ")
+    }
+}
+
+/// Один выход строкой: имя, что оно значит, описаны ли данные.
+///
+/// Наличие схемы данных отмечается не для полноты: вход следующего Этапа
+/// покрывается свойствами именно этой схемы, и выход без неё покрывает только
+/// ключ корреляции.
+fn output_summary(output: &StageOutput) -> String {
+    let meaning = if output.description.trim().is_empty() {
+        String::from("без описания")
+    } else {
+        one_line(&output.description, 160)
+    };
+    let described = if output.data_schema.is_some() {
+        " (данные по схеме)"
+    } else {
+        ""
+    };
+    format!("`{}` — {meaning}{described}", output.name)
 }
 
 // ─── Навыки ──────────────────────────────────────────────────────────────────
@@ -773,19 +1090,173 @@ fn ui_map(report: &mut GenerateReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use contracts::processes::{
+        DefinitionRecord, DefinitionStatus, ProcessDefinition, ProcessEdge, ProcessManifest,
+        ProcessTrigger, StageDefinition, StageManifest,
+    };
+    use serde_json::json;
+
+    fn stage(
+        code: &str,
+        title: &str,
+        description: &str,
+        input_schema: Option<Value>,
+        outputs: Vec<StageOutput>,
+        capabilities: &[&str],
+    ) -> StageRecord {
+        DefinitionRecord {
+            id: format!("row-{code}"),
+            code: code.to_string(),
+            version: 1,
+            status: DefinitionStatus::Active,
+            digest: "0123456789ab".into(),
+            created_at: "2026-08-27T09:00:00Z".into(),
+            created_by: None,
+            definition: StageDefinition {
+                manifest: StageManifest {
+                    code: code.into(),
+                    title: title.into(),
+                    description: description.into(),
+                    entrypoint: "stage.mjs".into(),
+                    export: "run".into(),
+                    input_schema,
+                    outputs,
+                    capabilities: capabilities.iter().map(|c| c.to_string()).collect(),
+                },
+                script: "export async function run() {}".into(),
+                digest: "0123456789ab".into(),
+            },
+        }
+    }
+
+    fn output(name: &str, description: &str, described: bool) -> StageOutput {
+        StageOutput {
+            name: name.into(),
+            description: description.into(),
+            data_schema: described.then(|| json!({ "type": "object" })),
+        }
+    }
+
+    /// Пилотный граф в миниатюре: цикл через «Позвать человека» с ожиданием и
+    /// терминал — то есть все виды клетки «Ведёт в» и «Ожидание» сразу. Плюс
+    /// Этап, на который не ссылается никто: колонка «Где используется» обязана
+    /// уметь сказать и это.
+    fn pilot() -> (Vec<ProcessRecord>, Vec<StageRecord>) {
+        let edges = vec![
+            ProcessEdge {
+                from: "st0001".into(),
+                outcome: "пересчитан".into(),
+                to: EdgeTarget::stage("st0002"),
+                wait: None,
+            },
+            ProcessEdge {
+                from: "st0002".into(),
+                outcome: "сходится".into(),
+                to: EdgeTarget::Done,
+                wait: None,
+            },
+            ProcessEdge {
+                from: "st0002".into(),
+                outcome: "расхождение".into(),
+                to: EdgeTarget::stage("st0004"),
+                wait: None,
+            },
+            ProcessEdge {
+                from: "st0004".into(),
+                outcome: "позвали".into(),
+                to: EdgeTarget::stage("st0001"),
+                wait: Some(WaitSpec {
+                    event: "human.action.done".into(),
+                    deadline_minutes: 24 * 60,
+                    on_timeout: None,
+                }),
+            },
+        ];
+        let process = DefinitionRecord {
+            id: "row-pr0001".into(),
+            code: "pr0001".into(),
+            version: 2,
+            status: DefinitionStatus::Active,
+            digest: "cafebabe".into(),
+            created_at: "2026-08-27T09:00:00Z".into(),
+            created_by: Some("claude_dev".into()),
+            definition: ProcessDefinition {
+                manifest: ProcessManifest {
+                    code: "pr0001".into(),
+                    title: "Закрытие дня WB".into(),
+                    description: String::new(),
+                    trigger: ProcessTrigger::on("import.day.completed"),
+                    entry: "st0001".into(),
+                    edges,
+                    quality_check: Some("wb_day_not_closed".into()),
+                },
+                digest: "cafebabe".into(),
+            },
+        };
+        let stages = vec![
+            stage(
+                "st0001",
+                "Пересчитать день",
+                "Перестраивает снимок закрытия дня и обновляет документ.",
+                Some(json!({
+                    "type": "object",
+                    "required": ["connection_id", "business_date"],
+                    "properties": {
+                        "connection_id": { "type": "string" },
+                        "business_date": { "type": "string" }
+                    }
+                })),
+                vec![output("пересчитан", "Снимок дня перестроен.", true)],
+                &["action:rebuild_day_close"],
+            ),
+            stage(
+                "st0002",
+                "Сверить с ГК",
+                "",
+                None,
+                vec![
+                    output("сходится", "Расхождений с Главной книгой нет.", false),
+                    output("расхождение", "", true),
+                ],
+                &["db:read:gl_turnover"],
+            ),
+            stage(
+                "st0004",
+                "Позвать человека",
+                "",
+                None,
+                vec![output("позвали", "Тикет заведён, ждём человека.", true)],
+                &["action:request_human_action"],
+            ),
+            stage(
+                "st0099",
+                "Ничей Этап",
+                "",
+                None,
+                vec![output("готово", "", false)],
+                &[],
+            ),
+        ];
+        (vec![process], stages)
+    }
 
     /// Карты обязаны соответствовать стандарту разделов `SEC-1`.
     ///
-    /// Проверяются синхронные карты — асинхронным нужна живая БД. Этого хватает:
-    /// заголовок документа пишет общий `front_matter`, и он один на все семь.
+    /// Карту Процессов проверяем на фикстуре: живая БД тесту не нужна с тех пор,
+    /// как чтение отделено от отрисовки, а разделов у неё больше всех.
     #[test]
     fn generated_maps_follow_the_section_standard() {
         let mut report = GenerateReport::default();
+        let (processes, stages) = pilot();
         let maps = [
             ("actions", actions_map(&mut report)),
             ("skills", skills_map(&mut report)),
             ("quality-checks", quality_checks_map(&mut report)),
             ("ui-map", ui_map(&mut report)),
+            (
+                "processes",
+                render_processes_map(Some(&processes), Some(&stages)),
+            ),
         ];
         for (name, content) in &maps {
             let body = content
@@ -806,10 +1277,15 @@ mod tests {
     #[test]
     fn multi_part_maps_have_an_outline() {
         let mut report = GenerateReport::default();
+        let (processes, stages) = pilot();
         for (name, content) in [
             ("actions", actions_map(&mut report)),
             ("skills", skills_map(&mut report)),
             ("ui-map", ui_map(&mut report)),
+            (
+                "processes",
+                render_processes_map(Some(&processes), Some(&stages)),
+            ),
         ] {
             let sections = super::super::knowledge_base::outline(&content);
             assert!(
@@ -885,6 +1361,90 @@ mod tests {
                 scope.scope_id
             );
         }
+    }
+
+    /// Граф обязан читаться по карте. Раньше от него попадало одно число —
+    /// сколько рёбер, — и спросить «куда ведёт выход „расхождение“» было не у
+    /// чего: перечислялись узлы без связей.
+    #[test]
+    fn processes_map_carries_the_graph() {
+        let (processes, stages) = pilot();
+        let map = render_processes_map(Some(&processes), Some(&stages));
+
+        assert!(
+            map.contains("| `pr0001` | `st0002` | `расхождение` | `st0004` | переход сразу |"),
+            "{map}"
+        );
+        // Терминал — слово, а не пустая клетка: «завершение» и «ребро забыли»
+        // ведут читателя к разным выводам.
+        assert!(
+            map.contains("| `pr0001` | `st0002` | `сходится` | завершение | переход сразу |"),
+            "{map}"
+        );
+        assert!(
+            map.contains("ждёт `human.action.done`, дедлайн 1 сут, по дедлайну — человеку"),
+            "{map}"
+        );
+    }
+
+    /// «Где используется» — главный вопрос про Этап, раз он заявлен единицей,
+    /// переиспользуемой между Процессами.
+    #[test]
+    fn processes_map_says_where_each_stage_is_used() {
+        let (processes, stages) = pilot();
+        let map = render_processes_map(Some(&processes), Some(&stages));
+
+        assert!(map.contains("`pr0001` (вход, цель ребра)"), "{map}");
+        assert!(map.contains("ни один Процесс не ссылается"), "{map}");
+    }
+
+    /// Список Процессов может не прочитаться, и тогда колонка обязана сказать
+    /// «неизвестно». «Никто не ссылается» — утверждение о графе, и делать его
+    /// не глядя в граф нельзя.
+    #[test]
+    fn unavailable_processes_do_not_look_like_an_unused_stage() {
+        let (_, stages) = pilot();
+        let map = render_processes_map(None, Some(&stages));
+
+        assert!(
+            map.contains("неизвестно: список Процессов недоступен"),
+            "{map}"
+        );
+        assert!(!map.contains("ни один Процесс не ссылается"), "{map}");
+    }
+
+    /// Контракт Этапа: описание, обязательные поля входа и что значит каждый
+    /// выход. Голое имя выхода не объясняет ничего, а по именам выходов
+    /// читается весь граф.
+    #[test]
+    fn processes_map_carries_the_stage_contract() {
+        let (processes, stages) = pilot();
+        let map = render_processes_map(Some(&processes), Some(&stages));
+
+        assert!(map.contains("Перестраивает снимок закрытия дня"), "{map}");
+        assert!(
+            map.contains("`connection_id` — string, обязательное"),
+            "{map}"
+        );
+        assert!(
+            map.contains("схема не описана — вход не проверяется"),
+            "{map}"
+        );
+        assert!(
+            map.contains("`сходится` — Расхождений с Главной книгой нет."),
+            "{map}"
+        );
+        assert!(
+            map.contains("`расхождение` — без описания (данные по схеме)"),
+            "{map}"
+        );
+    }
+
+    #[test]
+    fn deadline_speaks_human() {
+        assert_eq!(deadline_label(24 * 60), "1 сут");
+        assert_eq!(deadline_label(120), "2 ч");
+        assert_eq!(deadline_label(90), "90 мин");
     }
 
     /// Ячейка таблицы не должна разъезжаться из-за переноса строки или трубы

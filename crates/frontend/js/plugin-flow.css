@@ -1,0 +1,107 @@
+/* Тема кита flow.
+ *
+ * Переключение темы приложения подменяет <link> файла темы в iframe, а токены
+ * (--color-*) приходят из variables.css. Поэтому здесь только отображение
+ * токенов приложения на переменные xyflow (--xy-*) — и никакого JS: смена темы
+ * подхватывается каскадом, в отличие от Chart.js, которому нужен applyTheme().
+ *
+ * Не задавай цвета литералами: они разъедутся с темами, и это ровно то, что
+ * ловит strict-guard.css у остального фронта. */
+
+.plugin-flow {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* ReactFlow меряет контейнер: min-height ему недостаточно, нужна высота. */
+}
+
+.plugin-flow__canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+.react-flow {
+  --xy-background-color: var(--color-bg-primary);
+  --xy-node-background-color: var(--color-bg-secondary);
+  --xy-node-color: var(--color-text-primary);
+  --xy-node-border: 1px solid var(--color-border);
+  --xy-node-border-radius: 8px;
+  --xy-node-boxshadow-hover: 0 0 0 1px var(--color-accent);
+  --xy-node-boxshadow-selected: 0 0 0 2px var(--color-accent);
+  --xy-handle-background-color: var(--color-accent);
+  --xy-handle-border-color: var(--color-bg-secondary);
+  --xy-edge-stroke: var(--color-border);
+  --xy-edge-stroke-selected: var(--color-accent);
+  --xy-edge-stroke-width: 1.5;
+  --xy-connectionline-stroke: var(--color-accent);
+  --xy-attribution-background-color: transparent;
+
+  --xy-controls-button-background-color: var(--color-bg-secondary);
+  --xy-controls-button-background-color-hover: var(--color-bg-primary);
+  --xy-controls-button-color: var(--color-text-primary);
+  --xy-controls-button-color-hover: var(--color-accent);
+  --xy-controls-button-border-color: var(--color-border);
+
+  --xy-minimap-background-color: var(--color-bg-secondary);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--color-bg-primary) 60%, transparent);
+  --xy-minimap-node-background-color: var(--color-border);
+}
+
+/* ── Узел ────────────────────────────────────────────────────────────────── */
+
+.plugin-flow__node {
+  min-width: 140px;
+  max-width: 260px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.plugin-flow__node--selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.plugin-flow__node-kind {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.plugin-flow__node-input {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+/* ── Тулбар операций над графом ──────────────────────────────────────────── */
+
+.plugin-flow__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.plugin-flow__hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}

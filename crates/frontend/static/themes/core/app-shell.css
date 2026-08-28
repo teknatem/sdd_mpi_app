@@ -60,10 +60,10 @@
   gap: var(--spacing-sm);
 }
 
-/*.app-header::after, 
-.app-sidebar::after, 
-.page__header::after,*/
-.app-layout::after {
+/* Гранитная мозаика (pattern5.jpg) — поверхность строгих тем.
+   Fancy-тема уже несёт фотофон (--app-bg-image); второй слой поверх
+   него не монтируется. */
+html[data-theme-kind="strict"] .app-layout::after {
   content: '';
   pointer-events: none;
   user-select: none;

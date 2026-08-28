@@ -95,6 +95,7 @@ impl From<plugin::Model> for PluginDefinition {
                 api_version: "1".to_string(),
                 description: None,
                 capabilities: vec![],
+                client_kits: None,
                 built_for_migration: None,
             });
         let params: Vec<ParamSpec> = serde_json::from_str(&m.params_json).unwrap_or_default();

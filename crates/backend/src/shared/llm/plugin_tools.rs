@@ -24,6 +24,7 @@ pub const PLUGIN_TOOL_NAMES: &[&str] = &[
     "plugin_template",
     "plugin_examples",
     "get_plugin_ui_contract",
+    "get_flow_ui_contract",
     "plugin_data_catalog",
     "plugin_runs",
 ];
@@ -208,6 +209,14 @@ pub fn plugin_tool_definitions() -> Vec<ToolDefinition> {
             parameters: json!({ "type": "object", "properties": {} }),
         },
         ToolDefinition {
+            name: "get_flow_ui_contract".into(),
+            description: "Контракт кита flow (граф/схема): манифест client_kits, вызовы \
+                          PluginFlow.render/getFlow/setFlow/autoLayout, форма узлов и рёбер, \
+                          и правила host.loadDocument/saveDocument для редактируемого поля."
+                .into(),
+            parameters: json!({ "type": "object", "properties": {} }),
+        },
+        ToolDefinition {
             name: "plugin_data_catalog".into(),
             description: "Safe data-source catalog for miniapp plugins: common tags/tables, required db:read capabilities, and SQL starter snippets."
                 .into(),
@@ -250,6 +259,7 @@ pub async fn execute_plugin_tool(
         "plugin_template" => plugin_template(&args),
         "plugin_examples" => plugin_examples(),
         "get_plugin_ui_contract" => plugin_ui_contract(),
+        "get_flow_ui_contract" => flow_ui_contract(),
         "plugin_data_catalog" => plugin_data_catalog(),
         "plugin_runs" => plugin_runs(&args).await,
         _ => json!({ "error": format!("Unknown plugin tool: '{}'", name) }),
@@ -609,6 +619,46 @@ fn plugin_ui_contract() -> Value {
             "status": ".status / .status--ok / .status--error — строка статуса и вывод ошибок."
         },
         "hint": "Рендери этим китом, свой CSS — по минимуму. Ошибки показывай в .status--error."
+    })
+}
+
+/// Контракт кита `flow` — редактор графов и запись документа.
+fn flow_ui_contract() -> Value {
+    json!({
+        "manifest": "Объяви kit: manifest.client_kits = [\"flow\"]. Хост грузит киты по объявлению, \
+                     так что без этого window.PluginFlow в iframe не появится. Лишние киты не объявляй \
+                     — каждый парсится заново в каждом открытом iframe.",
+        "render": "const flow = PluginFlow.render(container, { nodes, edges }, options); \
+                   Контейнеру нужна ЯВНАЯ высота (height: 100%), min-height ReactFlow не хватает.",
+        "options": {
+            "editable": "bool (по умолчанию true) — перетаскивание, соединение, удаление, переименование.",
+            "onDirtyChange": "(dirty) => host.setDirty(dirty) — срабатывает на переходе, а не на каждое движение.",
+            "autoLayout": "\"missing\" (по умолчанию) | \"always\" | \"never\" — раскладка dagre, когда координат нет.",
+            "minimap": "bool, toolbar: bool — выключить встроенные элементы."
+        },
+        "controller": {
+            "getFlow": "() => { nodes, edges } — то, что нужно сохранить.",
+            "setFlow": "(spec) => подменить граф целиком; снимает грязный флаг.",
+            "markSaved": "() => после успешного сохранения.",
+            "autoLayout": "() => разложить dagre.",
+            "fitView": "() => вписать в экран.",
+            "destroy": "() => зови в unmount()."
+        },
+        "shape": {
+            "node": "{ id: string, position: { x, y }, data: { label, kind? } } — position можно не задавать: разложит сам.",
+            "edge": "{ id?, source, target, label? }"
+        },
+        "document": {
+            "load": "const { content, version } = await host.loadDocument();",
+            "save": "const { version } = await host.saveDocument(flow.getFlow());",
+            "authority": "Адрес поля задаёт ХОСТ и в аргументы не передаётся — плагин не выбирает, куда писать.",
+            "errors": "Отказ приходит при: плагин открыт без привязки к документу; режим \"Снимок\"; \
+                       расхождение версий. При конфликте версий НЕ повторяй запись вслепую — \
+                       перечитай loadDocument и покажи пользователю, что документ изменился."
+        },
+        "validation": "PluginFlow.validateSpec(spec) => { ok, errors } — только структура (дубли id, \
+                       рёбра в несуществующие узлы). Доменных правил «что с чем соединяется» в ките нет.",
+        "theme": "Цвета берутся из токенов приложения через --xy-*; не хардкодь цвета и не зови applyTheme."
     })
 }
 

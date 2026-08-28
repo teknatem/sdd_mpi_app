@@ -1,0 +1,18 @@
+{
+  "id": "nomenclature_catalog_inconsistent",
+  "code": "QC-012",
+  "name": "Номенклатура: несопоставленный каталог",
+  "description": "Товары маркетплейса (a007) без однозначной связи с номенклатурой 1С (a004): пустой nomenclature_ref или артикул бьётся в несколько позиций a004. Парная проверка Процесса pr0002 — пока каталог не согласован, ситуация видна нарушением, а не только экземпляром в середине графа. Дополнительно показывает пустые nomenclature_ref в проекциях p909/p911/p913.",
+  "category": "Номенклатура",
+  "kind": "regular",
+  "entrypoint": "check.mjs",
+  "export": "run",
+  "capabilities": [
+    "db:read:a007_marketplace_product",
+    "db:read:a004_nomenclature",
+    "db:read:p909_mp_order_line_turnovers",
+    "db:read:p911_wb_advert_by_items",
+    "db:read:p913_wb_advert_order_attr"
+  ],
+  "default_input": { "sample_limit": 20 }
+}

@@ -249,6 +249,9 @@ pub async fn insert_test_data() -> anyhow::Result<()> {
                         .to_string(),
                 ),
                 capabilities: vec!["data:read".to_string()],
+                // Рисует собственный HTML классами plugin-sdk.css: ни один
+                // глобал кита не используется.
+                client_kits: Some(vec![]),
                 built_for_migration: None,
             },
             params: vec![],

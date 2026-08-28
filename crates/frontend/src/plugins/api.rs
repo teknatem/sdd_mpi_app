@@ -1,9 +1,11 @@
 //! HTTP client for the plugin subsystem.
 
 use contracts::plugins::{
-    PluginBundle, PluginCatalog, PluginDefinition, PluginInvokeRequest, PluginListItem,
-    PluginPublishResult, PluginRunBrief, PluginRunContext, PluginSmokeReport, PluginSmokeRequest,
-    PluginStats, PluginUpdateStatus, PluginUpsert, PluginValidateReport,
+    PluginBundle, PluginCatalog, PluginDefinition, PluginDocumentResponse,
+    PluginDocumentSaveRequest, PluginDocumentSaveResponse, PluginDocumentTarget,
+    PluginInvokeRequest, PluginListItem, PluginPublishResult, PluginRunBrief, PluginRunContext,
+    PluginSmokeReport, PluginSmokeRequest, PluginStats, PluginUpdateStatus, PluginUpsert,
+    PluginValidateReport,
 };
 use contracts::shared::drilldown::DrilldownResponse;
 use gloo_net::http::{Request, RequestBuilder, Response};
@@ -129,6 +131,50 @@ pub async fn dev_invoke(
     request: &PluginInvokeRequest,
 ) -> Result<serde_json::Value, String> {
     post_json(&format!("{API_BASE}/{id}/dev-invoke"), request).await
+}
+
+/// Прочитать редактируемое поле документа.
+///
+/// Серверная часть (`GET`/`PUT .../document`) — предполагаемая: поле с
+/// хранимыми данными считается уже существующим. Клиент рассчитывает на
+/// версию в ответе и на `409` при расхождении версий на записи.
+pub async fn load_document(
+    id: &str,
+    target: &PluginDocumentTarget,
+) -> Result<PluginDocumentResponse, String> {
+    let query = format!(
+        "doc_type={}&doc_id={}&field={}",
+        urlencode(&target.doc_type),
+        urlencode(&target.doc_id),
+        urlencode(&target.field)
+    );
+    get_json(&format!("{API_BASE}/{id}/document?{query}")).await
+}
+
+/// Записать поле обратно.
+///
+/// `409` от сервера означает, что поле ушло вперёд, — вызывающий обязан
+/// показать это пользователю, а не затирать чужие правки повтором.
+pub async fn save_document(
+    id: &str,
+    request: &PluginDocumentSaveRequest,
+) -> Result<PluginDocumentSaveResponse, String> {
+    let http = Request::put(&format!("{API_BASE}/{id}/document"))
+        .json(request)
+        .map_err(|error| format!("Failed to serialize: {error}"))?;
+    expect_json(send_request(http).await?).await
+}
+
+fn urlencode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
 }
 
 pub async fn validate(bundle: &PluginBundle) -> Result<PluginValidateReport, String> {

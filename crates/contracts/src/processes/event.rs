@@ -24,8 +24,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Каталог событий. Пять штук — ровно те, что нужны пилоту; шестое заводится
-/// правкой этого перечисления, а не строкой в БД.
+/// Каталог событий. Закрытый список; новое событие — правка этого
+/// перечисления, а не строка в БД.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DomainEventKind {
@@ -40,16 +40,20 @@ pub enum DomainEventKind {
     HumanActionDone,
     /// Экземпляр процесса не дождался события к дедлайну.
     ProcessInstanceTimeout,
+    /// Процесс пора запускать: ручной запуск задания, расписание или иная
+    /// искра ядра. Ключ — код Процесса: один живой экземпляр на код.
+    ProcessDue,
 }
 
 impl DomainEventKind {
     /// Все события каталога — для UI, валидации триггеров и тестов.
-    pub const ALL: [DomainEventKind; 5] = [
+    pub const ALL: [DomainEventKind; 6] = [
         Self::ImportDayCompleted,
         Self::DocumentPosted,
         Self::QualityViolationRaised,
         Self::HumanActionDone,
         Self::ProcessInstanceTimeout,
+        Self::ProcessDue,
     ];
 
     /// Имя события в манифесте Процесса и в журнале.
@@ -60,6 +64,7 @@ impl DomainEventKind {
             Self::QualityViolationRaised => "quality.violation.raised",
             Self::HumanActionDone => "human.action.done",
             Self::ProcessInstanceTimeout => "process.instance.timeout",
+            Self::ProcessDue => "process.due",
         }
     }
 
@@ -83,6 +88,7 @@ impl DomainEventKind {
             Self::QualityViolationRaised => &["check_id"],
             Self::HumanActionDone => &["request_key"],
             Self::ProcessInstanceTimeout => &["instance_id"],
+            Self::ProcessDue => &["process_code"],
         }
     }
 
@@ -93,6 +99,7 @@ impl DomainEventKind {
             Self::QualityViolationRaised => "Проверка нашла нарушения",
             Self::HumanActionDone => "Человек сделал",
             Self::ProcessInstanceTimeout => "Ожидание истекло",
+            Self::ProcessDue => "Процесс пора запускать",
         }
     }
 }

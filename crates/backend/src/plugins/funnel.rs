@@ -561,6 +561,8 @@ pub async fn insert_funnel_plugin() -> anyhow::Result<()> {
                         .to_string(),
                 ),
                 capabilities: vec!["data:read".to_string()],
+                // Своё дерево на plugin-sdk.css, без PluginTables/PluginCharts.
+                client_kits: Some(vec![]),
                 built_for_migration: None,
             },
             params: vec![],

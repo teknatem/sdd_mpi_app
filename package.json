@@ -3,12 +3,18 @@
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "build:plugin-editor": "esbuild crates/frontend/js/plugin-editor.js --bundle --minify --format=iife --target=es2020 --outfile=crates/frontend/static/plugin-editor.js"
+    "build:plugin-editor": "esbuild crates/frontend/js/plugin-editor.js --bundle --minify --format=iife --target=es2020 --outfile=crates/frontend/static/plugin-editor.js",
+    "build:plugin-flow": "node crates/frontend/js/build-plugin-flow.mjs"
   },
   "devDependencies": {
+    "@dagrejs/dagre": "^3.1.1",
+    "@xyflow/react": "^12.11.5",
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.28.1",
-    "postcss": "^8.4.49"
+    "postcss": "^8.4.49",
+    "preact": "^10.29.8",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",

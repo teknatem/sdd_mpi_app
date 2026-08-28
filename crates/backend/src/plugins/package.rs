@@ -262,6 +262,7 @@ mod tests {
                 api_version: "2".into(),
                 description: Some("desc".into()),
                 capabilities: vec!["data:read".into()],
+                client_kits: Some(vec!["flow".into()]),
                 built_for_migration: None,
             },
             params: vec![],

@@ -323,6 +323,16 @@ pub struct PluginManifest {
     /// enforced'ится движком; носит справочный характер.
     #[serde(default)]
     pub capabilities: Vec<String>,
+    /// Клиентские киты, которые хост инжектит в iframe плагина.
+    ///
+    /// `None` (поле отсутствует) — легаси-набор [`DEFAULT_CLIENT_KITS`]: так
+    /// продолжают работать бандлы, сохранённые до появления поля. Пустой
+    /// список — законное «ничего не нужно», а не «дай всё».
+    ///
+    /// Хранится строками, а не [`PluginClientKit`], чтобы валидация могла
+    /// назвать нераспознанное имя как его написал автор.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_kits: Option<Vec<String>>,
     /// Номер миграции БД, на который рассчитан плагин (для ручной сверки
     /// с текущей миграцией инстанса). Не валидируется и не блокирует запуск.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -386,12 +396,81 @@ impl PluginCapability {
     }
 }
 
+/// Клиентский кит — набор статических ассетов, которые хост инжектит в iframe
+/// плагина (реестр — `frontend/src/plugins/frame/kits.rs`).
+///
+/// Киты — **инфраструктура приложения, а не содержимое бандла**: файлы лежат в
+/// `static/`, раздаются с того же origin и кешируются браузером один раз на все
+/// плагины и все перезапуски. Манифест лишь объявляет, что плагину нужно, —
+/// хост грузит объявленное и ничего сверх.
+///
+/// Список закрытый: неизвестное имя отклоняется [`PluginBundle::validate`].
+/// Причина — каждый кит стоит разбора и компиляции JS в каждом открываемом
+/// iframe, поэтому опечатка в имени должна ловиться при сохранении, а не
+/// оборачиваться отсутствующим глобалом в рантайме.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginClientKit {
+    /// `window.PluginTables` — тема-aware HTML-таблица без зависимостей.
+    Tables,
+    /// `window.Chart` + `window.PluginCharts` — Chart.js и обёртка над ним.
+    Charts,
+    /// `window.PluginFlow` — редактор графов (React + @xyflow/react + dagre).
+    Flow,
+}
+
+/// Набор китов для бандла без поля `client_kits`.
+///
+/// Ровно то, что до появления поля инжектилось всем безусловно, — иначе уже
+/// установленные плагины лишились бы своих глобалов при первом же открытии.
+pub const DEFAULT_CLIENT_KITS: &[PluginClientKit] =
+    &[PluginClientKit::Tables, PluginClientKit::Charts];
+
+impl PluginClientKit {
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw.trim() {
+            "tables" => Some(Self::Tables),
+            "charts" => Some(Self::Charts),
+            "flow" => Some(Self::Flow),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Tables => "tables",
+            Self::Charts => "charts",
+            Self::Flow => "flow",
+        }
+    }
+
+    pub const ALL: &'static [PluginClientKit] = &[
+        PluginClientKit::Tables,
+        PluginClientKit::Charts,
+        PluginClientKit::Flow,
+    ];
+}
+
 impl PluginManifest {
     pub fn parsed_capabilities(&self) -> Vec<PluginCapability> {
         self.capabilities
             .iter()
             .map(|value| PluginCapability::parse(value))
             .collect()
+    }
+
+    /// Киты, которые хост должен инжектить в iframe этого плагина.
+    ///
+    /// Нераспознанные имена здесь молча отбрасываются: сюда они не доходят —
+    /// [`PluginBundle::validate`] отклоняет их до сохранения.
+    pub fn resolved_client_kits(&self) -> Vec<PluginClientKit> {
+        match self.client_kits.as_ref() {
+            None => DEFAULT_CLIENT_KITS.to_vec(),
+            Some(raw) => raw
+                .iter()
+                .filter_map(|value| PluginClientKit::parse(value))
+                .collect(),
+        }
     }
 }
 
@@ -525,6 +604,23 @@ impl PluginBundle {
                 "Unsupported plugin api_version '{}'",
                 self.manifest.api_version
             ));
+        }
+        // Список китов закрытый: опечатку ловим здесь, иначе она обернётся
+        // отсутствующим глобалом в iframe уже после сохранения.
+        if let Some(kits) = self.manifest.client_kits.as_ref() {
+            if let Some(unknown) = kits
+                .iter()
+                .find(|value| PluginClientKit::parse(value).is_none())
+            {
+                let known = PluginClientKit::ALL
+                    .iter()
+                    .map(|kit| kit.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(format!(
+                    "Неизвестный клиентский кит '{unknown}'; допустимы: {known}"
+                ));
+            }
         }
         if self.manifest.runtime.runs_on_client()
             && !has_non_empty_text(self.client_script.as_ref())
@@ -660,6 +756,7 @@ mod tests {
                 api_version: "2".into(),
                 description: None,
                 capabilities: vec![],
+                client_kits: None,
                 built_for_migration: None,
             },
             params: vec![],
@@ -681,6 +778,54 @@ mod tests {
             .validate()
             .is_ok());
         assert!(server_bundle("ok", "SELECT 1;").validate().is_ok());
+    }
+
+    #[test]
+    fn unknown_client_kit_is_rejected_by_name() {
+        let mut bundle = server_bundle("ok", "SELECT 1");
+        bundle.manifest.client_kits = Some(vec!["charts".into(), "diagrams".into()]);
+        let error = bundle.validate().unwrap_err();
+        assert!(error.contains("diagrams"), "got: {error}");
+        assert!(
+            error.contains("flow"),
+            "должен перечислять допустимые: {error}"
+        );
+    }
+
+    /// Бандлы, сохранённые до появления поля, обязаны получать ровно тот набор,
+    /// который раньше инжектился безусловно, — иначе они теряют свои глобалы.
+    #[test]
+    fn absent_client_kits_mean_legacy_set() {
+        let bundle = server_bundle("ok", "SELECT 1");
+        assert_eq!(bundle.manifest.client_kits, None);
+        assert_eq!(
+            bundle.manifest.resolved_client_kits(),
+            vec![PluginClientKit::Tables, PluginClientKit::Charts]
+        );
+
+        let legacy: PluginManifest =
+            serde_json::from_str(r#"{"code":"C","title":"T","runtime":"server"}"#)
+                .expect("манифест без поля должен читаться");
+        assert_eq!(legacy.resolved_client_kits(), DEFAULT_CLIENT_KITS.to_vec());
+    }
+
+    /// Пустой список — «ничего не нужно», а не «дай всё»: на этом держится
+    /// экономия у плагинов, рисующих собственный HTML.
+    #[test]
+    fn empty_client_kits_mean_nothing() {
+        let mut bundle = server_bundle("ok", "SELECT 1");
+        bundle.manifest.client_kits = Some(vec![]);
+        assert!(bundle.validate().is_ok());
+        assert!(bundle.manifest.resolved_client_kits().is_empty());
+    }
+
+    #[test]
+    fn client_kits_survive_json_round_trip() {
+        let mut manifest = server_bundle("ok", "SELECT 1").manifest;
+        manifest.client_kits = Some(vec!["flow".into()]);
+        let json = serde_json::to_string(&manifest).expect("serialize");
+        let back: PluginManifest = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.resolved_client_kits(), vec![PluginClientKit::Flow]);
     }
 
     #[test]

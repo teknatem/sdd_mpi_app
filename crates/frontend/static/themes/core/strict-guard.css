@@ -23,10 +23,9 @@ body[data-theme-kind="strict"] {
   /* Фоновая картинка приложения */
   --app-bg-image: none;
 
-  /* NB: --header-noise-opacity здесь НЕ гасится намеренно. Каменная текстура
-     (.app-layout::after, pattern5.jpg) — ровная поверхность, одинаковая по
-     всей площади; она не создаёт неоднородности под текстом, в отличие от
-     фотофона. Её плотностью управляет сама тема. */
+  /* Каменная мозаика (--header-noise-opacity, .app-layout::after) здесь
+     НЕ гасится: это поверхность строгой темы, не эффект поверх фото.
+     Fancy-темы обнуляют токен правилом ниже и не монтируют слой. */
 
   /* Система читаемости fancy-тем: одно размытие на весь хром + тень текста.
      `none` вместо blur(0px) — иначе браузер всё равно заводит
@@ -37,4 +36,11 @@ body[data-theme-kind="strict"] {
      набора стережёт UI-023 (раздел «Theme drift» в UI_REGISTRY.md). */
   --glass-filter: none;
   --text-on-image-shadow: none;
+}
+
+/* Фотофон fancy-темы не перекрывается гранитной мозаикой — ни токеном,
+   ни слоем (.app-layout::after вешается только на strict). */
+html[data-theme-kind="fancy"],
+body[data-theme-kind="fancy"] {
+  --header-noise-opacity: 0;
 }

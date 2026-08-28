@@ -630,6 +630,7 @@ async fn execute_declarative_chart(args: &Value, chat_id: &str, agent_id: &str) 
             api_version: "2".into(),
             description: Some("Декларативный live/snapshot график, созданный из чата.".into()),
             capabilities: vec!["network:none".into()],
+            client_kits: Some(vec!["charts".into()]),
             built_for_migration: None,
         },
         params,

@@ -2640,6 +2640,14 @@ fn ext_routes() -> Router<AppState> {
             "/api/ext/v1/ym-payment-report",
             get(handlers::ext_bi_ym_payments::list_payment_report),
         )
+        .route(
+            "/api/ext/v1/nomenclature",
+            get(handlers::ext_bi_nomenclature::list_nomenclature),
+        )
+        .route(
+            "/api/ext/v1/nomenclature-skus",
+            get(handlers::ext_bi_nomenclature::list_nomenclature_skus),
+        )
         .layer(middleware::from_fn(
             crate::system::auth::middleware::check_api_key,
         ));

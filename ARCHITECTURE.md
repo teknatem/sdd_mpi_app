@@ -62,14 +62,18 @@
 Термины — `CONTEXT.md`, раздел «Механизм процессов». Почему механизм устроен именно так и
 где грабли — ADR-0011 и `backend/src/processes/llm.md`.
 
-## Actions (5)
+## Actions (9)
 
 Операции ядра с побочным эффектом. В mjs Этапа — `host.actions.<method>`, право — `action:<name>` в манифесте Этапа. В LLM-чате те же записи подаются как инструменты.
 
 | Name | host.actions | Title | Reversible | Writes |
 |------|--------------|-------|------------|--------|
 | `create_agent_task` | `createAgentTask` | Поставить поручение AI-сотруднику | true | `a042_agent_task` |
+| `import_marketplace_products` | `importMarketplaceProducts` | Импортировать товары маркетплейса | true | `a007_marketplace_product` |
+| `import_nomenclature` | `importNomenclature` | Импортировать номенклатуру 1С | true | `a004_nomenclature`, `p901_nomenclature_barcodes` |
+| `match_nomenclature` | `matchNomenclature` | Сопоставить номенклатуру | true | `a007_marketplace_product`, `a004_nomenclature` |
 | `rebuild_day_close` | `rebuildDayClose` | Пересобрать закрытие дня WB | true | `a033_wb_day_close` |
+| `repair_empty_nomenclature_refs` | `repairEmptyNomenclatureRefs` | Починить пустые nomenclature_ref в проекциях | false | `sys_general_ledger`, `p909_mp_order_line_turnovers`, `p911_wb_advert_by_items`, `p913_wb_advert_order_attr` |
 | `repost_documents` | `repostDocuments` | Перепровести документы агрегата | false | `sys_general_ledger`, `p903_wb_finance_report`, `p904_sales_data`, `p907_ym_payment_report`, `p909_mp_order_line_turnovers` |
 | `request_human_action` | `requestHumanAction` | Позвать человека | true | `sys_ticket` |
 | `run_quality_check` | `runQualityCheck` | Прогнать quality-проверку | true | `sys_quality_check_runs` |
@@ -199,6 +203,8 @@
 | `task028` | llm golden set |
 | `task029` | agent task runner |
 | `task030` | wb finance reports |
+| `task031` | ut nomenclature prices |
+| `task032` | nomenclature check |
 
 ## Dashboards (d4XX)
 
@@ -561,7 +567,7 @@
 | `sys_thaw_test` | Тест Thaw UI |  | ThawTestPage |
 | `sys_style_guide` | Гид по стилям |  | StyleGuidePage |
 
-## API routes (476)
+## API routes (478)
 
 ### `/a004`
 - `GET` /api/a004/nomenclature
@@ -940,6 +946,8 @@
 
 ### `/ext`
 - `GET` /api/ext/v1/docs
+- `GET` /api/ext/v1/nomenclature
+- `GET` /api/ext/v1/nomenclature-skus
 - `GET` /api/ext/v1/openapi.json
 - `GET` /api/ext/v1/wb-advert-daily
 - `GET` /api/ext/v1/wb-finance-report

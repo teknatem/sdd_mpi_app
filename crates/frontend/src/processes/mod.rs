@@ -8,4 +8,5 @@
 pub mod api;
 pub mod ui;
 
+pub use ui::stage_details::StageDetailsPage;
 pub use ui::ProcessesPage;

@@ -7,7 +7,8 @@ use uuid::Uuid;
 use sea_orm::entity::prelude::*;
 use sea_orm::Condition;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect, Set, Statement, Value,
 };
 
 use crate::shared::data::db::get_connection;
@@ -511,4 +512,263 @@ pub async fn delete_by_ids(ids: Vec<Uuid>) -> anyhow::Result<u64> {
         .await?;
 
     Ok(result.rows_affected)
+}
+
+// ============================================================================
+// External BI: nomenclature catalog + marketplace SKU bridge
+// ============================================================================
+
+const ZERO_UUID: &str = "00000000-0000-0000-0000-000000000000";
+
+/// Строка справочника 1С для Power BI: одна номенклатура, без разворота по МП.
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct BiNomenclatureRow {
+    pub id: String,
+    pub name: String,
+    pub article: String,
+    pub category: String,
+    pub line: String,
+    /// dim3: в системе поле «Модель»; в BI отдаём как цвет/исполнение.
+    pub color: String,
+    pub format: String,
+    pub sink: String,
+    pub size: String,
+    pub is_assembly: bool,
+    pub dealer_price: Option<f64>,
+}
+
+pub struct BiNomenclatureResult {
+    pub rows: Vec<BiNomenclatureRow>,
+    pub total: usize,
+}
+
+/// Связка номенклатуры 1С с кодом товара на маркетплейсе.
+/// Одна строка — один SKU; дубли кабинетов схлопнуты.
+#[derive(Debug, Clone)]
+pub struct BiNomenclatureSkuRow {
+    pub nomenclature_id: String,
+    /// Короткий код площадки: `WB`, `YM`, `OZON`, …
+    pub marketplace: String,
+    /// `marketplace_sku` из a007: для WB это `nm_id`, для YM — `shop_sku`.
+    pub sku: String,
+    /// `nm_id` как число, если `marketplace = WB` и `sku` парсится. Для связи
+    /// с воронкой/остатками, где ключ — integer, а не текст.
+    pub wb_nm_id: Option<i64>,
+}
+
+pub struct BiNomenclatureSkuResult {
+    pub rows: Vec<BiNomenclatureSkuRow>,
+    pub total: usize,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct BiSkuSqlRow {
+    nomenclature_id: String,
+    marketplace_type: Option<String>,
+    marketplace_code: Option<String>,
+    sku: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct CountRow {
+    count: i64,
+}
+
+fn marketplace_label(marketplace_type: Option<&str>, marketplace_code: Option<&str>) -> String {
+    match marketplace_type.unwrap_or("") {
+        "mp-wb" => "WB".to_string(),
+        "mp-ym" => "YM".to_string(),
+        "mp-ozon" => "OZON".to_string(),
+        "mp-kuper" => "KUPER".to_string(),
+        "mp-lemana" => "LEMANA".to_string(),
+        other if !other.is_empty() => other.to_string(),
+        _ => marketplace_code.unwrap_or("").trim().to_uppercase(),
+    }
+}
+
+fn parse_wb_nm_id(marketplace: &str, sku: &str) -> Option<i64> {
+    if marketplace != "WB" {
+        return None;
+    }
+    sku.parse::<i64>().ok().filter(|id| *id > 0)
+}
+
+const MATCHED_NOM_SQL: &str = "
+    n.is_deleted = 0
+    AND n.is_folder = 0
+    AND EXISTS (
+        SELECT 1
+        FROM a007_marketplace_product p
+        WHERE p.nomenclature_ref = n.id
+          AND p.is_deleted = 0
+          AND p.marketplace_sku IS NOT NULL
+          AND TRIM(p.marketplace_sku) != ''
+    )";
+
+/// Каталог номенклатуры 1С, у которой есть хотя бы одно сопоставление a007.
+/// Дилерская цена — последняя ненулевая `p906` на дату `as_of` (включительно),
+/// с запасным путём через `base_nomenclature_ref`.
+pub async fn bi_nomenclature_rows(
+    as_of: &str,
+    limit: usize,
+    offset: usize,
+) -> anyhow::Result<BiNomenclatureResult> {
+    let db = conn();
+
+    let count_sql = format!(
+        "SELECT COUNT(*) AS count FROM a004_nomenclature n WHERE {}",
+        MATCHED_NOM_SQL
+    );
+    let total = CountRow::find_by_statement(Statement::from_string(
+        db.get_database_backend(),
+        count_sql,
+    ))
+    .one(db)
+    .await?
+    .map(|r| r.count as usize)
+    .unwrap_or(0);
+
+    let list_sql = format!(
+        "WITH latest_price AS (
+            SELECT p.nomenclature_ref, p.price
+            FROM p906_nomenclature_prices p
+            INNER JOIN (
+                SELECT nomenclature_ref, MAX(period) AS max_period
+                FROM p906_nomenclature_prices
+                WHERE price > 0 AND period <= ?
+                GROUP BY nomenclature_ref
+            ) t
+              ON t.nomenclature_ref = p.nomenclature_ref
+             AND t.max_period = p.period
+            WHERE p.price > 0
+        )
+        SELECT
+            n.id,
+            n.description AS name,
+            n.article,
+            n.dim1_category AS category,
+            n.dim2_line AS line,
+            n.dim3_model AS color,
+            n.dim4_format AS format,
+            n.dim5_sink AS sink,
+            n.dim6_size AS size,
+            n.is_assembly,
+            COALESCE(own.price, base.price) AS dealer_price
+        FROM a004_nomenclature n
+        LEFT JOIN latest_price own ON own.nomenclature_ref = n.id
+        LEFT JOIN latest_price base
+          ON base.nomenclature_ref = n.base_nomenclature_ref
+         AND n.base_nomenclature_ref IS NOT NULL
+         AND n.base_nomenclature_ref != ''
+         AND n.base_nomenclature_ref != ?
+        WHERE {}
+        ORDER BY n.article COLLATE NOCASE, n.description COLLATE NOCASE
+        LIMIT ? OFFSET ?",
+        MATCHED_NOM_SQL
+    );
+
+    let rows = BiNomenclatureRow::find_by_statement(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        list_sql,
+        [
+            Value::from(as_of.to_string()),
+            Value::from(ZERO_UUID.to_string()),
+            Value::from(limit as i64),
+            Value::from(offset as i64),
+        ],
+    ))
+    .all(db)
+    .await?;
+
+    Ok(BiNomenclatureResult { rows, total })
+}
+
+/// Мост «номенклатура 1С ↔ SKU маркетплейса» для связей в Power BI.
+pub async fn bi_nomenclature_sku_rows(
+    limit: usize,
+    offset: usize,
+) -> anyhow::Result<BiNomenclatureSkuResult> {
+    let db = conn();
+
+    let from_sql = format!(
+        "FROM (
+            SELECT DISTINCT
+                p.nomenclature_ref AS nomenclature_id,
+                m.marketplace_type AS marketplace_type,
+                m.code AS marketplace_code,
+                TRIM(p.marketplace_sku) AS sku
+            FROM a007_marketplace_product p
+            INNER JOIN a004_nomenclature n ON n.id = p.nomenclature_ref
+            LEFT JOIN a005_marketplace m ON m.id = p.marketplace_ref
+            WHERE p.is_deleted = 0
+              AND {}
+              AND p.marketplace_sku IS NOT NULL
+              AND TRIM(p.marketplace_sku) != ''
+        ) x",
+        MATCHED_NOM_SQL
+    );
+
+    let count_sql = format!("SELECT COUNT(*) AS count {}", from_sql);
+    let total = CountRow::find_by_statement(Statement::from_string(
+        db.get_database_backend(),
+        count_sql,
+    ))
+    .one(db)
+    .await?
+    .map(|r| r.count as usize)
+    .unwrap_or(0);
+
+    let list_sql = format!(
+        "SELECT nomenclature_id, marketplace_type, marketplace_code, sku
+         {}
+         ORDER BY nomenclature_id, marketplace_type, sku
+         LIMIT ? OFFSET ?",
+        from_sql
+    );
+
+    let sql_rows = BiSkuSqlRow::find_by_statement(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        list_sql,
+        [Value::from(limit as i64), Value::from(offset as i64)],
+    ))
+    .all(db)
+    .await?;
+
+    let rows = sql_rows
+        .into_iter()
+        .map(|r| {
+            let marketplace = marketplace_label(
+                r.marketplace_type.as_deref(),
+                r.marketplace_code.as_deref(),
+            );
+            let wb_nm_id = parse_wb_nm_id(&marketplace, &r.sku);
+            BiNomenclatureSkuRow {
+                nomenclature_id: r.nomenclature_id,
+                marketplace,
+                sku: r.sku,
+                wb_nm_id,
+            }
+        })
+        .collect();
+
+    Ok(BiNomenclatureSkuResult { rows, total })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{marketplace_label, parse_wb_nm_id};
+
+    #[test]
+    fn marketplace_label_maps_known_types() {
+        assert_eq!(marketplace_label(Some("mp-wb"), Some("wb")), "WB");
+        assert_eq!(marketplace_label(Some("mp-ym"), None), "YM");
+        assert_eq!(marketplace_label(None, Some("Ozon")), "OZON");
+    }
+
+    #[test]
+    fn wb_nm_id_only_for_numeric_wb_sku() {
+        assert_eq!(parse_wb_nm_id("WB", "12345678"), Some(12345678));
+        assert_eq!(parse_wb_nm_id("WB", "abc"), None);
+        assert_eq!(parse_wb_nm_id("YM", "12345678"), None);
+    }
 }

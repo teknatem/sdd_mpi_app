@@ -5,6 +5,52 @@ let currentModule = null;
 let currentUrl = null;
 let hostContext = {};
 
+// Киты грузятся по объявлению плагина, а не безусловно: см. frame/kits.rs.
+// Промис на имя, а не флаг, — тогда параллельные вызовы ждут одну загрузку,
+// а не запускают вторую.
+const kitLoads = new Map();
+
+function loadAsset(tag, attrs) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement(tag);
+    Object.assign(el, attrs);
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error("kit asset failed to load: " + (attrs.src || attrs.href)));
+    document.head.append(el);
+  });
+}
+
+function loadKit(name) {
+  let started = kitLoads.get(name);
+  if (started) return started;
+  started = (async () => {
+    const kit = KIT_ASSETS[name];
+    if (!kit) throw new Error("unknown client kit: " + name);
+    // CSS не блокирует исполнение, JS внутри кита — строго по порядку
+    // (chart.umd ставит window.Chart до обёртки, которая её читает).
+    const css = (kit.css || []).map((href) => loadAsset("link", { rel: "stylesheet", href }));
+    for (const src of kit.js || []) {
+      await loadAsset("script", { src, async: false });
+    }
+    await Promise.all(css);
+  })();
+  // Провал не кешируем: Restart должен получить честную повторную попытку.
+  started.catch(() => kitLoads.delete(name));
+  kitLoads.set(name, started);
+  return started;
+}
+
+function loadKits(names) {
+  return Promise.all((names || []).map(loadKit));
+}
+
+// plugin_init приходит дважды на холодном старте: хост зовёт его и по on:load
+// iframe, и по нашему plugin_ready. Раньше это переживалось молча, но между
+// проверкой и присваиванием currentModule стоит await — то есть два прохода
+// монтировали модуль наперегонки за #plugin-root. Считаем поколение и даём
+// устаревшему проходу бросить работу после каждого await.
+let initGeneration = 0;
+
 function emit(level, message) {
   window.parent.postMessage({ type: "plugin_event", instanceId: INSTANCE_ID, secret: BRIDGE_SECRET, level, message }, "*");
 }
@@ -18,21 +64,48 @@ function makeRequestId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+// Запрос с ответом: родитель отвечает по requestId. Одна машинерия на invoke
+// и на документ — промисы и так лежали в общей карте pending.
+function request(type, payload) {
+  const requestId = makeRequestId();
+  window.parent.postMessage(
+    Object.assign({ type, instanceId: INSTANCE_ID, secret: BRIDGE_SECRET, requestId }, payload),
+    "*"
+  );
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, { resolve, reject });
+  });
+}
+
 const host = Object.freeze({
   get context() { return hostContext; },
   invoke(method, args = {}) {
-    const requestId = makeRequestId();
+    return request("plugin_invoke", { method, args });
+  },
+  // Читает поле, адрес которого задал хост. Плагин цель не выбирает — её нет
+  // в аргументах: право на чтение и запись держит родительский фрейм.
+  loadDocument() {
+    return request("plugin_document", { op: "load" });
+  },
+  // Возвращает { version } — её же надо передать следующим expectedVersion.
+  // Ошибка со стороны родителя означает конфликт версий или запрет записи;
+  // повторять вызов вслепую нельзя, это затрёт чужие правки.
+  saveDocument(content, options = {}) {
+    return request("plugin_document", {
+      op: "save",
+      content,
+      expectedVersion: options.expectedVersion === undefined ? null : options.expectedVersion
+    });
+  },
+  // Сообщить хосту о несохранённых правках: он предупредит перед Restart и
+  // сменой режима данных. Закрытие вкладки браузера так не перехватывается.
+  setDirty(dirty) {
     window.parent.postMessage({
-      type: "plugin_invoke",
+      type: "plugin_dirty",
       instanceId: INSTANCE_ID,
       secret: BRIDGE_SECRET,
-      requestId,
-      method,
-      args
+      dirty: !!dirty
     }, "*");
-    return new Promise((resolve, reject) => {
-      pending.set(requestId, { resolve, reject });
-    });
   },
   openTab(key, title = key) {
     window.parent.postMessage({
@@ -82,7 +155,7 @@ window.addEventListener("message", async event => {
   const message = event.data || {};
   if (message.instanceId !== INSTANCE_ID || message.secret !== BRIDGE_SECRET) return;
 
-  if (message.type === "plugin_invoke_result") {
+  if (message.type === "plugin_invoke_result" || message.type === "plugin_document_result") {
     const waiter = pending.get(message.requestId);
     if (!waiter) return;
     pending.delete(message.requestId);
@@ -97,27 +170,47 @@ window.addEventListener("message", async event => {
   }
 
   if (message.type !== "plugin_init") return;
+  const generation = ++initGeneration;
+  const stale = () => generation !== initGeneration;
   try {
     if (currentModule && typeof currentModule.unmount === "function") {
       await currentModule.unmount();
     }
+    if (stale()) return;
     if (currentUrl) URL.revokeObjectURL(currentUrl);
+    currentUrl = null;
+    currentModule = null;
 
     hostContext = message.context || {};
     applyTheme(message);
+
+    await loadKits(message.kits);
+    if (stale()) return;
+
     document.getElementById("plugin-styles").textContent = message.styles || "";
     root.replaceChildren();
     emit("info", "init received, mounting");
 
+    // Локальные url/module: устаревший проход не должен затирать состояние,
+    // которое уже принадлежит более свежему.
     const blob = new Blob([message.clientScript || ""], { type: "text/javascript" });
-    currentUrl = URL.createObjectURL(blob);
-    currentModule = await import(currentUrl);
-    if (typeof currentModule.mount !== "function") {
+    const url = URL.createObjectURL(blob);
+    const module = await import(url);
+    if (stale()) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    currentUrl = url;
+    currentModule = module;
+
+    if (typeof module.mount !== "function") {
       throw new Error("client_script must export async function mount(root, host)");
     }
-    await currentModule.mount(root, host);
+    await module.mount(root, host);
+    if (stale()) return;
     emit("info", "mount() complete");
   } catch (error) {
+    if (stale()) return;
     showError(error);
     emit("error", error instanceof Error ? error.message : String(error));
   }
@@ -137,6 +230,7 @@ pub(super) fn build_srcdoc(
     let theme_kind = theme.kind.as_str();
     let theme_base = theme.base.as_str();
     let themes_json = crate::shared::theme::registry::themes_json();
+    let kit_assets_json = super::kits::kit_assets_json();
     // Ранний фон до загрузки <link> темы — чтобы не было белой вспышки в тёмной теме.
     let bg_fallback = theme.base.iframe_bg_fallback();
     format!(
@@ -164,12 +258,10 @@ pub(super) fn build_srcdoc(
   <!-- Строгий гейт: обязан идти ПОСЛЕ файла темы (см. strict-guard.css) -->
   <link rel="stylesheet" href="/static/themes/core/strict-guard.css">
   <link rel="stylesheet" href="/static/plugin-sdk.css">
-  <!-- Charting-рантайм: Chart.js (UMD ставит window.Chart) + тема-aware обёртка PluginCharts.
-       Классические <script> исполняются до module-bootstrap ниже → доступны внутри mount(). -->
-  <script src="/static/vendor/chartjs/chart.umd.min.js"></script>
-  <script src="/static/plugin-charts.js"></script>
-  <!-- Табличный рантайм: тема-aware HTML-таблица без зависимостей (window.PluginTables). -->
-  <script src="/static/plugin-tables.js"></script>
+  <!-- Киты (Chart.js, таблицы, flow) здесь НЕ перечислены: их грузит loadKits()
+       по списку из plugin_init, до вызова mount(). Список приезжает вместе с
+       клиентским скриптом, поэтому srcdoc собирается без знания манифеста и не
+       требует второй перезагрузки документа. Реестр ассетов — frame/kits.rs. -->
   <style id="plugin-styles"></style>
 </head>
 <body data-theme="{theme_attr}" data-theme-kind="{theme_kind}" data-theme-base="{theme_base}">
@@ -178,6 +270,7 @@ pub(super) fn build_srcdoc(
     const INSTANCE_ID = {instance_json};
     const BRIDGE_SECRET = {secret_json};
     const THEME_INFO = {themes_json};
+    const KIT_ASSETS = {kit_assets_json};
     {IFRAME_BOOTSTRAP}
   </script>
 </body>

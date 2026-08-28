@@ -35,6 +35,8 @@ pub mod task027_llm_judge;
 pub mod task028_llm_golden_set;
 pub mod task029_agent_task_runner;
 pub mod task030_wb_finance_reports;
+pub mod task031_ut_nomenclature_prices;
+pub mod task032_nomenclature_check;
 
 pub use u501_import_ut::U501ImportUtManager;
 pub use u502_import_ozon::U502ImportOzonManager;
@@ -71,3 +73,5 @@ pub use task027_llm_judge::Task027LlmJudgeManager;
 pub use task028_llm_golden_set::Task028LlmGoldenSetManager;
 pub use task029_agent_task_runner::Task029AgentTaskRunnerManager;
 pub use task030_wb_finance_reports::Task030WbFinanceReportsManager;
+pub use task031_ut_nomenclature_prices::Task031UtNomenclaturePricesManager;
+pub use task032_nomenclature_check::Task032NomenclatureCheckManager;

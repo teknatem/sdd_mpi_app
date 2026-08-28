@@ -703,6 +703,7 @@ pub async fn execute_build_table(arguments: &str, chat_id: &str, agent_id: &str)
             api_version: "2".into(),
             description: Some("Декларативная live/snapshot таблица, созданная из чата.".into()),
             capabilities: vec!["network:none".into()],
+            client_kits: Some(vec!["tables".into()]),
             built_for_migration: None,
         },
         params,

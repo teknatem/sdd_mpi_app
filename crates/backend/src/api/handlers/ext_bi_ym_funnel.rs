@@ -42,7 +42,11 @@ pub struct FunnelRow {
     pub clicks: Option<i64>,
     pub cart_count: Option<i64>,
     pub order_count: Option<i64>,
+    /// Заказано на сумму, ₽, по счётчику отчёта воронки. `null` — N/A.
+    pub order_sum: Option<i64>,
     pub delivered_count: Option<i64>,
+    /// Доставлено за период на сумму, ₽. `null` — N/A.
+    pub delivered_sum: Option<i64>,
     pub cancel_count: Option<i64>,
     pub return_count: Option<i64>,
     pub click_through_conversion: Option<f64>,
@@ -104,7 +108,9 @@ pub async fn list_funnel(
             clicks: row.clicks,
             cart_count: row.cart_count,
             order_count: row.order_count,
+            order_sum: row.order_sum,
             delivered_count: row.delivered_count,
+            delivered_sum: row.delivered_sum,
             cancel_count: row.cancel_count,
             return_count: row.return_count,
             click_through_conversion: row.click_through_conversion,

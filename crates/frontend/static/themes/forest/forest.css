@@ -138,7 +138,7 @@
   --page-header-bg-solid: rgba(4, 84, 4, 0.45);
   --header-text: #ffffff;
   --header-border: rgba(255, 255, 255, 0.15);
-  --header-noise-opacity: 0.03;
+  --header-noise-opacity: 0;
 
   /* Top Header Colors — тёмное стекло со светлым текстом
      (прежний тёмный текст на 25%-светлом фоне нечитаем поверх картинки) */
@@ -184,7 +184,7 @@
 
   /* Cross-theme behavior tokens */
   --app-bg-color: var(--color-bg-primary);
-  --app-bg-image: url("/static/themes/forest/background.jpg");
+  --app-bg-image: url("/assets/images/bg-forest-dark3.jpg");
 
   /* Лист страницы (.page__content). Полупрозрачен → бар вкладок ОБЯЗАН быть
      прозрачным, иначе активный ярлык разойдётся с листом по фону:

@@ -3,7 +3,7 @@ id: plugin-authoring
 title: Разработка плагинов
 description: Создание/доработка/тест JS-плагинов (client+server) из чата: шаблоны, примеры, валидация, upsert, invoke, журнал запусков.
 intents: [plugin_dev]
-tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_drilldown, execute_query, plugin_list, plugin_get, plugin_validate, plugin_smoke_test, plugin_upsert, plugin_invoke, plugin_template, plugin_examples, get_plugin_ui_contract, plugin_data_catalog, plugin_runs, chart_template, chart_examples, get_chart_ui_contract, table_template, table_examples, get_table_ui_contract]
+tools: [list_entities, get_join_hint, list_data_sources, query_data_schema, run_data_view_drilldown, execute_query, plugin_list, plugin_get, plugin_validate, plugin_smoke_test, plugin_upsert, plugin_invoke, plugin_template, plugin_examples, get_plugin_ui_contract, plugin_data_catalog, plugin_runs, chart_template, chart_examples, get_chart_ui_contract, table_template, table_examples, get_table_ui_contract, get_flow_ui_contract]
 default_for: [plugin_admin]
 ---
 
@@ -18,8 +18,12 @@ default_for: [plugin_admin]
 приложения. Идентичность плагина — поле `manifest.code` (человекочитаемый код), а НЕ
 внутренний UUID. Состав bundle:
 
-- `manifest` — `{ code, title, runtime, api_version, description }`.
+- `manifest` — `{ code, title, runtime, api_version, description, client_kits }`.
   `runtime` = `client` | `server` | `hybrid`.
+  `client_kits` — что хосту грузить в iframe: `["tables"]`, `["charts"]`, `["flow"]` или
+  их комбинация. **Объявляй только то, чем реально пользуешься.** Пустой `[]` — если
+  рисуешь своим HTML на CSS-ките (это норма и самый дешёвый вариант). Поля нет →
+  легаси-набор `["tables","charts"]`. Неизвестное имя — отказ на `plugin_validate`.
 - `client_script` — ES-модуль в изолированном iframe браузера. Экспортирует
   `async function mount(root, host)`; `unmount()` опционален. Строит UI и вызывает сервер
   через `await host.invoke("methodName", args)`.
@@ -42,10 +46,58 @@ UI-контракт (`client_script`):
 - `export async function mount(root, host) { … }` — единственная точка входа. DOM трогай только
   **внутри** mount (на верхнем уровне модуля — нельзя, там нет DOM).
 - Данные тяни с сервера: `const rows = await host.invoke("loadData", { … })`.
+- Библиотеки не подключай сам: `<script src=…>`, CDN и `import` чужого кода из iframe не
+  работают (он в opaque origin). Всё, что доступно, приходит китами из `client_kits`
+  и лежит в глобалах: `window.PluginTables`, `window.Chart` + `window.PluginCharts`,
+  `window.PluginFlow`.
 - Рендери **готовым CSS-китом iframe** (свой CSS — по минимуму): `.card`, таблица
   `.table-wrap > table.data-table` (числовые ячейки — класс `.num`), плитки `.stat`/`.stat__label`/
   `.stat__value`, кнопки `.btn`/`.btn--secondary`/`.btn--ghost`, `.badge`/`.badge--success|--error`,
   строка статуса `.status`/`.status--ok|--error`. Тема (свет/тёмная) подхватывается автоматически.
+
+## Граф: кит `flow`
+
+`client_kits: ["flow"]` даёт `window.PluginFlow` — редактор графов (ReactFlow под капотом,
+React писать не надо):
+
+```js
+const flow = PluginFlow.render(container, { nodes, edges }, {
+  editable: true,
+  onDirtyChange: (dirty) => host.setDirty(dirty),   // хост предупредит перед Restart
+});
+flow.getFlow();       // { nodes, edges } — то, что нужно сохранить
+flow.setFlow(spec);   // подменить граф целиком, снимает грязный флаг
+flow.markSaved();     // после успешного сохранения
+flow.autoLayout();    // dagre: расставить координаты
+flow.destroy();       // в unmount()
+```
+
+Узлы: `{ id, position: {x,y}, data: { label, kind } }`, рёбра: `{ id, source, target, label }`.
+Координат может не быть — кит разложит граф сам (это штатный случай для схем от LLM).
+`PluginFlow.validateSpec(spec)` проверяет только структуру (дубли id, рёбра в никуда);
+доменных правил «что с чем соединяется» в ките нет.
+
+## Редактируемый документ: `host.loadDocument` / `host.saveDocument`
+
+Если плагин открыт как редактор поля документа, ему доступны:
+
+```js
+const { content, version } = await host.loadDocument();
+const saved = await host.saveDocument(flow.getFlow());   // → { version }
+host.setDirty(true);  // есть несохранённые правки
+```
+
+Чего здесь **нет и не будет** — выбора, куда писать. Адрес поля задаёт хост, в аргументы он
+не передаётся: право на запись держит родительский фрейм, а не скрипт в iframe. Отсюда
+следствия, которые надо обработать:
+
+- плагин открыт без привязки к документу → `loadDocument`/`saveDocument` отклоняются;
+- режим «Снимок» → сохранение отклоняется (снимок — замороженные данные);
+- версия разошлась → ошибка конфликта. **Не повторяй запись вслепую** — это затрёт чужие
+  правки; перечитай `loadDocument` и покажи пользователю, что документ изменился.
+
+Обычные данные для отображения по-прежнему идут через `host.invoke` — `loadDocument` только
+для редактируемого поля.
 
 Канонический пример (таблица из серверного метода):
 

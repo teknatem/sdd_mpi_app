@@ -20,7 +20,8 @@ use super::{
         Task023WbSalesFunnelDailyManager, Task024WbSearchAnalyticsDailyManager,
         Task025BitrixTicketSyncManager, Task026YmShowsSalesDailyManager, Task027LlmJudgeManager,
         Task028LlmGoldenSetManager, Task029AgentTaskRunnerManager, Task030WbFinanceReportsManager,
-        U501ImportUtManager, U502ImportOzonManager, U503ImportYandexManager,
+        Task031UtNomenclaturePricesManager, Task032NomenclatureCheckManager, U501ImportUtManager,
+        U502ImportOzonManager, U503ImportYandexManager,
     },
     registry::{set_global_registry, TaskManagerRegistry},
     worker::ScheduledTaskWorker,
@@ -57,6 +58,10 @@ pub async fn initialize_scheduled_tasks() -> Result<ScheduledTaskWorker> {
     let u501_tracker = Arc::new(u501_import_from_ut::ProgressTracker::new());
     let u501_executor = Arc::new(u501_import_from_ut::ImportExecutor::new(u501_tracker));
     registry.register(U501ImportUtManager::new(u501_executor));
+
+    let u501_nom_tracker = Arc::new(u501_import_from_ut::ProgressTracker::new());
+    let u501_nom_executor = Arc::new(u501_import_from_ut::ImportExecutor::new(u501_nom_tracker));
+    registry.register(Task031UtNomenclaturePricesManager::new(u501_nom_executor));
 
     let u502_tracker = Arc::new(u502_import_from_ozon::ProgressTracker::new());
     let u502_executor = Arc::new(u502_import_from_ozon::ImportExecutor::new(u502_tracker));
@@ -114,6 +119,7 @@ pub async fn initialize_scheduled_tasks() -> Result<ScheduledTaskWorker> {
     registry.register(Task022MailReplyManager::new());
     registry.register(Task025BitrixTicketSyncManager::new());
     registry.register(QualityCheckRunManager::new());
+    registry.register(Task032NomenclatureCheckManager::new());
 
     let registry = Arc::new(registry);
     set_global_registry(Arc::clone(&registry));
@@ -146,6 +152,8 @@ mod tests {
             "task028_llm_golden_set",
             "task029_agent_task_runner",
             "task030_wb_finance_reports",
+            "task031_ut_nomenclature_prices",
+            "task032_nomenclature_check",
             "quality_check_run",
         ] {
             let manager = registry

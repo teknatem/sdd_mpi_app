@@ -27,11 +27,16 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
     let (error, set_error) = signal(None::<String>);
     let client_src = RwSignal::new(String::new());
     let styles_src = RwSignal::new(String::new());
+    let kits = RwSignal::new(Vec::<String>::new());
     let context = RwSignal::new(PluginRunContext::default());
     let restart = RwSignal::new(0u64);
     let data_mode = RwSignal::new(PluginDataMode::Live);
     // Журнал — выдвижная нижняя панель поверх iframe (тоггл).
     let show_log = RwSignal::new(false);
+    // Плагин-редактор сообщает о несохранённых правках через host.setDirty.
+    // Restart перестраивает документ iframe целиком, то есть молча выбрасывает
+    // их, — поэтому спрашиваем подтверждение.
+    let dirty = RwSignal::new(false);
 
     // Журналы плагина — наполняются PluginFrame, рендерятся в выдвижной панели.
     let console = RwSignal::new(Vec::<String>::new());
@@ -44,6 +49,9 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
                 Ok(plugin) => {
                     client_src.set(plugin.bundle.client_script.clone().unwrap_or_default());
                     styles_src.set(plugin.bundle.styles.clone().unwrap_or_default());
+                    kits.set(crate::plugins::frame::kits::kit_names(
+                        &plugin.bundle.manifest,
+                    ));
                     context.set(crate::plugins::host::model::default_run_context(
                         &plugin.bundle,
                     ));
@@ -62,6 +70,9 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
     let restart_plugin = {
         let id = plugin_id.clone();
         move |_| {
+            if !confirm_discard(dirty) {
+                return;
+            }
             console.set(Vec::new());
             events.set(Vec::new());
             let id = id.clone();
@@ -70,6 +81,9 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
                     Ok(plugin) => {
                         client_src.set(plugin.bundle.client_script.clone().unwrap_or_default());
                         styles_src.set(plugin.bundle.styles.clone().unwrap_or_default());
+                        kits.set(crate::plugins::frame::kits::kit_names(
+                            &plugin.bundle.manifest,
+                        ));
                         context.set(crate::plugins::host::model::default_run_context(
                             &plugin.bundle,
                         ));
@@ -84,6 +98,9 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
 
     let select_live = move |_| {
         if data_mode.get_untracked() != PluginDataMode::Live {
+            if !confirm_discard(dirty) {
+                return;
+            }
             data_mode.set(PluginDataMode::Live);
             restart.update(|value| *value += 1);
         }
@@ -94,6 +111,9 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
             .and_then(|plugin| plugin.snapshot)
             .is_some();
         if available && data_mode.get_untracked() != PluginDataMode::Snapshot {
+            if !confirm_discard(dirty) {
+                return;
+            }
             data_mode.set(PluginDataMode::Snapshot);
             restart.update(|value| *value += 1);
         }
@@ -237,6 +257,8 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
                     plugin_id=plugin_id
                     client_src=client_src
                     styles_src=styles_src
+                    kits=kits
+                    dirty=dirty
                     context=context
                     data_mode=data_mode
                     restart=restart
@@ -313,4 +335,30 @@ pub fn PluginView(plugin_id: String) -> impl IntoView {
             </div>
         </div>
     }
+}
+
+/// Спросить подтверждение, если у плагина есть несохранённые правки.
+///
+/// Прикрывает только те пути, которыми управляет хост, — Restart и смену режима
+/// данных. **Закрытие вкладки браузера так не перехватить**: из sandbox-iframe
+/// без `allow-same-origin` до `beforeunload` родителя не дотянуться, а сам
+/// хост о закрытии вкладки узнаёт уже после факта. Редактору остаётся сохранять
+/// часто, а не рассчитывать на диалог.
+fn confirm_discard(dirty: RwSignal<bool>) -> bool {
+    if !dirty.get_untracked() {
+        return true;
+    }
+    let confirmed = web_sys::window()
+        .and_then(|window| {
+            window
+                .confirm_with_message(
+                    "В плагине есть несохранённые изменения. Продолжить и потерять их?",
+                )
+                .ok()
+        })
+        .unwrap_or(true);
+    if confirmed {
+        dirty.set(false);
+    }
+    confirmed
 }

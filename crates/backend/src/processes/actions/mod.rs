@@ -9,7 +9,11 @@
 //! расширяет то, что система вообще способна сделать с миром.
 
 pub mod create_agent_task;
+pub mod import_marketplace_products;
+pub mod import_nomenclature;
+pub mod match_nomenclature;
 pub mod rebuild_day_close;
+pub mod repair_empty_nomenclature_refs;
 pub mod repost_documents;
 pub mod request_human_action;
 pub mod run_quality_check;
@@ -64,6 +68,10 @@ fn catalog() -> &'static Vec<Arc<dyn Action>> {
             Arc::new(run_quality_check::RunQualityCheck),
             Arc::new(create_agent_task::CreateAgentTask),
             Arc::new(request_human_action::RequestHumanAction),
+            Arc::new(import_nomenclature::ImportNomenclature),
+            Arc::new(import_marketplace_products::ImportMarketplaceProducts),
+            Arc::new(match_nomenclature::MatchNomenclature),
+            Arc::new(repair_empty_nomenclature_refs::RepairEmptyNomenclatureRefs),
         ]
     })
 }

@@ -167,7 +167,7 @@ fn rust_definitions() -> Vec<CheckDefinition> {
     .collect()
 }
 
-fn embedded_packages() -> [(&'static str, &'static str, Option<&'static str>); 6] {
+fn embedded_packages() -> [(&'static str, &'static str, Option<&'static str>); 7] {
     [
         (
             include_str!("../../quality_checks/marketplace_product_ref_required/check.json"),
@@ -203,6 +203,11 @@ fn embedded_packages() -> [(&'static str, &'static str, Option<&'static str>); 6
         (
             include_str!("../../quality_checks/wb_day_not_closed/check.json"),
             include_str!("../../quality_checks/wb_day_not_closed/check.mjs"),
+            None,
+        ),
+        (
+            include_str!("../../quality_checks/nomenclature_catalog_inconsistent/check.json"),
+            include_str!("../../quality_checks/nomenclature_catalog_inconsistent/check.mjs"),
             None,
         ),
     ]
@@ -799,7 +804,7 @@ mod tests {
     #[test]
     fn stable_codes_and_unique_ids_are_loaded() {
         let snapshot = build_snapshot(7).expect("registry");
-        assert_eq!(snapshot.definitions.len(), 11);
+        assert_eq!(snapshot.definitions.len(), 12);
         assert_eq!(
             snapshot
                 .definitions
@@ -909,7 +914,7 @@ mod tests {
             .find(|item| item.info.id == "p907_gl_coverage")
             .expect("overridden definition");
         assert_eq!(definition.info.name, "External override");
-        assert_eq!(snapshot.definitions.len(), 11);
+        assert_eq!(snapshot.definitions.len(), 12);
 
         std::fs::remove_dir_all(root).expect("remove temporary catalog");
     }
@@ -932,7 +937,7 @@ mod tests {
         let candidate = build_snapshot_from_root(previous.generation + 1, Some(&root));
         assert!(candidate.is_err());
         assert_eq!(previous.generation, 11);
-        assert_eq!(previous.definitions.len(), 11);
+        assert_eq!(previous.definitions.len(), 12);
 
         std::fs::remove_dir_all(root).expect("remove temporary catalog");
     }

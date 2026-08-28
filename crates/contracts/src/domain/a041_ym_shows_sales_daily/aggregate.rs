@@ -107,9 +107,15 @@ pub struct YmShowsSalesDailyMetrics {
     /// Заказанные товары, шт. (счётчик маркетплейса, ≠ заказы из a013).
     #[serde(default)]
     pub order_items: Option<i64>,
+    /// Заказано на сумму, ₽ (`orderItemsTotalAmount`). Целые рубли, не копейки.
+    #[serde(default)]
+    pub order_sum: Option<i64>,
     /// Доставлено за период, шт.
     #[serde(default)]
     pub delivered_count: Option<i64>,
+    /// Доставлено за период на сумму, ₽ (`orderItemsDeliveredTotalAmount`).
+    #[serde(default)]
+    pub delivered_sum: Option<i64>,
     /// Отмены и невыкупы за период, шт. — счётчик отказов YM.
     #[serde(default)]
     pub canceled_count: Option<i64>,
@@ -126,7 +132,9 @@ impl YmShowsSalesDailyMetrics {
             self.clicks,
             self.to_cart,
             self.order_items,
+            self.order_sum,
             self.delivered_count,
+            self.delivered_sum,
             self.canceled_count,
             self.returned_count,
         ]
@@ -251,5 +259,21 @@ impl AggregateRoot for YmShowsSalesDaily {
 
     fn origin() -> Origin {
         Origin::Marketplace
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::YmShowsSalesDailyMetrics;
+
+    #[test]
+    fn metrics_from_legacy_json_keep_new_sums_as_na() {
+        let metrics: YmShowsSalesDailyMetrics = serde_json::from_str(
+            r#"{"shows":44,"clicks":5,"to_cart":1,"order_items":1,"delivered_count":1}"#,
+        )
+        .unwrap();
+        assert_eq!(metrics.order_items, Some(1));
+        assert!(metrics.order_sum.is_none());
+        assert!(metrics.delivered_sum.is_none());
     }
 }

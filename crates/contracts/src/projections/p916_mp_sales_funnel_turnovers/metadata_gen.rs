@@ -602,7 +602,7 @@ pub const FIELDS: &[FieldMetadata] = &[
             pattern: None,
             custom_error: None,
         },
-        ai_hint: Some("Сумма заказов по счётчику воронки a036."),
+        ai_hint: Some("Сумма заказов по счётчику воронки: a036 у WB и a041 у YM (`orderItemsTotalAmount`, целые рубли). Стадия marketing. Не путать с order_sum стадии fulfillment — тот считается по документам заказов."),
         physical: true,
         nested_fields: None,
         ref_aggregate: None,

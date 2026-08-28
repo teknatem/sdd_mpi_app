@@ -230,6 +230,24 @@ async fn main() -> anyhow::Result<()> {
         ),
     }
 
+    match processes::pr0002_nomenclature::seed(shared::data::db::get_connection()).await {
+        Ok(report) if report.is_empty() => {}
+        Ok(report) => println!(
+            "✓ Процессы: заведены черновики {:?}{}
+",
+            report.stages_created,
+            if report.process_created {
+                " + pr0002"
+            } else {
+                ""
+            }
+        ),
+        Err(e) => println!(
+            "✗ Процессы: посев pr0002 не удался: {e}
+"
+        ),
+    }
+
     // Воркер экземпляров процессов. Намеренно не под флагом планировщика
     // (ADR-0011 п.12): регламентные задания и Процессы — разные механизмы, и
     // выключенный планировщик не должен означать остановленные Процессы.

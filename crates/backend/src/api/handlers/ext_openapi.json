@@ -3,7 +3,7 @@
   "info": {
     "title": "Внешний API маркетплейсов",
     "version": "1",
-    "description": "Сервис, который система предоставляет наружу: выгрузки для 1С и BI (Power BI).\n\n**Авторизация** — общий ключ в заголовке `X-Api-Key` (значение — `[external_api].api_key` в `config.toml` экземпляра). Ключ один на всех потребителей; персональных ключей нет.\n\n**Общие соглашения**\n\n* Даты — строки `YYYY-MM-DD`, границы периода включительно.\n* Пагинация — `limit`/`offset`; у каждого эндпоинта свой предел `limit`, значение выше предела молча урезается до него.\n* Поле `total` в ответе — число строк за период **до** пагинации.\n* `connection_id` — UUID кабинета маркетплейса (`a006_connection_mp`); пусто — все кабинеты.\n* Все вызовы (включая отказы 401/400) пишутся в журнал внешнего API и видны администратору системы.\n\n**Ответ 503** означает, что ключ не настроен на сервере либо система в режиме обслуживания."
+    "description": "Сервис, который система предоставляет наружу: выгрузки для 1С и BI (Power BI).\n\n**Авторизация** — общий ключ в заголовке `X-Api-Key` (значение — `[external_api].api_key` в `config.toml` экземпляра). Ключ один на всех потребителей; персональных ключей нет.\n\n**Общие соглашения**\n\n* Даты — строки `YYYY-MM-DD`, границы периода включительно.\n* Пагинация — `limit`/`offset`; у каждого эндпоинта свой предел `limit`, значение выше предела молча урезается до него.\n* Поле `total` в ответе — число строк за период **до** пагинации.\n* `connection_id` — UUID кабинета маркетплейса (`a006_connection_mp`); пусто — все кабинеты.\n* Все вызовы (включая отказы 401/400) пишутся в журнал внешнего API и видны администратору системы.\n\n**Ответ 503** означает, что ключ не настроен на сервере либо система в режиме обслуживания.\n\n**Связи для Power BI.** Справочник 1С и факты маркетплейсов стыкуются через мост, не напрямую и не по артикулу.\n\n* `/nomenclature`.`id` → `/nomenclature-skus`.`nomenclature_id` (1 ко многим: у одной номенклатуры 1С может быть несколько SKU).\n* `/nomenclature-skus`.`wb_nm_id` → `/wb-sales-funnel`.`nm_id`, `/wb-stocks`.`nm_id`, `/wb-advert-daily`.`nm_id`. Берите только строки моста с `marketplace = WB`. Типы совпадают: оба integer.\n* `/nomenclature-skus`.`sku` → `/ym-sales-funnel`.`offer_id`. Только `marketplace = YM`. Оба string.\n\n`dealer_price` и измерения живут в `/nomenclature`. Не суммируйте цену через мост — получите дубли. Поле `sku` у WB — тот же `nm_id` строкой; для связи с воронкой используйте `wb_nm_id`.\n\n`/wb-finance-report` и `/ym-payment-report` — сырые строки маркетплейса: внутренних ключей номенклатуры в них нет."
   },
   "servers": [{ "url": "/", "description": "Текущий сервер" }],
   "tags": [
@@ -98,7 +98,7 @@
       "get": {
         "tags": ["BI"],
         "summary": "Воронка продаж WB",
-        "description": "Плоские строки «товар × день»: переходы, корзина, заказы, выкупы, отмены и конверсии.",
+        "description": "Плоские строки «товар × день»: переходы, корзина, заказы, выкупы, отмены и конверсии.\n\nКлюч товара — `nm_id`. Связь с номенклатурой 1С: `nm_id` → `/nomenclature-skus`.`wb_nm_id` (строки с `marketplace = WB`) → `/nomenclature`.`id`.",
         "operationId": "listWbSalesFunnel",
         "parameters": [
           { "$ref": "#/components/parameters/DateFromRequired" },
@@ -133,7 +133,7 @@
       "get": {
         "tags": ["BI"],
         "summary": "Воронка продаж Yandex Market",
-        "description": "Плоские строки «товар × день» из сохранённого отчёта «Аналитика продаж»: показы, клики, корзина, заказы, доставки, отмены, возвраты и конверсии. Отсутствующая метрика возвращается как null (N/A), а не как ноль.",
+        "description": "Плоские строки «товар × день» из сохранённого отчёта «Аналитика продаж»: показы, клики, корзина, заказы (шт. и сумма), доставки (шт. и сумма), отмены, возвраты и конверсии. Отсутствующая метрика возвращается как null (N/A), а не как ноль. Суммы — целые рубли счётчика воронки, не выручка из заказов a013.\n\nКлюч товара — `offer_id` (ваш SKU на Маркете). Связь с номенклатурой 1С: `offer_id` → `/nomenclature-skus`.`sku` (строки с `marketplace = YM`) → `/nomenclature`.`id`. Поле `nomenclature_ref` в этой выгрузке — тот же UUID, что `/nomenclature`.`id`, если сопоставление уже было на момент снимка; мост актуальнее.",
         "operationId": "listYmSalesFunnel",
         "parameters": [
           { "$ref": "#/components/parameters/DateFromRequired" },
@@ -168,7 +168,7 @@
       "get": {
         "tags": ["BI"],
         "summary": "Реклама WB по дням",
-        "description": "Плоские строки «кампания × товар × день»: показы, клики, CTR/CPC, заказы и расход.",
+        "description": "Плоские строки «кампания × товар × день»: показы, клики, CTR/CPC, заказы и расход.\n\nКлюч товара — `nm_id`. Связь с номенклатурой 1С: `nm_id` → `/nomenclature-skus`.`wb_nm_id` (`marketplace = WB`). Поле `nomenclature_ref` — UUID из `/nomenclature`.`id`, если сопоставление было на момент строки.",
         "operationId": "listWbAdvertDaily",
         "parameters": [
           { "$ref": "#/components/parameters/DateFromRequired" },
@@ -203,7 +203,7 @@
       "get": {
         "tags": ["BI"],
         "summary": "Остатки WB на дату",
-        "description": "Остатки на уровне товара (`nm_id`): склады WB и склады продавца. Разреза по складам, баркодам и товару в пути нет — эти данные не хранятся.\n\nБез параметра `date` отдаётся последний снимок; с `date` — снимок на дату или ближайший более ранний (фактическая дата в поле `snapshot_date`).",
+        "description": "Остатки на уровне товара (`nm_id`): склады WB и склады продавца. Разреза по складам, баркодам и товару в пути нет — эти данные не хранятся.\n\nБез параметра `date` отдаётся последний снимок; с `date` — снимок на дату или ближайший более ранний (фактическая дата в поле `snapshot_date`).\n\nСвязь с номенклатурой 1С: `nm_id` → `/nomenclature-skus`.`wb_nm_id` (`marketplace = WB`) → `/nomenclature`.`id`.",
         "operationId": "listWbStocks",
         "parameters": [
           {
@@ -291,6 +291,77 @@
             }
           },
           "400": { "$ref": "#/components/responses/PeriodRequired" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/nomenclature": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Номенклатура 1С (измерения и дилерская цена)",
+        "description": "Одна строка — один товар справочника 1С (`a004`), не папка. В выгрузку попадают только позиции, у которых есть хотя бы одно сопоставление с товаром маркетплейса (`a007`). Коды площадок сюда не входят: их отдаёт соседний `/api/ext/v1/nomenclature-skus`, чтобы в Power BI связать справочник с воронкой/остатками без дублирования атрибутов.\n\n`color` — измерение dim3 (в системе поле «Модель»; на практике цвет/исполнение). Измерения ведутся в MPI, из 1С не импортируются.\n\n`is_assembly` — признак 1С «ТребуетсяСборка».\n\nДилерская цена — последняя ненулевая запись `p906` на дату `date` (включительно), с запасным путём через базовую номенклатуру. В `p906` попадают дилерские цены УТ из HTTP `/hs/mpi_api/prices_dealer`.",
+        "operationId": "listNomenclature",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Дата, на которую берётся дилерская цена. Пусто — сегодня.",
+            "schema": { "type": "string", "format": "date" },
+            "example": "2026-08-26"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 50000.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50000, "default": 50000 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Справочник номенклатуры",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NomenclatureResponse" }
+              }
+            }
+          },
+          "400": { "description": "Некорректная дата `date` (ожидается `YYYY-MM-DD`)." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/ext/v1/nomenclature-skus": {
+      "get": {
+        "tags": ["BI"],
+        "summary": "Мост номенклатура 1С ↔ SKU маркетплейса",
+        "description": "Мост между справочником 1С и фактами маркетплейсов. Одна строка — один код товара на площадке. Дубли кабинетов схлопнуты: `(nomenclature_id, marketplace, sku)` уникальны. Кардинальность: много SKU на одну номенклатуру 1С.\n\nСвязи в Power BI (many-to-one от факта к мосту, many-to-one от моста к справочнику):\n\n* `nomenclature_id` = `/nomenclature`.`id`\n* `wb_nm_id` = `/wb-sales-funnel`.`nm_id` = `/wb-stocks`.`nm_id` = `/wb-advert-daily`.`nm_id` — только при `marketplace = WB`\n* `sku` = `/ym-sales-funnel`.`offer_id` — только при `marketplace = YM`\n\nДля WB `sku` — это `nm_id` строкой; для связи с воронкой берите `wb_nm_id` (integer), иначе Power BI не сопоставит text и целое. Не связывайте факты со справочником по артикулу.",
+        "operationId": "listNomenclatureSkus",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Максимум 50000.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50000, "default": 50000 }
+          },
+          { "$ref": "#/components/parameters/Offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Сопоставление SKU",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NomenclatureSkuResponse" }
+              }
+            }
+          },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "500": { "$ref": "#/components/responses/ServerError" },
           "503": { "$ref": "#/components/responses/Unavailable" }
@@ -472,7 +543,7 @@
           "connection_name": { "type": ["string", "null"] },
           "organization_name": { "type": ["string", "null"] },
           "currency": { "type": "string" },
-          "nm_id": { "type": "integer", "format": "int64" },
+          "nm_id": { "type": "integer", "format": "int64", "description": "nmID Wildberries. Связь: `/nomenclature-skus`.`wb_nm_id`." },
           "vendor_code": { "type": "string" },
           "brand_name": { "type": "string" },
           "subject_id": { "type": "integer", "format": "int64" },
@@ -518,7 +589,7 @@
           "connection_name": { "type": ["string", "null"] },
           "organization_name": { "type": ["string", "null"] },
           "campaign_id": { "type": ["string", "null"], "description": "Технический ID магазина Yandex Market." },
-          "offer_id": { "type": "string", "description": "Ваш SKU в Yandex Market." },
+          "offer_id": { "type": "string", "description": "Ваш SKU в Yandex Market. Связь: `/nomenclature-skus`.`sku` при `marketplace = YM`." },
           "offer_name": { "type": "string" },
           "marketplace_product_ref": { "type": ["string", "null"], "format": "uuid" },
           "nomenclature_ref": { "type": ["string", "null"], "format": "uuid" },
@@ -529,7 +600,9 @@
           "clicks": { "type": ["integer", "null"], "format": "int64", "description": "Переходы в карточку товара." },
           "cart_count": { "type": ["integer", "null"], "format": "int64", "description": "Добавления в корзину." },
           "order_count": { "type": ["integer", "null"], "format": "int64", "description": "Заказанные товары по счётчику отчёта воронки." },
+          "order_sum": { "type": ["integer", "null"], "format": "int64", "description": "Заказано на сумму, ₽, по счётчику отчёта воронки. Целые рубли. null — N/A." },
           "delivered_count": { "type": ["integer", "null"], "format": "int64", "description": "Доставленные за период товары." },
+          "delivered_sum": { "type": ["integer", "null"], "format": "int64", "description": "Доставлено за период на сумму, ₽. Целые рубли. null — N/A." },
           "cancel_count": { "type": ["integer", "null"], "format": "int64", "description": "Отмены и невыкупы за период." },
           "return_count": { "type": ["integer", "null"], "format": "int64", "description": "Возвращённые за период товары." },
           "click_through_conversion": { "type": ["number", "null"], "format": "double", "description": "Клики / показы × 100. null при N/A или нулевом знаменателе." },
@@ -554,9 +627,9 @@
           "connection_name": { "type": ["string", "null"] },
           "organization_name": { "type": ["string", "null"] },
           "advert_id": { "type": "integer", "format": "int64", "description": "ID рекламной кампании WB." },
-          "nm_id": { "type": "integer", "format": "int64" },
+          "nm_id": { "type": "integer", "format": "int64", "description": "nmID Wildberries. Связь: `/nomenclature-skus`.`wb_nm_id`." },
           "nm_name": { "type": "string" },
-          "nomenclature_ref": { "type": ["string", "null"], "format": "uuid", "description": "UUID номенклатуры 1С, если сопоставление есть." },
+          "nomenclature_ref": { "type": ["string", "null"], "format": "uuid", "description": "UUID номенклатуры 1С (`/nomenclature`.`id`), если сопоставление есть. Мост `/nomenclature-skus` актуальнее." },
           "app_types": { "type": "array", "items": { "type": "integer" }, "description": "Типы площадок (коды WB)." },
           "placements": { "type": "array", "items": { "type": "string" }, "description": "Места показа." },
           "views": { "type": "integer", "format": "int64", "description": "Показы." },
@@ -591,7 +664,7 @@
           "connection_id": { "type": "string", "format": "uuid" },
           "connection_name": { "type": ["string", "null"] },
           "organization_name": { "type": ["string", "null"] },
-          "nm_id": { "type": "integer", "format": "int64" },
+          "nm_id": { "type": "integer", "format": "int64", "description": "nmID Wildberries. Связь: `/nomenclature-skus`.`wb_nm_id`." },
           "vendor_code": { "type": "string" },
           "brand_name": { "type": "string" },
           "subject_id": { "type": "integer", "format": "int64" },
@@ -600,6 +673,101 @@
           "stock_wb": { "type": "integer", "format": "int64", "description": "Остаток на складах WB, шт." },
           "stock_mp": { "type": "integer", "format": "int64", "description": "Остаток на складах продавца, шт." },
           "stock_balance_sum": { "type": "number", "format": "double", "description": "Сумма остатков." }
+        }
+      },
+      "NomenclatureResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NomenclatureRow" }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Число строк до пагинации."
+          }
+        }
+      },
+      "NomenclatureRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "article",
+          "category",
+          "line",
+          "color",
+          "size",
+          "format",
+          "sink",
+          "is_assembly"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID номенклатуры 1С. Ключ связи с `/nomenclature-skus`."
+          },
+          "name": { "type": "string", "description": "Наименование из 1С." },
+          "article": { "type": "string", "description": "Артикул из 1С." },
+          "category": { "type": "string", "description": "Категория (dim1)." },
+          "line": { "type": "string", "description": "Линейка (dim2)." },
+          "color": {
+            "type": "string",
+            "description": "Цвет / модель (dim3, в системе поле «Модель»)."
+          },
+          "size": { "type": "string", "description": "Размер (dim6)." },
+          "format": { "type": "string", "description": "Формат (dim4)." },
+          "sink": { "type": "string", "description": "Раковина (dim5)." },
+          "is_assembly": {
+            "type": "boolean",
+            "description": "Признак 1С «ТребуетсяСборка». `true` — требуется сборка, `false` — нет."
+          },
+          "dealer_price": {
+            "type": ["number", "null"],
+            "format": "double",
+            "description": "Дилерская цена УТ из `p906`: последняя ненулевая запись с `period` ≤ `date`. Источник — HTTP 1С `/hs/mpi_api/prices_dealer` (initial + history). Если своей цены нет — цена базовой номенклатуры. `null`, если цены нет."
+          }
+        }
+      },
+      "NomenclatureSkuResponse": {
+        "type": "object",
+        "required": ["items", "total"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NomenclatureSkuRow" }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Число строк до пагинации."
+          }
+        }
+      },
+      "NomenclatureSkuRow": {
+        "type": "object",
+        "required": ["nomenclature_id", "marketplace", "sku"],
+        "properties": {
+          "nomenclature_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID номенклатуры 1С."
+          },
+          "marketplace": {
+            "type": "string",
+            "description": "Площадка: `WB`, `YM`, `OZON`, …",
+            "example": "WB"
+          },
+          "sku": {
+            "type": "string",
+            "description": "Код товара на площадке (WB `nm_id`, YM `shop_sku`)."
+          },
+          "wb_nm_id": {
+            "type": ["integer", "null"],
+            "format": "int64",
+            "description": "Числовой `nm_id` для связи с выгрузками WB. `null`, если площадка не WB или код не число."
+          }
         }
       },
       "RawRowsResponse": {

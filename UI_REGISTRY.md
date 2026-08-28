@@ -10,7 +10,7 @@
 | Metric | Value |
 |--------|-------|
 | CSS files | 49 |
-| CSS lines | 21941 |
+| CSS lines | 21946 |
 | Distinct classes | 2241 |
 | Block roots | 585 |
 | Classes with no Rust reference | 373 |

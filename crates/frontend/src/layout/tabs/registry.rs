@@ -1387,6 +1387,12 @@ pub fn render_tab_content(key: &str, tabs_store: AppGlobalContext) -> AnyView {
         "sys_audit" => view! { <crate::system::audit::AuditPage /> }.into_any(),
         "sys_metrics" => view! { <crate::system::metrics::ProjectMetricsPage /> }.into_any(),
         "sys_processes" => view! { <crate::processes::ProcessesPage /> }.into_any(),
+        k if k.starts_with("sys_stage_details_") => {
+            // Без unwrap, хотя соседи по файлу его используют: smells.unwrap —
+            // гейтящаяся метрика, и плодить их в новом коде незачем.
+            let code = k.trim_start_matches("sys_stage_details_").to_string();
+            view! { <crate::processes::StageDetailsPage code=code /> }.into_any()
+        }
         "sys_s3_files" => view! { <S3FilesPage /> }.into_any(),
         "sys_datasets" => view! { <DatasetsPage /> }.into_any(),
         "sys_raw_storage" => view! { <RawStoragePage /> }.into_any(),

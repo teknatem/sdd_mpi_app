@@ -1637,8 +1637,8 @@ impl YandexApiClient {
     /// Endpoint: POST /v2/reports/shows-sales/generate?format=JSON
     ///
     /// `grouping=OFFERS` + разбивка по дням даёт строку на `offerId × день`: показы,
-    /// клики, корзину, заказы, доставки, отмены/невыкупы и возвраты. Это единственный
-    /// источник показов YM — в orders-API их нет.
+    /// клики, корзину, заказы (шт. и сумма), доставки (шт. и сумма), отмены/невыкупы и возвраты.
+    /// Это единственный источник показов YM — в orders-API их нет.
     ///
     /// В запрос передаётся один `campaignId` бизнеса. Повторять запрос для остальных
     /// магазинов не нужно: завершённые дни отчёта совпадают на уровне кабинета.
@@ -2074,8 +2074,14 @@ pub struct YmShowsSalesRow {
     pub to_cart: Option<i64>,
     #[serde(default)]
     pub order_items: Option<i64>,
+    /// Заказано на сумму, ₽. Живой JSON отдаёт целое; `null` = N/A, не ноль.
+    #[serde(default)]
+    pub order_items_total_amount: Option<i64>,
     #[serde(default)]
     pub order_items_delivered_count: Option<i64>,
+    /// Доставлено за период на сумму, ₽.
+    #[serde(default)]
+    pub order_items_delivered_total_amount: Option<i64>,
     /// «Отмены и невыкупы за период» — счётчик отказов YM.
     #[serde(default)]
     pub order_items_canceled_count: Option<i64>,
@@ -2115,7 +2121,9 @@ impl YmShowsSalesRow {
             self.clicks,
             self.to_cart,
             self.order_items,
+            self.order_items_total_amount,
             self.order_items_delivered_count,
+            self.order_items_delivered_total_amount,
             self.order_items_canceled_count,
             self.order_items_returned_count,
         ]
@@ -2242,5 +2250,43 @@ mod request_contract_tests {
         assert_eq!(rows[0].date().as_deref(), Some("2026-08-10"));
         assert_eq!(rows[0].offer_id.as_deref(), Some("SKU-1"));
         assert_eq!(rows[0].shows, Some(17));
+    }
+
+    #[test]
+    fn shows_sales_row_parses_order_and_delivered_amounts() {
+        let row: YmShowsSalesRow = serde_json::from_value(serde_json::json!({
+            "day": "24-08-2026",
+            "month": "08-2026",
+            "year": 2026,
+            "offerId": "SKU-1",
+            "orderItems": 1,
+            "orderItemsTotalAmount": 40826,
+            "orderItemsDeliveredCount": 1,
+            "orderItemsDeliveredTotalAmount": 7054
+        }))
+        .unwrap();
+
+        assert_eq!(row.order_items, Some(1));
+        assert_eq!(row.order_items_total_amount, Some(40826));
+        assert_eq!(row.order_items_delivered_count, Some(1));
+        assert_eq!(row.order_items_delivered_total_amount, Some(7054));
+    }
+
+    #[test]
+    fn shows_sales_row_keeps_missing_amounts_as_na() {
+        let row: YmShowsSalesRow = serde_json::from_value(serde_json::json!({
+            "day": "24-08-2026",
+            "month": "08-2026",
+            "year": 2026,
+            "offerId": "SKU-1",
+            "shows": 44,
+            "orderItems": null,
+            "orderItemsTotalAmount": null
+        }))
+        .unwrap();
+
+        assert!(row.order_items.is_none());
+        assert!(row.order_items_total_amount.is_none());
+        assert!(row.order_items_delivered_total_amount.is_none());
     }
 }
