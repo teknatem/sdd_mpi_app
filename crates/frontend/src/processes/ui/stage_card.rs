@@ -35,45 +35,19 @@ pub fn StageCard(
     actions: RwSignal<Vec<api::ActionInfo>>,
     on_changed: Callback<()>,
 ) -> impl IntoView {
+    // Паспорт читает запись целиком, карточка — только заголовок и код.
+    let facts = record.clone();
     let code = StoredValue::new(record.code.clone());
     let version = record.version;
     let status = record.status;
     let manifest = record.definition.manifest.clone();
     let script = record.definition.script.clone();
     let script_lines = script.lines().count();
-    let digest = short_digest(&record.digest);
-    let created = record.created_at.clone();
-    let author = record.created_by.clone().unwrap_or_else(|| "—".to_string());
 
     let title = manifest.title.clone();
     let description = manifest.description.clone();
     let has_description = !description.is_empty();
-    let outputs = manifest.outputs.clone();
-    let capabilities = manifest.capabilities.clone();
     let input_schema = manifest.input_schema.clone();
-    let entrypoint = manifest.entrypoint.clone();
-    let export = manifest.export.clone();
-
-    let reads: Vec<String> = capabilities
-        .iter()
-        .filter_map(|capability| capability.trim().strip_prefix("db:read:"))
-        .map(|table| table.trim().to_string())
-        .collect();
-    let action_names: Vec<String> = capabilities
-        .iter()
-        .filter_map(|capability| capability.trim().strip_prefix("action:"))
-        .map(|name| name.trim().to_string())
-        .collect();
-    let other: Vec<String> = capabilities
-        .iter()
-        .filter(|capability| {
-            let capability = capability.trim();
-            !capability.starts_with("db:read:") && !capability.starts_with("action:")
-        })
-        .cloned()
-        .collect();
-
-    let fields = input_schema.as_ref().map(schema_fields).unwrap_or_default();
     let error: RwSignal<Option<String>> = RwSignal::new(None);
 
     view! {
@@ -113,215 +87,7 @@ pub fn StageCard(
                 {has_description
                     .then(|| view! { <p class="sys-processes__desc">{description}</p> })}
 
-                <div class="sys-processes__facts">
-                    <Fact label="Выходы">
-                        {outputs
-                            .clone()
-                            .into_iter()
-                            .map(|output| {
-                                let described = output.data_schema.is_some();
-                                view! {
-                                    <div class="sys-processes__output">
-                                        <span class="sys-processes__output-name">{output.name}</span>
-                                        <span class="sys-processes__output-desc">
-                                            {if output.description.is_empty() {
-                                                "без описания".to_string()
-                                            } else {
-                                                output.description
-                                            }}
-                                        </span>
-                                        {described
-                                            .then(|| {
-                                                view! {
-                                                    <span class="badge badge--neutral">"схема данных"</span>
-                                                }
-                                            })}
-                                    </div>
-                                }
-                            })
-                            .collect_view()}
-                    </Fact>
-
-                    <Fact label="Читает">
-                        {if reads.is_empty() {
-                            view! {
-                                <span class="sys-processes__fact-hint">"таблицы не запрошены"</span>
-                            }
-                                .into_any()
-                        } else {
-                            reads
-                                .clone()
-                                .into_iter()
-                                .map(|table| {
-                                    view! {
-                                        <span class="sys-processes__mono sys-processes__cap-item">
-                                            {table}
-                                        </span>
-                                    }
-                                })
-                                .collect_view()
-                                .into_any()
-                        }}
-                    </Fact>
-
-                    <Fact label="Меняет мир">
-                        {
-                            let names = action_names.clone();
-                            move || {
-                                let names = names.clone();
-                                if names.is_empty() {
-                                    return view! {
-                                        <span class="sys-processes__fact-hint">
-                                            "Действий не просит — Этап только читает и решает"
-                                        </span>
-                                    }
-                                        .into_any();
-                                }
-                                let catalog = actions.get();
-                                names
-                                    .into_iter()
-                                    .map(|name| {
-                                        let info = catalog
-                                            .iter()
-                                            .find(|info| info.name == name)
-                                            .cloned();
-                                        view! {
-                                            <div class="sys-processes__cap">
-                                                <span class="sys-processes__mono">{name.clone()}</span>
-                                                {match info {
-                                                    Some(info) => {
-                                                        let tables = info.write_tables.join(", ");
-                                                        view! {
-                                                            <span>{info.title.clone()}</span>
-                                                            <span class=if info.reversible {
-                                                                "badge badge--neutral"
-                                                            } else {
-                                                                "badge badge--warning"
-                                                            }>
-                                                                {if info.reversible {
-                                                                    "обратимо"
-                                                                } else {
-                                                                    "необратимо"
-                                                                }}
-                                                            </span>
-                                                            {(!tables.is_empty())
-                                                                .then(|| {
-                                                                    view! {
-                                                                        <span class="sys-processes__fact-hint">
-                                                                            {format!("пишет: {tables}")}
-                                                                        </span>
-                                                                    }
-                                                                })}
-                                                        }
-                                                            .into_any()
-                                                    }
-                                                    None => {
-                                                        view! {
-                                                            <span class="badge badge--error">
-                                                                "нет в каталоге Действий"
-                                                            </span>
-                                                        }
-                                                            .into_any()
-                                                    }
-                                                }}
-                                            </div>
-                                        }
-                                    })
-                                    .collect_view()
-                                    .into_any()
-                            }
-                        }
-                    </Fact>
-
-                    {(!other.is_empty())
-                        .then(|| {
-                            view! {
-                                <Fact label="Прочие права">
-                                    {other
-                                        .clone()
-                                        .into_iter()
-                                        .map(|capability| {
-                                            view! {
-                                                <span class="sys-processes__mono sys-processes__cap-item">
-                                                    {capability}
-                                                </span>
-                                            }
-                                        })
-                                        .collect_view()}
-                                </Fact>
-                            }
-                        })}
-
-                    <Fact label="Вход">
-                        {if fields.is_empty() {
-                            view! {
-                                <span class="sys-processes__fact-hint">
-                                    "схема не описана — вход не проверяется"
-                                </span>
-                            }
-                                .into_any()
-                        } else {
-                            fields
-                                .clone()
-                                .into_iter()
-                                .map(|field| {
-                                    view! {
-                                        <div class="sys-processes__output">
-                                            <span class="sys-processes__output-name">{field.name}</span>
-                                            <span class="sys-processes__output-desc">{field.kind}</span>
-                                            {field
-                                                .required
-                                                .then(|| {
-                                                    view! {
-                                                        <span class="badge badge--primary">"обязательное"</span>
-                                                    }
-                                                })}
-                                            {(!field.note.is_empty())
-                                                .then(|| {
-                                                    view! {
-                                                        <span class="sys-processes__fact-hint">{field.note}</span>
-                                                    }
-                                                })}
-                                        </div>
-                                    }
-                                })
-                                .collect_view()
-                                .into_any()
-                        }}
-                    </Fact>
-
-                    <Fact label="Модуль">
-                        <span class="sys-processes__mono">
-                            {format!("{entrypoint} → {export}()")}
-                        </span>
-                        <span class="sys-processes__fact-hint">
-                            {format!(
-                                " · {} · отпечаток {digest} · заведена {created}, автор {author}",
-                                counted(script_lines, "строка", "строки", "строк"),
-                            )}
-                        </span>
-                    </Fact>
-
-                    <Fact label="Где используется">
-                        {move || {
-                            let usage = stage_usage(&code.get_value(), &processes.get());
-                            if usage.is_empty() {
-                                view! {
-                                    <span class="sys-processes__fact-hint">
-                                        "ни один Процесс на этот Этап не ссылается"
-                                    </span>
-                                }
-                                    .into_any()
-                            } else {
-                                usage
-                                    .into_iter()
-                                    .map(|line| view! { <div>{line}</div> })
-                                    .collect_view()
-                                    .into_any()
-                            }
-                        }}
-                    </Fact>
-                </div>
+                <StageFacts record=facts processes=processes actions=actions />
 
                 {input_schema
                     .clone()
@@ -360,6 +126,268 @@ pub fn StageCard(
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+// Паспорт Этапа
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Выходы, права, вход, модуль и «где используется» — то, что о Этапе нужно
+/// знать перед тем, как ставить его в граф.
+///
+/// Отдельным компонентом, потому что читателя два: карточка в списке
+/// определений и вкладка «Общее» страницы Этапа (`sys_stage_details_<code>`).
+#[component]
+pub fn StageFacts(
+    record: StageRecord,
+    processes: RwSignal<Vec<ProcessRecord>>,
+    actions: RwSignal<Vec<api::ActionInfo>>,
+) -> impl IntoView {
+    let code = StoredValue::new(record.code.clone());
+    let manifest = record.definition.manifest.clone();
+    let script_lines = record.definition.script.lines().count();
+    let digest = short_digest(&record.digest);
+    let created = record.created_at.clone();
+    let author = record.created_by.clone().unwrap_or_else(|| "—".to_string());
+    let outputs = manifest.outputs.clone();
+    let capabilities = manifest.capabilities.clone();
+    let input_schema = manifest.input_schema.clone();
+    let entrypoint = manifest.entrypoint.clone();
+    let export = manifest.export.clone();
+
+    let reads: Vec<String> = capabilities
+        .iter()
+        .filter_map(|capability| capability.trim().strip_prefix("db:read:"))
+        .map(|table| table.trim().to_string())
+        .collect();
+    let action_names: Vec<String> = capabilities
+        .iter()
+        .filter_map(|capability| capability.trim().strip_prefix("action:"))
+        .map(|name| name.trim().to_string())
+        .collect();
+    let other: Vec<String> = capabilities
+        .iter()
+        .filter(|capability| {
+            let capability = capability.trim();
+            !capability.starts_with("db:read:") && !capability.starts_with("action:")
+        })
+        .cloned()
+        .collect();
+
+    let fields = input_schema.as_ref().map(schema_fields).unwrap_or_default();
+
+    view! {
+        <div class="sys-processes__facts">
+            <Fact label="Выходы">
+                {outputs
+                    .clone()
+                    .into_iter()
+                    .map(|output| {
+                        let described = output.data_schema.is_some();
+                        view! {
+                            <div class="sys-processes__output">
+                                <span class="sys-processes__output-name">{output.name}</span>
+                                <span class="sys-processes__output-desc">
+                                    {if output.description.is_empty() {
+                                        "без описания".to_string()
+                                    } else {
+                                        output.description
+                                    }}
+                                </span>
+                                {described
+                                    .then(|| {
+                                        view! {
+                                            <span class="badge badge--neutral">"схема данных"</span>
+                                        }
+                                    })}
+                            </div>
+                        }
+                    })
+                    .collect_view()}
+            </Fact>
+
+            <Fact label="Читает">
+                {if reads.is_empty() {
+                    view! {
+                        <span class="sys-processes__fact-hint">"таблицы не запрошены"</span>
+                    }
+                        .into_any()
+                } else {
+                    reads
+                        .clone()
+                        .into_iter()
+                        .map(|table| {
+                            view! {
+                                <span class="sys-processes__mono sys-processes__cap-item">
+                                    {table}
+                                </span>
+                            }
+                        })
+                        .collect_view()
+                        .into_any()
+                }}
+            </Fact>
+
+            <Fact label="Меняет мир">
+                {
+                    let names = action_names.clone();
+                    move || {
+                        let names = names.clone();
+                        if names.is_empty() {
+                            return view! {
+                                <span class="sys-processes__fact-hint">
+                                    "Действий не просит — Этап только читает и решает"
+                                </span>
+                            }
+                                .into_any();
+                        }
+                        let catalog = actions.get();
+                        names
+                            .into_iter()
+                            .map(|name| {
+                                let info = catalog
+                                    .iter()
+                                    .find(|info| info.name == name)
+                                    .cloned();
+                                view! {
+                                    <div class="sys-processes__cap">
+                                        <span class="sys-processes__mono">{name.clone()}</span>
+                                        {match info {
+                                            Some(info) => {
+                                                let tables = info.write_tables.join(", ");
+                                                view! {
+                                                    <span>{info.title.clone()}</span>
+                                                    <span class=if info.reversible {
+                                                        "badge badge--neutral"
+                                                    } else {
+                                                        "badge badge--warning"
+                                                    }>
+                                                        {if info.reversible {
+                                                            "обратимо"
+                                                        } else {
+                                                            "необратимо"
+                                                        }}
+                                                    </span>
+                                                    {(!tables.is_empty())
+                                                        .then(|| {
+                                                            view! {
+                                                                <span class="sys-processes__fact-hint">
+                                                                    {format!("пишет: {tables}")}
+                                                                </span>
+                                                            }
+                                                        })}
+                                                }
+                                                    .into_any()
+                                            }
+                                            None => {
+                                                view! {
+                                                    <span class="badge badge--error">
+                                                        "нет в каталоге Действий"
+                                                    </span>
+                                                }
+                                                    .into_any()
+                                            }
+                                        }}
+                                    </div>
+                                }
+                            })
+                            .collect_view()
+                            .into_any()
+                    }
+                }
+            </Fact>
+
+            {(!other.is_empty())
+                .then(|| {
+                    view! {
+                        <Fact label="Прочие права">
+                            {other
+                                .clone()
+                                .into_iter()
+                                .map(|capability| {
+                                    view! {
+                                        <span class="sys-processes__mono sys-processes__cap-item">
+                                            {capability}
+                                        </span>
+                                    }
+                                })
+                                .collect_view()}
+                        </Fact>
+                    }
+                })}
+
+            <Fact label="Вход">
+                {if fields.is_empty() {
+                    view! {
+                        <span class="sys-processes__fact-hint">
+                            "схема не описана — вход не проверяется"
+                        </span>
+                    }
+                        .into_any()
+                } else {
+                    fields
+                        .clone()
+                        .into_iter()
+                        .map(|field| {
+                            view! {
+                                <div class="sys-processes__output">
+                                    <span class="sys-processes__output-name">{field.name}</span>
+                                    <span class="sys-processes__output-desc">{field.kind}</span>
+                                    {field
+                                        .required
+                                        .then(|| {
+                                            view! {
+                                                <span class="badge badge--primary">"обязательное"</span>
+                                            }
+                                        })}
+                                    {(!field.note.is_empty())
+                                        .then(|| {
+                                            view! {
+                                                <span class="sys-processes__fact-hint">{field.note}</span>
+                                            }
+                                        })}
+                                </div>
+                            }
+                        })
+                        .collect_view()
+                        .into_any()
+                }}
+            </Fact>
+
+            <Fact label="Модуль">
+                <span class="sys-processes__mono">
+                    {format!("{entrypoint} → {export}()")}
+                </span>
+                <span class="sys-processes__fact-hint">
+                    {format!(
+                        " · {} · отпечаток {digest} · заведена {created}, автор {author}",
+                        counted(script_lines, "строка", "строки", "строк"),
+                    )}
+                </span>
+            </Fact>
+
+            <Fact label="Где используется">
+                {move || {
+                    let usage = stage_usage(&code.get_value(), &processes.get());
+                    if usage.is_empty() {
+                        view! {
+                            <span class="sys-processes__fact-hint">
+                                "ни один Процесс на этот Этап не ссылается"
+                            </span>
+                        }
+                            .into_any()
+                    } else {
+                        usage
+                            .into_iter()
+                            .map(|line| view! { <div>{line}</div> })
+                            .collect_view()
+                            .into_any()
+                    }
+                }}
+            </Fact>
+        </div>
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Сухой прогон
 // ═══════════════════════════════════════════════════════════════════════
@@ -370,7 +398,7 @@ pub fn StageCard(
 /// требует кабинет и дату, и угаданные значения увели бы прогон в данные,
 /// которых человек не выбирал. Заготовка показывает форму, значения — за ним.
 #[component]
-fn DryRunBlock(code: String, version: i32, skeleton: String) -> impl IntoView {
+pub fn DryRunBlock(code: String, version: i32, skeleton: String) -> impl IntoView {
     let code = StoredValue::new(code);
     let input = RwSignal::new(skeleton);
     let result: RwSignal<Option<contracts::processes::StageRun>> = RwSignal::new(None);

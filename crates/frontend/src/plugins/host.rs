@@ -1,11 +1,18 @@
 //! Страница разработки плагина (`plugin_dev__<id>`).
 //!
-//! Вкладки-редакторы кода: «Клиент», «Сервер», «SQL», «Стили» (каждый редактор —
-//! на всю высоту, один скролл). Плюс служебные: «Runner» (валидация + вызов
-//! серверных методов) и «Статистика» (запуски/отклонения). Живой предпросмотр
-//! вынесен в отдельную вкладку/окно [`crate::plugins::PluginView`] («▶ Запустить»),
-//! чтобы править код и смотреть результат на двух мониторах: сохранить здесь →
-//! Restart там подтягивает свежую версию.
+//! Каркас — стандартный: `PageFrame` → `page__header` → `PageTabs` →
+//! `page__content` на вкладку (UI-001…UI-003). Закладки идут сразу под
+//! заголовком, поэтому вся служебная обвязка (описание, статус, версии,
+//! экспорт, публикация) живёт на вкладке «Общее», а не в шапке.
+//!
+//! Вкладки-редакторы — «Клиент», «Сервер», «SQL», «Стили»: редактор на всю
+//! высоту, единственный скролл живёт внутри CodeMirror. Плюс «Runner»
+//! (валидация + вызов серверных методов) и «Статистика» (запуски/отклонения).
+//!
+//! Живой предпросмотр вынесен в отдельную вкладку/окно
+//! [`crate::plugins::PluginView`] («▶ Запустить»), чтобы править код и смотреть
+//! результат на двух мониторах: сохранить здесь → Restart там подтягивает
+//! свежую версию.
 
 pub(crate) mod model;
 
@@ -17,8 +24,11 @@ use crate::layout::global_context::AppGlobalContext;
 use crate::plugins::api;
 use crate::plugins::editor::CodeEditor;
 use crate::shared::change_tokens::ChangeTokenContext;
+use crate::shared::components::page_tabs::{PageTabs, TabItem};
 use crate::shared::date_utils::{format_space_naive_utc_local, format_utc_local};
 use crate::shared::modal_frame::ModalFrame;
+use crate::shared::page_frame::PageFrame;
+use crate::shared::page_standard::PAGE_CAT_SYSTEM;
 use contracts::plugins::{
     PluginDefinition, PluginInvokeRequest, PluginPublishResult, PluginStats, PluginStatus,
     PluginUpsert, PluginValidateReport,
@@ -26,18 +36,14 @@ use contracts::plugins::{
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::collections::HashMap;
-use thaw::{Tab, TabList};
 
+/// Одна карточка вызова серверного метода на вкладке «Runner».
 #[derive(Clone)]
 struct ServerMethodExample {
     method: String,
     args: String,
 }
 
-/// Собрать актуальный bundle из редактируемых сигналов (для save / validate / runner).
-/// Подпись и CSS-модификатор бейджа «здоровья» плагина.
-/// Человекочитаемый вывод runner'а из полного тела ответа invoke
-/// (результат либо ошибка со stage/stack + журнал host.log.*).
 #[component]
 pub fn PluginHost(plugin_id: String) -> impl IntoView {
     let ctx = use_context::<AppGlobalContext>().expect("AppGlobalContext not found");
@@ -57,7 +63,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
     let status = RwSignal::new("draft".to_string());
     let (saving, set_saving) = signal(false);
     let (save_msg, set_save_msg) = signal(None::<String>);
-    let selected_tab = RwSignal::new("client".to_string());
+    let selected_tab = RwSignal::new("general");
 
     let runner_context = RwSignal::new("{}".to_string());
     let server_examples = RwSignal::new(Vec::<ServerMethodExample>::new());
@@ -84,22 +90,6 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                     client_src.set(plugin.bundle.client_script.clone().unwrap_or_default());
                     server_src.set(plugin.bundle.server_script.clone().unwrap_or_default());
                     styles_src.set(plugin.bundle.styles.clone().unwrap_or_default());
-                    // Server-only плагин не имеет клиента — открываем сразу код сервера.
-                    let client_empty = plugin
-                        .bundle
-                        .client_script
-                        .as_deref()
-                        .map(|s| s.trim().is_empty())
-                        .unwrap_or(true);
-                    let server_present = plugin
-                        .bundle
-                        .server_script
-                        .as_deref()
-                        .map(|s| !s.trim().is_empty())
-                        .unwrap_or(false);
-                    if client_empty && server_present {
-                        selected_tab.set("server".to_string());
-                    }
                     let default_context = default_run_context(&plugin.bundle);
                     runner_context.set(pretty_context(&default_context));
                     let resources = plugin.bundle.sql_resources.clone();
@@ -126,7 +116,10 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
 
     let save = {
         let id = plugin_id.clone();
-        move |_| {
+        Callback::new(move |_: ()| {
+            if saving.get_untracked() {
+                return;
+            }
             let Some(current) = def.get_untracked() else {
                 return;
             };
@@ -175,7 +168,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                 }
                 set_saving.set(false);
             });
-        }
+        })
     };
 
     let select_sql = move |event| {
@@ -218,7 +211,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
         if new_name != old_name
             && sql_resources.with_untracked(|items| items.contains_key(&new_name))
         {
-            set_save_msg.set(Some(format!("SQL-ресурс '{new_name}' уже существует")));
+            set_save_msg.set(Some(format!("SQL-ресурс «{new_name}» уже существует")));
             return;
         }
 
@@ -336,7 +329,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
     });
 
     let export_plugin_id = plugin_id.clone();
-    let export_plugin = move |_| {
+    let export_plugin = Callback::new(move |_: ()| {
         let url = format!("/api/plugin/{}/export", export_plugin_id);
         let fallback = def
             .get_untracked()
@@ -349,7 +342,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                 set_error.set(Some(format!("Экспорт не удался: {message}")));
             }
         });
-    };
+    });
 
     let view_plugin_id = plugin_id.clone();
     let open_view = move |_| {
@@ -388,162 +381,200 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
     });
 
     view! {
-        <div class="plugin-host plugin-host--dev">
-            {move || loading.get().then(|| view! {
-                <div class="plugin-host__state">"Загрузка плагина..."</div>
-            })}
-            {move || error.get().map(|message| view! {
-                <div class="plugin-host__alert plugin-host__alert--error">{message}</div>
-            })}
-
-            <div class="plugin-host__header">
-                <div class="plugin-host__title-row">
-                    <h2 class="plugin-host__title">
-                        {move || def.get().map(|plugin| plugin.bundle.manifest.title).unwrap_or_default()}
-                    </h2>
+        <PageFrame
+            page_id="plugin_dev--system"
+            category=PAGE_CAT_SYSTEM
+            class="plugin-host plugin-host--dev"
+        >
+            <div class="page__header">
+                <div class="page__header-left">
+                    <h1 class="page__title">
+                        {move || def.get()
+                            .map(|plugin| plugin.bundle.manifest.title)
+                            .unwrap_or_else(|| if loading.get() {
+                                "Загрузка…".to_string()
+                            } else {
+                                "Плагин".to_string()
+                            })}
+                    </h1>
                     <span class="badge badge--primary">"Разработка"</span>
                     <span class="plugin-host__code">
                         {move || def.get().map(|plugin| plugin.bundle.manifest.code).unwrap_or_default()}
                     </span>
-                    // Статус плагина — применяется при сохранении (только на dev-странице).
-                    <label class="plugin-host__status" title="Статус плагина (применяется при сохранении)">
-                        "Статус: "
-                        <select
-                            class="plugin-host__status-select"
-                            prop:value=move || status.get()
-                            on:change=move |ev| status.set(event_target_value(&ev))
-                        >
-                            <option value="draft">"Черновик"</option>
-                            <option value="active">"Активен"</option>
-                            <option value="disabled">"Отключён"</option>
-                        </select>
-                    </label>
-                    <button
-                        class="plugin-host__run"
-                        on:click=save
-                        disabled=Signal::derive(move || saving.get())
-                        title="Сохранить код, SQL, стили и статус"
-                    >
-                        {move || if saving.get() { "Сохранение..." } else { "Сохранить" }}
-                    </button>
+                </div>
+                <div class="page__header-right">
                     {move || save_msg.get().map(|message| view! {
-                        <span class="plugin-host__save-msg">{message}</span>
+                        <span class="page__header-meta">{message}</span>
                     })}
                     <button
-                        class="plugin-host__run plugin-host__run--server plugin-host__export"
+                        class="button button--primary"
+                        on:click=move |_| save.run(())
+                        disabled=Signal::derive(move || saving.get())
+                        title="Сохранить код, SQL, стили и статус (Ctrl+S в редакторе)"
+                    >
+                        {move || if saving.get() { "Сохранение…" } else { "Сохранить" }}
+                    </button>
+                    <button
+                        class="button button--secondary"
                         on:click=open_view
                         title="Открыть плагин в отдельной вкладке/окне (Restart там подтянет свежую версию)"
                     >
                         "▶ Запустить"
                     </button>
-                    <button
-                        class="plugin-host__run plugin-host__run--server"
-                        on:click=export_plugin
-                    >
-                        "Экспорт .zip"
-                    </button>
-                    <button
-                        class="plugin-host__run plugin-host__run--server"
-                        on:click=move |_| show_publish_dialog.set(true)
-                    >
-                        "Опубликовать в S3"
-                    </button>
                 </div>
-                {move || def.get()
-                    .and_then(|plugin| plugin.bundle.manifest.description)
-                    .map(|description| view! { <p class="plugin-host__desc">{description}</p> })}
+            </div>
+
+            <PageTabs
+                tabs=vec![
+                    TabItem::new("general", "Общее"),
+                    TabItem::new("client", "Клиент"),
+                    TabItem::new("server", "Сервер"),
+                    TabItem::new("sql", "SQL"),
+                    TabItem::new("styles", "Стили"),
+                    TabItem::new("runner", "Runner"),
+                    TabItem::new("stats", "Статистика"),
+                ]
+                active=selected_tab.into()
+                on_select=Callback::new(move |key: &'static str| selected_tab.set(key))
+            />
+
+            // ── Общее ────────────────────────────────────────────────────────
+            <div
+                class="page__content plugin-host__pane"
+                class:plugin-host__hidden=move || selected_tab.get() != "general"
+            >
+                {move || error.get().map(|message| view! {
+                    <div class="plugin-host__alert plugin-host__alert--error">{message}</div>
+                })}
+                {move || loading.get().then(|| view! {
+                    <div class="plugin-host__state">"Загрузка плагина…"</div>
+                })}
+
                 {move || def.get().map(|plugin| {
                     let s3 = match plugin.s3_published_version {
                         Some(v) if plugin.s3_published_version == Some(plugin.version) => {
-                            format!("в S3 v{v} (актуально)")
+                            format!("v{v} (актуально)")
                         }
-                        Some(v) => format!("в S3 v{v} (есть несохранённые/неопубликованные правки)"),
-                        None => "в S3 не публиковался".to_string(),
+                        Some(v) => format!("v{v} (есть неопубликованные правки)"),
+                        None => "не публиковался".to_string(),
                     };
-                    view! {
-                        <p class="plugin-host__desc text-muted" style="font-size: 12px;">
-                            {format!("Версия: локально v{} · {s3}", plugin.version)}
-                        </p>
-                    }
-                })}
-                {move || {
-                    let built_for = def.get()
-                        .and_then(|plugin| plugin.bundle.manifest.built_for_migration)
+                    let built_for = plugin.bundle.manifest.built_for_migration
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "—".to_string());
-                    let current = migration_version_current.get()
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "…".to_string());
+
                     view! {
-                        <p class="plugin-host__desc text-muted" style="font-size: 12px;">
-                            {format!("Миграция БД: {current} / плагин рассчитан на: {built_for}")}
-                        </p>
+                        <div class="plugin-host__card plugin-host__info">
+                            {plugin.bundle.manifest.description.clone().map(|text| view! {
+                                <p class="plugin-host__desc">{text}</p>
+                            })}
+
+                            <dl class="plugin-host__info-grid">
+                                <dt class="plugin-host__info-term">"Код"</dt>
+                                <dd class="plugin-host__info-value plugin-host__info-value--mono">
+                                    {plugin.bundle.manifest.code.clone()}
+                                </dd>
+
+                                <dt class="plugin-host__info-term">"Версия"</dt>
+                                <dd class="plugin-host__info-value">
+                                    {format!("локально v{}", plugin.version)}
+                                </dd>
+
+                                <dt class="plugin-host__info-term">"В S3"</dt>
+                                <dd class="plugin-host__info-value">{s3}</dd>
+
+                                <dt class="plugin-host__info-term">"Миграция БД"</dt>
+                                <dd class="plugin-host__info-value">
+                                    {move || format!(
+                                        "{} · плагин рассчитан на {built_for}",
+                                        migration_version_current.get()
+                                            .map(|v| v.to_string())
+                                            .unwrap_or_else(|| "…".to_string()),
+                                    )}
+                                </dd>
+
+                                <dt class="plugin-host__info-term">
+                                    <label for="plugin-host-status">"Статус"</label>
+                                </dt>
+                                <dd class="plugin-host__info-value">
+                                    <select
+                                        id="plugin-host-status"
+                                        class="form__select form__select--sm"
+                                        prop:value=move || status.get()
+                                        on:change=move |ev| status.set(event_target_value(&ev))
+                                        title="Применяется при сохранении"
+                                    >
+                                        <option value="draft">"Черновик"</option>
+                                        <option value="active">"Активен"</option>
+                                        <option value="disabled">"Отключён"</option>
+                                    </select>
+                                </dd>
+                            </dl>
+
+                            <div class="plugin-host__toolbar">
+                                <button class="button button--secondary" on:click=move |_| export_plugin.run(())>
+                                    "Экспорт .zip"
+                                </button>
+                                <button
+                                    class="button button--secondary"
+                                    on:click=move |_| show_publish_dialog.set(true)
+                                >
+                                    "Опубликовать в S3"
+                                </button>
+                            </div>
+                        </div>
                     }
-                }}
+                })}
             </div>
 
-            <PluginPublishDialog
-                plugin_id=plugin_id.clone()
-                show=show_publish_dialog
-                def=def
-                set_def=set_def
-                plugins_token=change_tokens.plugins
-            />
-
-            <div class="plugin-host__tabs">
-                <TabList selected_value=selected_tab>
-                    <Tab value="client".to_string()>"Клиент"</Tab>
-                    <Tab value="server".to_string()>"Сервер"</Tab>
-                    <Tab value="sql".to_string()>"SQL"</Tab>
-                    <Tab value="styles".to_string()>"Стили"</Tab>
-                    <Tab value="runner".to_string()>"Runner"</Tab>
-                    <Tab value="stats".to_string()>"Статистика"</Tab>
-                </TabList>
-            </div>
-
+            // ── Клиент ───────────────────────────────────────────────────────
             <div
-                class="plugin-host__pane plugin-host__pane--editor"
+                class="page__content plugin-host__pane plugin-host__pane--editor"
                 class:plugin-host__hidden=move || selected_tab.get() != "client"
             >
                 <div class="plugin-host__editor-head">
-                    <div class="plugin-host__editor-label">
+                    <span class="plugin-host__editor-label">
                         "client_script: ES-модуль в iframe; export async function mount(root, host)"
-                    </div>
+                    </span>
                 </div>
                 <CodeEditor
                     language="javascript"
                     value=client_src
+                    on_save=save
                     class="plugin-code-editor--fill"
                 />
             </div>
 
+            // ── Сервер ───────────────────────────────────────────────────────
             <div
-                class="plugin-host__pane plugin-host__pane--editor"
+                class="page__content plugin-host__pane plugin-host__pane--editor"
                 class:plugin-host__hidden=move || selected_tab.get() != "server"
             >
                 <div class="plugin-host__editor-head">
-                    <div class="plugin-host__editor-label">
+                    <span class="plugin-host__editor-label">
                         "server_script: ES-модуль QuickJS; экспортированные async-функции"
-                    </div>
+                    </span>
                 </div>
                 <CodeEditor
                     language="javascript"
                     value=server_src
+                    on_save=save
                     class="plugin-code-editor--fill"
                 />
             </div>
 
+            // ── SQL ──────────────────────────────────────────────────────────
             <div
-                class="plugin-host__pane plugin-host__pane--editor"
+                class="page__content plugin-host__pane plugin-host__pane--editor"
                 class:plugin-host__hidden=move || selected_tab.get() != "sql"
             >
                 <div class="plugin-host__editor-head">
-                    <div class="plugin-host__editor-label">
+                    <span class="plugin-host__editor-label">
                         "SQL-ресурсы: host.db.queryResource(name, params)"
-                    </div>
+                    </span>
                     <div class="plugin-host__resource-toolbar">
                         <select
-                            class="plugin-host__resource-select"
+                            class="form__select"
+                            aria-label="SQL-ресурс"
                             prop:value=move || selected_sql_name.get().unwrap_or_default()
                             on:change=select_sql
                         >
@@ -555,20 +586,20 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                                 .collect_view()}
                         </select>
                         <input
-                            class="plugin-host__resource-name"
+                            class="form__input"
                             placeholder="Имя SQL-ресурса"
                             prop:value=move || sql_name_input.get()
                             on:input=move |event| sql_name_input.set(event_target_value(&event))
                         />
-                        <button type="button" class="plugin-host__resource-action" on:click=rename_sql>
+                        <button type="button" class="button button--secondary" on:click=rename_sql>
                             "Переименовать"
                         </button>
-                        <button type="button" class="plugin-host__resource-action" on:click=add_sql>
+                        <button type="button" class="button button--secondary" on:click=add_sql>
                             "Добавить"
                         </button>
                         <button
                             type="button"
-                            class="plugin-host__resource-action plugin-host__resource-action--danger"
+                            class="button button--danger"
                             on:click=delete_sql
                             disabled=Signal::derive(move || selected_sql_name.get().is_none())
                         >
@@ -581,6 +612,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                         <CodeEditor
                             language="sql"
                             value=sql_src
+                            on_save=save
                             class="plugin-code-editor--fill"
                         />
                     }.into_any()
@@ -593,36 +625,39 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                 }}
             </div>
 
+            // ── Стили ────────────────────────────────────────────────────────
             <div
-                class="plugin-host__pane plugin-host__pane--editor"
+                class="page__content plugin-host__pane plugin-host__pane--editor"
                 class:plugin-host__hidden=move || selected_tab.get() != "styles"
             >
                 <div class="plugin-host__editor-head">
-                    <div class="plugin-host__editor-label">"styles: CSS внутри iframe"</div>
+                    <span class="plugin-host__editor-label">"styles: CSS внутри iframe"</span>
                 </div>
                 <CodeEditor
                     language="css"
                     value=styles_src
+                    on_save=save
                     class="plugin-code-editor--fill"
                 />
             </div>
 
+            // ── Runner ───────────────────────────────────────────────────────
             <div
-                class="plugin-host__pane"
+                class="page__content plugin-host__pane"
                 class:plugin-host__hidden=move || selected_tab.get() != "runner"
             >
                 <div class="plugin-host__toolbar">
                     <button
-                        class="plugin-host__run plugin-host__run--server"
+                        class="button button--secondary"
                         on:click=run_validate
                         disabled=Signal::derive(move || runner_busy.get())
                     >
-                        "Refresh methods"
+                        "Проверить и обновить методы"
                     </button>
                 </div>
                 {move || (!has_server.get()).then(|| view! {
                     <div class="plugin-host__state">
-                        "У плагина нет server_script. Добавьте его на вкладке «Код»."
+                        "У плагина нет server_script. Добавьте его на вкладке «Сервер»."
                     </div>
                 })}
                 {move || validate_report.get().map(|report| {
@@ -650,22 +685,20 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                         </div>
                     }
                 })}
-                <div class="plugin-host__runner-form">
-                    <label class="plugin-host__runner-field">
-                        "Context JSON"
-                        <textarea
-                            class="plugin-host__runner-args plugin-host__runner-args--context"
-                            prop:value=move || runner_context.get()
-                            on:input=move |e| runner_context.set(event_target_value(&e))
-                        ></textarea>
-                    </label>
-                </div>
+                <label class="plugin-host__runner-field">
+                    "Context JSON"
+                    <textarea
+                        class="plugin-host__runner-args plugin-host__runner-args--context"
+                        prop:value=move || runner_context.get()
+                        on:input=move |e| runner_context.set(event_target_value(&e))
+                    ></textarea>
+                </label>
                 {move || {
                     let examples = server_examples.get();
                     if examples.is_empty() {
                         view! {
                             <div class="plugin-host__state">
-                                "Click refresh methods to build editable server call examples."
+                                "Нажмите «Проверить и обновить методы» — появятся карточки вызова серверных функций."
                             </div>
                         }.into_any()
                     } else {
@@ -679,7 +712,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                                             <div class="plugin-host__method-head">
                                                 <span class="plugin-host__method-name">{method.clone()}</span>
                                                 <button
-                                                    class="plugin-host__run"
+                                                    class="button button--primary"
                                                     on:click=move |_| {
                                                         let args = server_examples
                                                             .with_untracked(|items| {
@@ -693,7 +726,7 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                                                     }
                                                     disabled=Signal::derive(move || runner_busy.get())
                                                 >
-                                                    {move || if runner_busy.get() { "Running..." } else { "Run" }}
+                                                    {move || if runner_busy.get() { "Вызов…" } else { "Вызвать" }}
                                                 </button>
                                             </div>
                                             <label class="plugin-host__runner-field">
@@ -724,17 +757,18 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                 })}
             </div>
 
+            // ── Статистика ───────────────────────────────────────────────────
             <div
-                class="plugin-host__pane"
+                class="page__content plugin-host__pane"
                 class:plugin-host__hidden=move || selected_tab.get() != "stats"
             >
                 <div class="plugin-host__toolbar">
                     <button
-                        class="plugin-host__run plugin-host__run--server"
+                        class="button button--secondary"
                         on:click=move |_| load_stats.run(())
                         disabled=Signal::derive(move || stats_busy.get())
                     >
-                        {move || if stats_busy.get() { "Загрузка..." } else { "Обновить (7 дней)" }}
+                        {move || if stats_busy.get() { "Загрузка…" } else { "Обновить (7 дней)" }}
                     </button>
                 </div>
                 {move || stats_error.get().map(|message| view! {
@@ -811,7 +845,15 @@ pub fn PluginHost(plugin_id: String) -> impl IntoView {
                     }
                 })}
             </div>
-        </div>
+
+            <PluginPublishDialog
+                plugin_id=plugin_id
+                show=show_publish_dialog
+                def=def
+                set_def=set_def
+                plugins_token=change_tokens.plugins
+            />
+        </PageFrame>
     }
 }
 
@@ -875,7 +917,7 @@ fn PluginPublishDialog(
                     <span class="modal-title">"Публикация плагина в S3"</span>
                 </div>
 
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="modal-body plugin-host__publish">
                     {move || def.get().map(|plugin| {
                         let previous = match (plugin.s3_published_version, plugin.s3_published_at) {
                             (Some(v), Some(at)) => {
@@ -885,20 +927,22 @@ fn PluginPublishDialog(
                         };
                         view! {
                             <div>
-                                <div style="font-weight: 600;">{plugin.bundle.manifest.title.clone()}</div>
-                                <div class="text-muted" style="font-size: 13px;">
+                                <div class="plugin-host__publish-title">
+                                    {plugin.bundle.manifest.title.clone()}
+                                </div>
+                                <div class="plugin-host__code">
                                     {plugin.bundle.manifest.code.clone()}
                                 </div>
                             </div>
-                            <div style="font-size: 13px;">
+                            <div class="plugin-host__publish-line">
                                 {format!("Публикуется последняя сохранённая версия: v{}", plugin.version)}
                             </div>
-                            <div class="text-muted" style="font-size: 13px;">{previous}</div>
+                            <div class="plugin-host__publish-note">{previous}</div>
                         }
                     })}
 
                     {move || already_published.get().then(|| view! {
-                        <div class="text-muted" style="font-size: 13px;">
+                        <div class="plugin-host__publish-note">
                             "Текущая версия уже опубликована в S3. Сохраните изменения, чтобы опубликовать новую версию."
                         </div>
                     })}

@@ -348,3 +348,71 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
 }
+
+
+/* ── Страница Этапа (sys_stage_details) ──────────────────────────────────
+   Та же раскладка, что у страницы разработки плагина: пейн — это
+   `page__content` (flex-колонка во всю высоту листа), здесь только поля и
+   прокрутка. У вкладки-редактора полей нет: CodeMirror занимает всю высоту, и
+   единственный скролл живёт внутри него — «двойного скролла» не возникает.
+   Сам редактор — общий блок `.plugin-code-editor` (plugins.css): он про
+   подсветку и Ctrl+S, а не про плагины.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.sys-processes .sys-processes__pane {
+    overflow: auto;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.sys-processes .sys-processes__pane--editor {
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+
+/* Скрытая вкладка остаётся в DOM: пересоздавать CodeMirror на каждое
+   переключение значило бы терять историю правок и позицию курсора. */
+.sys-processes .sys-processes__hidden {
+    display: none !important;
+}
+
+.sys-processes .sys-processes__editor-head {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.sys-processes .sys-processes__editor-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-secondary);
+}
+
+/* Шапка версии: ключ — значение, та же лестница, что у паспорта. */
+.sys-processes .sys-processes__info-grid {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: var(--spacing-sm) var(--spacing-md);
+    margin: 0;
+}
+
+.sys-processes .sys-processes__info-term {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.sys-processes .sys-processes__info-value {
+    margin: 0;
+    min-width: 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    overflow-wrap: anywhere;
+}

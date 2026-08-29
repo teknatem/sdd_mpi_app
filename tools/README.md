@@ -27,6 +27,7 @@ dev-экземпляра. Ни один из этих скриптов не зн
 | `check_text_encoding.py` | Ловит текст, испорченный кодировкой (UTF-8, прочитанный как CP1251), `--fix` чинит |
 | `build_frontend.ps1` | Сборка фронта в `dist/` (`-CssOnly`, `-Client`, `-Release`) |
 | `run_backend.ps1` | Снять занятый `backend.exe` и поднять свежую сборку (`cargo run` уже включает сборку) |
+| `dev_restart.ps1` | Полный цикл: фронт → сборка бэкенда → перезапуск бэкенда в своём окне консоли (`-CssOnly`, `-SkipFrontend`, `-Foreground`, `-Detached`) |
 | `dev_client.ps1` | Сборка + поднятие/перезагрузка десктоп-клиента, снятие логов консоли |
 | `measure_build.ps1` | 8 замеров стоимости сборки → `build_timings.json` (10–20 мин, в хук не входит) |
 | `dev_token.ps1` | JWT для локального dev-экземпляра |
@@ -41,6 +42,7 @@ dev-экземпляра. Ни один из этих скриптов не зн
 | …а `backend.exe` занят | `powershell -File tools/run_backend.ps1` |
 | Фронт | `powershell -File tools/build_frontend.ps1`, затем перезагрузить страницу |
 | Только CSS | `powershell -File tools/build_frontend.ps1 -CssOnly` |
+| Фронт **и** бэкенд разом | `powershell -File tools/dev_restart.ps1` — соберёт фронт, пересоберёт и поднимет бэкенд |
 | Фронт + десктоп-клиент | `powershell -File tools/dev_client.ps1` |
 | `contracts` | задевает оба крейта — обе команды |
 

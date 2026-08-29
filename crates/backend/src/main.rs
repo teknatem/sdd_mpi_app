@@ -11,6 +11,8 @@ async fn main() -> anyhow::Result<()> {
     use tokio::net::TcpListener;
     use tower_http::cors::{Any, CorsLayer};
     use tower_http::services::ServeDir;
+    use tower::Layer;
+    use tower_http::set_header::SetResponseHeaderLayer;
 
     println!("\n");
     println!("╔══════════════════════════════════════════════════════════╗");
@@ -317,7 +319,24 @@ async fn main() -> anyhow::Result<()> {
     let app = axum::Router::new()
         .merge(system::api::configure_system_routes())
         .merge(api::configure_business_routes())
-        .fallback_service(ServeDir::new("dist"))
+        // `dist/` раздаётся as-is, и половина файлов там с НЕхешированными
+        // именами: `static/**` Trunk копирует директивой `copy-dir`, хеш он
+        // ставит только своему бандлу. Без `cache-control` браузер кеширует их
+        // эвристикой по `last-modified` — на часы, без перепроверки. Отсюда
+        // классический симптом «пересобрал, но вижу старое»: бандл приезжает
+        // свежий (новый URL), а `static/pages/*.css` и `static/plugin-editor.js`
+        // достаются из кеша. `no-cache` — это не «не кешируй», а «кешируй, но
+        // перепроверяй»: ServeDir уже шлёт `last-modified`, поэтому ответ на
+        // неизменившийся файл — пустой 304.
+        // Слой навешан на сам ServeDir, а не на роутер: `Router::layer`
+        // накрыл бы и API, перебив `cache-control` конкретных хендлеров.
+        .fallback_service(
+            SetResponseHeaderLayer::overriding(
+                header::CACHE_CONTROL,
+                header::HeaderValue::from_static("no-cache"),
+            )
+            .layer(ServeDir::new("dist")),
+        )
         // Слои применяются снаружи внутрь в обратном порядке, поэтому логгер
         // оборачивает гейт: отклонённые обслуживанием запросы тоже попадают в
         // журнал. При выключенном режиме гейт стоит один атомарный load.

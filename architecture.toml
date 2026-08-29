@@ -601,6 +601,7 @@ files = [
   "check_health.ps1",
   "check_text_encoding.py",
   "dev_client.ps1",
+  "dev_restart.ps1",
   "dev_token.ps1",
   "gen_architecture.ps1",
   "gen_code_metrics.ps1",

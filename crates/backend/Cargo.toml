@@ -11,7 +11,11 @@ sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-native-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "time", "sync"] }
 anyhow = "1"
 axum = { version = "0.7", features = ["macros", "multipart"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "set-header"] }
+# Не только тестовая: `Layer::layer` нужен в main.rs, чтобы навесить
+# `SetResponseHeaderLayer` на сам ServeDir. В тестах отсюда же берётся
+# `ServiceExt::oneshot` — прогон запроса через собранный Router без сервера.
+tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 serde = { workspace = true }
@@ -58,11 +62,6 @@ sqlparser = { version = "0.62", features = ["visitor"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-native-tls", "builder", "hostname"] }
 imap = "3.0.0-alpha.15"
 mail-parser = "0.9"
-
-[dev-dependencies]
-# `ServiceExt::oneshot` — прогнать запрос через собранный Router прямо в тесте,
-# без поднятия сервера. Версия совпадает с той, что уже тянет axum.
-tower = { version = "0.5", features = ["util"] }
 
 [lints]
 workspace = true

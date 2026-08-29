@@ -84,11 +84,11 @@
 .plugins-btn--primary {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: var(--btn-primary-text, #fff);
+  color: var(--btn-primary-text);
 }
 
 .plugins-btn--primary:hover {
-  background: var(--color-primary-700, var(--color-primary-700, var(--color-primary)));
+  background: var(--color-primary-700, var(--color-primary));
   border-color: var(--color-primary-700, var(--color-primary));
 }
 
@@ -114,7 +114,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg, 8px);
   overflow: hidden;
-  background: var(--color-surface, var(--color-surface));
+  background: var(--color-surface);
 }
 
 /* Скин (шапка/ячейки/hover) наследуется от .table__data в components.css.
@@ -173,8 +173,8 @@
 }
 
 .plugins-dot--on {
-  background: var(--color-success, #16a34a);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success, #16a34a) 20%, transparent);
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
 }
 
 .plugins-dot--off {
@@ -212,9 +212,9 @@
 }
 
 .plugins-alert--error {
-  color: var(--color-error, var(--color-error, #dc2626));
-  background: color-mix(in srgb, var(--color-error, #dc2626) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-error, #dc2626) 30%, transparent);
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
 }
 
 .plugins-empty {
@@ -226,7 +226,7 @@
   padding: 56px 24px;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-lg, 8px);
-  background: var(--color-surface, var(--color-surface));
+  background: var(--color-surface);
 }
 
 .plugins-empty__icon {
@@ -247,7 +247,15 @@
   max-width: 420px;
 }
 
-/* ─────────────────────────  Страница плагина (host)  ───────────────────── */
+/* ═══════════════════════════  Страница плагина  ═════════════════════════════
+   Два потребителя, один блок `plugin-host`:
+   - `plugin-host--dev`  — страница разработки (`plugins/host.rs`). Живёт внутри
+     `PageFrame`, поэтому каркас (`page__header` / `page__tabs` / `page__content`)
+     даёт `layout.css`, а здесь — только внутренности вкладок.
+   - `plugin-host--view` — страница просмотра (`plugins/view.rs`) и фрейм
+     (`plugins/frame.rs`): свой узкий бар вместо `page__header`, сцена с iframe
+     и выдвижной журнал.
+   ═════════════════════════════════════════════════════════════════════════ */
 
 .plugin-host {
   height: 100%;
@@ -256,53 +264,20 @@
   flex-direction: column;
 }
 
-.plugin-host__header {
-  flex: 0 0 auto;
-  padding: 16px 24px 14px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.plugin-host__title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.plugin-host__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
+/* Код плагина рядом с заголовком (обе страницы) и в диалоге публикации. */
 .plugin-host__code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-family-mono);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-}
-
-.plugin-host__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.plugin-host__status-select {
-  font-size: 12px;
-  padding: 3px 6px;
-  border: 1px solid var(--color-border, #d1d5db);
-  border-radius: 6px;
-  background: var(--color-surface, #fff);
-  color: var(--color-text-primary);
-  cursor: pointer;
 }
 
 .plugin-host__desc {
-  margin: 10px 0 0;
-  font-size: 13px;
+  margin: 0;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   color: var(--color-text-secondary);
   max-width: 720px;
@@ -310,83 +285,16 @@
 
 .plugin-host__toolbar {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-
-.plugin-host__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.plugin-host__field-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-secondary);
-}
-
-/* Matches the app's .form__input geometry (height 30px, radius-sm, padding 5px 12px). */
-.plugin-host__input {
-  height: 30px;
-  padding: 5px 12px;
-  border: 1px solid var(--form-input-border, var(--color-border));
-  border-radius: var(--radius-sm);
-  background: var(--form-input-bg, var(--color-surface));
-  color: var(--color-text-primary);
-  font-size: var(--font-size-base);
-}
-
-.plugin-host__input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
-}
-
-/* Matches the app's .button geometry (height 28px, padding 4px 16px, font-weight 500). */
-.plugin-host__run {
-  appearance: none;
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: var(--spacing-sm);
-  border: 1px solid transparent;
-  background: var(--btn-primary-bg, var(--color-primary));
-  color: var(--btn-primary-text, #fff);
-  height: 28px;
-  padding: 4px 16px;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-base, 13px);
-  font-weight: 500;
-  line-height: 1;
-  cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-  transition: background 0.15s, opacity 0.15s, transform 0.05s;
-}
-
-.plugin-host__run:hover {
-  background: var(--btn-primary-hover, var(--color-primary));
-}
-
-.plugin-host__run:active {
-  transform: translateY(1px);
-}
-
-.plugin-host__run:disabled {
-  opacity: 0.55;
-  cursor: default;
+  flex-wrap: wrap;
 }
 
 .plugin-host__card {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg, 8px);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--color-surface, var(--color-surface));
+  background: var(--color-surface);
 }
 
 /* Скин наследуется от .table__data (components.css) */
@@ -402,66 +310,40 @@
 }
 
 .plugin-host__state {
-  padding: 20px;
+  padding: var(--spacing-lg);
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .plugin-host__alert {
-  padding: 10px 14px;
-  border-radius: var(--radius-md, 8px);
-  font-size: 13px;
-  margin-bottom: 14px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
 }
 
 .plugin-host__alert--error {
-  color: var(--color-error, var(--color-error, #dc2626));
-  background: color-mix(in srgb, var(--color-error, #dc2626) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-error, #dc2626) 30%, transparent);
-}
-
-/* ── Серверная кнопка ─────────────────────────────────────────────────── */
-
-.plugin-host__run--server {
-  background: var(--btn-ghost-bg, transparent);
-  color: var(--btn-ghost-text, var(--color-text-primary));
-  border-color: var(--color-border);
-}
-
-.plugin-host__run--server:hover {
-  background: var(--btn-ghost-hover, var(--color-hover-bg));
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
 }
 
 .plugin-host__hidden {
   display: none !important;
 }
 
-/* ── Вкладки / редакторы кода ─────────────────────────────────────────── */
-
-.plugin-host__tabs {
-  flex: 0 0 auto;
-  border-bottom: 1px solid var(--color-border);
-  padding: 0 24px;
-}
+/* ── Вкладки страницы разработки ──────────────────────────────────────────
+   Пейн — это `page__content` (flex-колонка на всю высоту листа); здесь только
+   поля и прокрутка. У вкладки-редактора полей нет: CodeMirror занимает всю
+   высоту, и единственный скролл живёт внутри него — «двойного скролла» не
+   возникает.
+   ─────────────────────────────────────────────────────────────────────── */
 
 .plugin-host__pane {
-  flex: 1 1 auto;
-  min-height: 0;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px 24px;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
-/* Вкладка «Приложение»: iframe во всю ширину/высоту, без внутренних отступов. */
-.plugin-host__pane--frame {
-  padding: 0;
-  overflow: hidden;
-}
-
-/* Вкладка-редактор (Клиент/Сервер/SQL/Стили): шапка с подписью + редактор во всю
-   высоту. Сам пейн не прокручивается — скролл живёт внутри CodeMirror. */
 .plugin-host__pane--editor {
   padding: 0;
   gap: 0;
@@ -472,236 +354,236 @@
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 24px;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
   border-bottom: 1px solid var(--color-border);
-}
-
-.plugin-host__frame {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* Тулбар/журналы во фрейме — со своими отступами; iframe — full-bleed. */
-.plugin-host__frame .plugin-host__toolbar {
-  margin: 0;
-  padding: 10px 16px;
-}
-
-.plugin-host__frame .plugin-host__console,
-.plugin-host__frame .plugin-host__events,
-.plugin-host__frame .plugin-host__state {
-  margin: 0 16px 12px;
-}
-
-.plugin-host__events {
-  border-left: 3px solid var(--color-primary, #2563eb);
-}
-
-.plugin-host__logs {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.plugin-host__iframe {
-  flex: 1 1 auto;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  border: 0;
-  background: var(--color-bg-primary);
-}
-
-/* ── Узкий заголовок страницы просмотра (PluginView) ──────────────────── */
-
-.plugin-host__bar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.plugin-host--view .plugin-host__title {
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 50vw;
-}
-
-.plugin-host__bar-spacer {
-    flex: 1 1 auto;
-}
-
-.plugin-data-mode {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--color-border, #d1d5db);
-    border-radius: 999px;
-    overflow: hidden;
-}
-
-.plugin-data-mode__button {
-    border: 0;
-    background: transparent;
-    color: var(--color-text-secondary, #6b7280);
-    padding: 4px 10px;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.plugin-data-mode__button + .plugin-data-mode__button {
-    border-left: 1px solid var(--color-border, #d1d5db);
-}
-
-.plugin-data-mode__button--live.plugin-data-mode__button--active {
-    color: #15803d;
-    background: rgba(34, 197, 94, .12);
-}
-
-.plugin-data-mode__button--snapshot.plugin-data-mode__button--active {
-    color: #b45309;
-    background: rgba(245, 158, 11, .14);
-}
-
-.plugin-data-mode__button:disabled {
-    cursor: not-allowed;
-    opacity: .45;
-}
-
-.plugin-data-mode__dot {
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    margin-right: 5px;
-    border-radius: 50%;
-    background: #22c55e;
-}
-
-.plugin-data-mode__dot--snapshot {
-    background: #f59e0b;
-}
-
-.plugin-host__run--active {
-  background: var(--btn-ghost-hover, var(--color-hover-bg));
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-/* ── Сцена: iframe на всё место + выдвижной журнал поверх ─────────────── */
-
-.plugin-host__stage {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.plugin-host__drawer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 45%;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface, var(--color-bg-secondary));
-  border-top: 1px solid var(--color-border);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
-  z-index: 5;
-}
-
-.plugin-host__drawer-head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.plugin-host__drawer-title {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-secondary);
-}
-
-.plugin-host__drawer-close {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.plugin-host__drawer-close:hover {
-  color: var(--color-text-primary);
-}
-
-.plugin-host__drawer-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px 14px;
-}
-
-.plugin-host__editor-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .plugin-host__editor-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-secondary);
 }
 
-.plugin-host__editor {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: 12px 14px;
-  background: var(--color-code-bg, #1e1e1e);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  color: var(--color-text-primary);
-  font-family: var(--font-family-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  tab-size: 2;
+/* ── Вкладка «Общее» ──────────────────────────────────────────────────── */
+
+.plugin-host__info {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  max-width: 760px;
 }
 
-.plugin-host__editor:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+.plugin-host__info-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-sm) var(--spacing-md);
+  margin: 0;
 }
+
+.plugin-host__info-term {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.plugin-host__info-value {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.plugin-host__info-value--mono {
+  font-family: var(--font-family-mono);
+}
+
+/* ── Вкладка «SQL»: выбор ресурса ─────────────────────────────────────── */
+
+.plugin-host__resource-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto auto;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .plugin-host__resource-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── Вкладка «Runner» ─────────────────────────────────────────────────── */
+
+.plugin-host__runner-report {
+  flex: 0 0 auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+}
+
+.plugin-host__runner-line {
+  padding: 2px 0;
+  color: var(--color-text-primary);
+}
+
+.plugin-host__runner-key {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+}
+
+.plugin-host__runner-errors {
+  margin-top: var(--spacing-xs);
+  color: var(--color-error);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.plugin-host__runner-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.plugin-host__runner-args {
+  min-height: 96px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--form-input-border);
+  border-radius: var(--radius-md);
+  background: var(--form-input-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  resize: vertical;
+}
+
+.plugin-host__runner-args--context {
+  min-height: 132px;
+}
+
+.plugin-host__method-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.plugin-host__method-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.plugin-host__method-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.plugin-host__method-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.plugin-host__runner-output {
+  margin: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-code-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 420px;
+}
+
+/* ── Вкладка «Статистика» ─────────────────────────────────────────────── */
+/* Здоровье плагина использует общий бейдж `.badge .badge--*`. */
+
+.plugin-host__stats {
+  flex: 0 0 auto;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.plugin-host__stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md) var(--spacing-lg);
+}
+
+.plugin-host__stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* ── Диалог публикации в S3 ───────────────────────────────────────────── */
+
+.plugin-host__publish {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.plugin-host__publish-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.plugin-host__publish-line {
+  font-size: var(--font-size-base);
+}
+
+.plugin-host__publish-note {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+/* ── Редактор кода (CodeMirror) ───────────────────────────────────────────
+   Фон и цвета редактора — тема приложения: JS-бандл красит только то, что
+   CodeMirror рисует поверх (курсор, выделение, гуттер, подсветка), причём
+   через те же `var(--...)`. Значит фон задаётся здесь, один раз, и меняется
+   вместе с темой без пересоздания редактора.
+   ─────────────────────────────────────────────────────────────────────── */
 
 .plugin-code-editor {
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  background: var(--color-code-bg, var(--color-bg-secondary));
+  border-radius: var(--radius-md);
+  background: var(--color-code-bg);
 }
 
 .plugin-code-editor .cm-editor {
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
 }
 
@@ -709,8 +591,12 @@
   font-family: var(--font-family-mono);
 }
 
-/* Редактор во всю высоту вкладки: единственный скролл — внутри редактора
-   (пейн не прокручивается, поэтому нет «двойного скролла»). */
+.plugin-code-editor .cm-editor.cm-focused {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  outline-offset: -1px;
+}
+
+/* Редактор во всю высоту вкладки: единственный скролл — внутри редактора. */
 .plugin-code-editor--fill {
   flex: 1 1 auto;
   min-height: 0;
@@ -731,79 +617,264 @@
   overflow: auto;
 }
 
-.plugin-code-editor .cm-editor.cm-focused {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
-  outline-offset: -1px;
-}
+/* ═══════════════════  Страница просмотра плагина (view)  ════════════════════
+   Отсюда и ниже — только `plugin-host--view` и фрейм: свой узкий бар, сцена с
+   iframe и выдвижной журнал. Страница разработки этого не использует.
+   ═════════════════════════════════════════════════════════════════════════ */
 
-.plugin-host__resource-toolbar {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto auto;
-  gap: 8px;
+.plugin-host__bar {
+  flex: 0 0 auto;
+  display: flex;
   align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.plugin-host__resource-select,
-.plugin-host__resource-name,
-.plugin-host__resource-action {
-  height: 30px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-secondary);
+.plugin-host__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50vw;
+}
+
+.plugin-host__bar-spacer {
+  flex: 1 1 auto;
+}
+
+/* Кнопки бара просмотра. Геометрия — как у общей `.button`; страница
+   разработки перешла на неё, здесь остаётся собственный набор до такого же
+   перевода `view.rs`/`frame.rs`. */
+.plugin-host__run {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  border: 1px solid transparent;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  height: 28px;
+  padding: 4px 16px;
+  border-radius: var(--radius-md);
   font-size: var(--font-size-base);
-  padding: 0 12px;
-}
-
-.plugin-host__resource-action {
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
   cursor: pointer;
-  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 0.15s, opacity 0.15s, transform 0.05s;
 }
 
-.plugin-host__resource-action--danger {
-  color: var(--color-error);
+.plugin-host__run:hover {
+  background: var(--btn-primary-hover);
 }
 
-.plugin-host__resource-action:disabled {
-  cursor: default;
+.plugin-host__run:active {
+  transform: translateY(1px);
+}
+
+.plugin-host__run:disabled {
   opacity: 0.55;
+  cursor: default;
 }
 
-@media (max-width: 900px) {
-  .plugin-host__resource-toolbar {
-    grid-template-columns: 1fr 1fr;
-  }
+.plugin-host__run--server {
+  background: var(--btn-ghost-bg);
+  color: var(--btn-ghost-text);
+  border-color: var(--color-border);
 }
 
-.plugin-host__save-msg {
-  font-size: 12px;
+.plugin-host__run--server:hover {
+  background: var(--btn-ghost-hover);
+}
+
+.plugin-host__run--active {
+  background: var(--btn-ghost-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* ── Переключатель LIVE / снимок ──────────────────────────────────────── */
+
+.plugin-data-mode {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.plugin-data-mode__button {
+  border: 0;
+  background: transparent;
   color: var(--color-text-secondary);
-  align-self: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
 }
 
-/* ── Консоль ──────────────────────────────────────────────────────────── */
+.plugin-data-mode__button + .plugin-data-mode__button {
+  border-left: 1px solid var(--color-border);
+}
+
+.plugin-data-mode__button--live.plugin-data-mode__button--active {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+}
+
+.plugin-data-mode__button--snapshot.plugin-data-mode__button--active {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+}
+
+.plugin-data-mode__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.plugin-data-mode__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.plugin-data-mode__dot--snapshot {
+  background: var(--color-warning);
+}
+
+/* ── Фрейм плагина ────────────────────────────────────────────────────── */
+
+.plugin-host__frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Тулбар/журналы во фрейме — со своими отступами; iframe — full-bleed. */
+.plugin-host__frame .plugin-host__toolbar {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.plugin-host__frame .plugin-host__console,
+.plugin-host__frame .plugin-host__events,
+.plugin-host__frame .plugin-host__state {
+  margin: 0 var(--spacing-md) var(--spacing-sm);
+}
+
+.plugin-host__iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--color-bg-primary);
+}
+
+/* ── Сцена: iframe на всё место + выдвижной журнал поверх ─────────────── */
+
+.plugin-host__stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.plugin-host__drawer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  /* Тень вверх: панель поднимается со дна сцены, а токены --shadow-* светят вниз. */
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+
+.plugin-host__drawer-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.plugin-host__drawer-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.plugin-host__drawer-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--spacing-xs);
+}
+
+.plugin-host__drawer-close:hover {
+  color: var(--color-text-primary);
+}
+
+.plugin-host__drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+/* ── Журнал ───────────────────────────────────────────────────────────── */
+
+.plugin-host__logs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
 
 .plugin-host__console {
-  margin: 16px 0;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--color-code-bg, #1e1e1e);
+  background: var(--color-code-bg);
+}
+
+.plugin-host__events {
+  border-left: 3px solid var(--color-primary);
 }
 
 .plugin-host__console-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
-  background: var(--color-bg-secondary, var(--color-bg-secondary));
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border);
 }
 
 .plugin-host__console-title {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-secondary);
@@ -815,22 +886,22 @@
   background: transparent;
   color: var(--color-text-secondary);
   padding: 2px 9px;
-  border-radius: var(--radius-full, 999px);
-  font-size: 11px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
 }
 
 .plugin-host__console-clear:hover {
-  background: var(--color-hover-bg, var(--color-surface-alt));
+  background: var(--color-hover-bg);
   color: var(--color-text-primary);
 }
 
 .plugin-host__console-body {
-  padding: 10px 14px;
+  padding: var(--spacing-sm) var(--spacing-md);
   max-height: 300px;
   overflow-y: auto;
   font-family: var(--font-family-mono);
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   line-height: 1.6;
 }
 
@@ -838,209 +909,6 @@
   color: var(--color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* ── Просмотр кода ────────────────────────────────────────────────────── */
-
-.plugin-host__code-toggle {
-  appearance: none;
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
-  padding: 3px 10px;
-  border-radius: var(--radius-full, 999px);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-left: auto;
-}
-
-.plugin-host__code-toggle:hover {
-  background: var(--color-hover-bg, var(--color-surface-alt));
-  color: var(--color-text-primary);
-}
-
-.plugin-host__code-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.plugin-host__code-section {
-  margin-bottom: 6px;
-}
-
-.plugin-host__code-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-secondary);
-  margin-bottom: 6px;
-}
-
-.plugin-host__code-block {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--color-code-bg, var(--color-bg-secondary, #1e1e1e));
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  font-family: var(--font-family-mono);
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--color-text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-x: auto;
-  max-height: 360px;
-}
-
-/* ── Контекст запуска (период) ────────────────────────────────────────── */
-
-.plugin-host__context {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 24px;
-}
-
-.plugin-host__context-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-}
-
-.plugin-host__context-field input {
-  height: 30px;
-  padding: 5px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface, var(--color-bg-secondary));
-  color: var(--color-text-primary);
-  font: inherit;
-}
-
-.plugin-host__context-hint {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
-/* ── Серверный runner ─────────────────────────────────────────────────── */
-
-.plugin-host__runner-report {
-  padding: 12px 14px;
-  font-size: 13px;
-}
-
-.plugin-host__runner-line {
-  padding: 2px 0;
-  color: var(--color-text-primary);
-}
-
-.plugin-host__runner-key {
-  font-weight: 700;
-  color: var(--color-text-secondary);
-}
-
-.plugin-host__runner-errors {
-  margin-top: 6px;
-  color: var(--color-error, var(--color-error, #dc2626));
-  font-family: var(--font-family-mono);
-  font-size: 12.5px;
-}
-
-.plugin-host__runner-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.plugin-host__runner-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-secondary);
-}
-
-.plugin-host__runner-args {
-  min-height: 96px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  background: var(--color-surface, var(--color-bg-secondary));
-  color: var(--color-text-primary);
-  font-family: var(--font-family-mono);
-  font-size: 12.5px;
-  resize: vertical;
-}
-
-.plugin-host__runner-args--context {
-  min-height: 132px;
-}
-
-.plugin-host__method-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 12px;
-}
-
-.plugin-host__method-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  background: var(--color-surface, var(--color-surface));
-}
-
-.plugin-host__method-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.plugin-host__method-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-family-mono);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.plugin-host__runner-output {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--color-code-bg, var(--color-bg-secondary, #1e1e1e));
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  font-family: var(--font-family-mono);
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--color-text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-x: auto;
-  max-height: 420px;
-}
-
-.plugin-host__export {
-  margin-left: auto;
 }
 
 /* ── Импорт / экспорт в реестре ───────────────────────────────────────── */
@@ -1059,36 +927,12 @@
 }
 
 .plugins-alert--info {
-  color: var(--color-info-600, var(--color-primary, #2563eb));
-  background: color-mix(in srgb, var(--color-info-600, #2563eb) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-info-600, #2563eb) 30%, transparent);
+  color: var(--color-info-600);
+  background: color-mix(in srgb, var(--color-info-600) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-info-600) 30%, transparent);
 }
 
 .plugins-link--muted {
-  margin-left: 12px;
+  margin-left: var(--spacing-sm);
   color: var(--color-text-secondary);
-}
-
-/* Здоровье плагина (статистика) использует общий бейдж `.badge .badge--*`. */
-
-.plugin-host__stats {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.plugin-host__stats-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-}
-
-.plugin-host__stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-primary);
 }

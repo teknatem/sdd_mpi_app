@@ -3,7 +3,7 @@
 
 use contracts::processes::{
     ActivationPlan, DefinitionVersion, DomainEvent, EffectRecord, InstanceDetails, ProcessInstance,
-    ProcessRecord, StageRecord,
+    ProcessRecord, StageDefinition, StageRecord,
 };
 use serde::Deserialize;
 
@@ -126,6 +126,15 @@ pub async fn list_stage_versions(code: &str) -> Result<Vec<DefinitionVersion>, S
 
 pub async fn get_stage(code: &str, version: i32) -> Result<StageRecord, String> {
     get_json(&format!("/api/processes/stages/{code}/versions/{version}")).await
+}
+
+/// Сохранить Этап черновиком.
+///
+/// Черновик у кода один: повторное сохранение переписывает его, а новая версия
+/// заводится только когда головная уже активна. Отпечаток считает бэкенд —
+/// присылать его отсюда бессмысленно, он выводится из содержимого.
+pub async fn save_stage(definition: &StageDefinition) -> Result<StageRecord, String> {
+    post_json("/api/processes/stages", definition).await
 }
 
 pub async fn activate_stage(code: &str, version: i32) -> Result<StageRecord, String> {
