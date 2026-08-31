@@ -80,3 +80,29 @@ pub async fn remove_by_registrator_ref(registrator_ref: &str) -> Result<()> {
     repository::delete_by_registrator_ref(registrator_ref).await?;
     Ok(())
 }
+
+/// Detail-строки для drill-down по ресурсу Главной книги.
+pub struct GlDetail;
+
+#[async_trait::async_trait]
+impl crate::general_ledger::resource_detail::GlDetailSource for GlDetail {
+    fn detail_table(&self) -> &'static str {
+        "p911_wb_advert_by_items"
+    }
+
+    async fn fetch(
+        &self,
+        gl: &crate::general_ledger::repository::Model,
+    ) -> anyhow::Result<Vec<serde_json::Value>> {
+        use super::repository::{Column, Entity};
+
+        crate::general_ledger::resource_detail::fetch_linked_rows::<Entity>(
+            gl,
+            Column::GeneralLedgerRef,
+            Column::RegistratorType,
+            Column::RegistratorRef,
+            Column::TurnoverCode,
+        )
+        .await
+    }
+}

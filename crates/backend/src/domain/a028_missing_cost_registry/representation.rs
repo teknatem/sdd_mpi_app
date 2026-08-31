@@ -7,7 +7,9 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::repository::{Column, Entity};
 use crate::shared::data::db::get_connection;
+use crate::shared::registrators::{Registrator, RegistratorMeta};
 use crate::shared::representation::{build, chunked};
+use async_trait::async_trait;
 
 /// Название типа (метаданных у агрегата нет — задаём явно).
 const TYPE_NAME: &str = "Реестр себестоимости";
@@ -30,4 +32,27 @@ pub async fn represent_many(ids: &[String]) -> HashMap<String, AggregateRepresen
             .collect()
     })
     .await
+}
+
+/// Регистратор `a028_missing_cost_registry` — регистр отсутствующих себестоимостей.
+pub struct Provider;
+
+#[async_trait]
+impl Registrator for Provider {
+    fn kind(&self) -> &'static str {
+        "a028_missing_cost_registry"
+    }
+
+    fn meta(&self) -> RegistratorMeta {
+        RegistratorMeta {
+            type_label: RegistratorMeta::UNKNOWN.type_label,
+            link_label: None,
+            can_post: false,
+            tab_key_prefix: None,
+        }
+    }
+
+    async fn represent_many(&self, ids: &[String]) -> HashMap<String, AggregateRepresentation> {
+        represent_many(ids).await
+    }
 }

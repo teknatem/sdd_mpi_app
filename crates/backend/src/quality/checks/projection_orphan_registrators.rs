@@ -4,6 +4,7 @@
 //! которого уже нет в исходном агрегате. Такие строки нельзя исправить
 //! перепроведением, их нужно удалить из проекции.
 
+use crate::shared::registrators;
 use contracts::quality::{
     BreakdownRow, CheckBreakdown, CheckMetric, CheckResult, NipCleanupResult, NipGroupsResponse,
     NipProjectionRow, NipRegistratorGroup, QualityCheckInfo, QualityCheckSource,
@@ -97,12 +98,10 @@ async fn load_orphan_groups(table: &str) -> anyhow::Result<Vec<NipRegistratorGro
         let registrator_type: String = row.try_get("", "registrator_type").unwrap_or_default();
         let registrator_ref: String = row.try_get("", "registrator_ref").unwrap_or_default();
 
-        let source_exists = super::registrator_registry::source_document_exists(
-            &registrator_type,
-            &registrator_ref,
-        )
-        .await
-        .unwrap_or(false);
+        let source_exists =
+            registrators::source_document_exists(&registrator_type, &registrator_ref)
+                .await
+                .unwrap_or(false);
         if source_exists {
             continue;
         }
@@ -110,7 +109,7 @@ async fn load_orphan_groups(table: &str) -> anyhow::Result<Vec<NipRegistratorGro
         let missing_count: i64 = row.try_get("", "missing_count").unwrap_or(0);
         let min_entry_date: Option<String> = row.try_get("", "min_entry_date").ok();
         let max_entry_date: Option<String> = row.try_get("", "max_entry_date").ok();
-        let meta = super::registrator_registry::get_meta(&registrator_type);
+        let meta = registrators::meta(&registrator_type);
         let display_short = if registrator_ref.len() > 8 {
             format!("{}…", &registrator_ref[..8])
         } else {
@@ -190,7 +189,7 @@ pub async fn breakdowns() -> anyhow::Result<Vec<CheckBreakdown>> {
     let mut by_type: BTreeMap<String, i64> = BTreeMap::new();
     for (table, _) in SOURCES {
         for g in load_orphan_groups(table).await? {
-            let label = super::registrator_registry::get_meta(&g.registrator_type)
+            let label = registrators::meta(&g.registrator_type)
                 .type_label
                 .to_string();
             *by_type.entry(label).or_insert(0) += g.missing_count;
@@ -355,7 +354,7 @@ pub async fn cleanup(
             .unwrap_or_default();
 
         let source_exists =
-            super::registrator_registry::source_document_exists(&registrator_type, registrator_ref)
+            registrators::source_document_exists(&registrator_type, registrator_ref)
                 .await
                 .unwrap_or(true);
         if source_exists {

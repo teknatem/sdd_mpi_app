@@ -83,20 +83,13 @@ pub mod ds02_mp_sales_register;
 pub mod usecases;
 
 // External integration API (1C, etc.)
-pub mod ext_1c_wb_supply;
 // External BI API (Power BI) — 1C nomenclature a004 + marketplace SKU bridge
 pub mod ext_bi_nomenclature;
 // External BI API (Power BI) — WB sales funnel a036
-pub mod ext_bi_wb_advert;
-pub mod ext_bi_wb_funnel;
 // External BI API (Power BI) — Yandex Market sales funnel a041
-pub mod ext_bi_ym_funnel;
 // External BI API (Power BI) — WB stock balances a037
-pub mod ext_bi_wb_stocks;
 // External BI API (Power BI) — WB finance report p903 (raw native rows)
-pub mod ext_bi_wb_finance;
 // External BI API (Power BI) — YM payment report p907 (raw native rows)
-pub mod ext_bi_ym_payments;
 // OpenAPI-спека и страница документации внешнего API (без ключа)
 pub mod ext_docs;
 
@@ -120,4 +113,3 @@ pub mod plugins;
 pub mod processes;
 
 // YM-обслуживание: консолидация подключений к модели «подключение = бизнес» (admin-only)
-pub mod ym_consolidation;

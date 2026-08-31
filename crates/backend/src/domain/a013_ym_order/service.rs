@@ -707,3 +707,52 @@ fn normalize_ym_status(status: &str) -> String {
         _ => status.to_uppercase(),
     }
 }
+
+/// Заказы Яндекс.Маркет для вкладки «Заказы» на карточке номенклатуры.
+pub struct NomenclatureOrders;
+
+#[async_trait::async_trait]
+impl crate::domain::a004_nomenclature::service::NomenclatureOrderSource for NomenclatureOrders {
+    async fn orders_for_nomenclature(
+        &self,
+        nomenclature_ref: &str,
+        date_from: &str,
+    ) -> anyhow::Result<
+        Vec<contracts::domain::a004_nomenclature::orders_dto::NomenclatureOrderRowDto>,
+    > {
+        use contracts::domain::a004_nomenclature::orders_dto::NomenclatureOrderRowDto;
+
+        let rows =
+            super::repository::list_lines_for_nomenclature(nomenclature_ref, date_from).await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                // Маржа заказа относится ко всему заказу целиком, поэтому
+                // переносим её на строку, только если заказ однострочный —
+                // иначе она была бы приписана строке неверно.
+                let margin_pro = match r.order_lines_count {
+                    Some(1) => r.order_margin_pro,
+                    _ => None,
+                };
+                NomenclatureOrderRowDto {
+                    id: r.order_id,
+                    marketplace: "YM".to_string(),
+                    document_no: r.document_no,
+                    order_date: r.creation_date,
+                    is_cancel: None,
+                    is_supply: None,
+                    is_realization: None,
+                    line_status: r.line_status,
+                    status_norm: r.status_norm,
+                    qty: r.qty,
+                    price_before_discount: r.price_list,
+                    price_after_discount: r.price_effective,
+                    final_buyer_price: r.buyer_price,
+                    dealer_price_ut: r.dealer_price_ut,
+                    margin_pro,
+                }
+            })
+            .collect())
+    }
+}

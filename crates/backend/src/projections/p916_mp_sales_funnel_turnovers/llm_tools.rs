@@ -1,6 +1,43 @@
+//! Инструменты чата для ремонта воронки.
+//!
+//! Ядро чата их имён не знает: набор объявляется провайдером
+//! [`FunnelRepairTools`], который перечисляет `composition::llm_tools`.
+
+use async_trait::async_trait;
 use serde_json::{json, Value};
 
-use super::types::{ToolCaller, ToolDefinition};
+use crate::shared::llm::tool_executor::ToolContext;
+use crate::shared::llm::tool_provider::ToolProvider;
+use crate::shared::llm::types::{ToolCaller, ToolDefinition};
+
+/// Провайдер набора `funnel_repair`.
+pub struct FunnelRepairTools;
+
+#[async_trait]
+impl ToolProvider for FunnelRepairTools {
+    fn bundle(&self) -> &'static str {
+        "funnel_repair"
+    }
+
+    fn tool_names(&self) -> &'static [&'static str] {
+        FUNNEL_REPAIR_TOOL_NAMES
+    }
+
+    fn definitions(&self) -> Vec<ToolDefinition> {
+        funnel_repair_tool_definitions()
+    }
+
+    /// Само исполнение ремонта меняет данные — для него нужно право
+    /// `data_repair_execute`. Диагностика и статус read-only.
+    fn required_capability(&self, tool_name: &str) -> Option<&'static str> {
+        (tool_name == "execute_funnel_repair")
+            .then_some(crate::shared::llm::skill_policy::DATA_REPAIR_EXECUTE)
+    }
+
+    async fn execute(&self, name: &str, arguments: &str, cx: &ToolContext<'_>) -> Value {
+        execute_funnel_repair_tool(name, arguments, cx.chat_id, cx.agent_id, cx.caller).await
+    }
+}
 
 pub const FUNNEL_REPAIR_TOOL_NAMES: &[&str] = &[
     "prepare_funnel_repair",
@@ -82,7 +119,7 @@ pub async fn execute_funnel_repair_tool(
                         .collect()
                 })
                 .unwrap_or_default();
-            match crate::quality::funnel_repair::prepare(target, date_from, date_to, refs).await {
+            match super::repair::prepare(target, date_from, date_to, refs).await {
                 Ok(prepared) => {
                     json!({"ok":true,"prepared":prepared,"next_step":"Покажи preview_text, ограничения и действия пользователю. Не вызывай execute_funnel_repair в этом ходе; дождись следующего сообщения с явным согласием."})
                 }
@@ -99,9 +136,7 @@ pub async fn execute_funnel_repair_tool(
             let Some(spec_value) = args.get("repair_spec") else {
                 return json!({"ok":false,"error":"repair_spec обязателен"});
             };
-            let spec: crate::quality::funnel_repair::RepairSpec = match serde_json::from_value(
-                spec_value.clone(),
-            ) {
+            let spec: super::repair::RepairSpec = match serde_json::from_value(spec_value.clone()) {
                 Ok(value) => value,
                 Err(error) => {
                     return json!({"ok":false,"error":format!("Некорректный repair_spec: {error}")})
@@ -124,14 +159,8 @@ pub async fn execute_funnel_repair_tool(
                     return json!({"ok":false,"error":format!("Не удалось проверить подтверждение: {error}")})
                 }
             }
-            match crate::quality::funnel_repair::start(
-                spec,
-                hash,
-                chat_id,
-                agent_id,
-                Some(caller.user_id.as_str()),
-            )
-            .await
+            match super::repair::start(spec, hash, chat_id, agent_id, Some(caller.user_id.as_str()))
+                .await
             {
                 Ok(run) => {
                     json!({"ok":true,"run":run,"next_step":"Периодически вызывай get_funnel_repair_status до финального статуса."})
@@ -144,7 +173,7 @@ pub async fn execute_funnel_repair_tool(
                 .get("repair_run_id")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            match crate::quality::funnel_repair::get_for_chat(id, chat_id).await {
+            match super::repair::get_for_chat(id, chat_id).await {
                 Ok(Some(run)) => json!({"ok":true,"run":run}),
                 Ok(None) => json!({"ok":false,"error":"Repair-run не найден"}),
                 Err(error) => json!({"ok":false,"error":error.to_string()}),

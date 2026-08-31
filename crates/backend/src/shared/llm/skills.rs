@@ -1441,7 +1441,7 @@ pub async fn employee_skills(agent_type: &AgentType) -> serde_json::Value {
 /// Порядок значим для `tools_catalog()`: дедуп оставляет ПЕРВОЕ вхождение
 /// имени, поэтому бандл поиска по базе знаний идёт до kb_admin.
 fn tool_bundles() -> Vec<(&'static str, Vec<ToolDefinition>)> {
-    vec![
+    let mut bundles: Vec<(&'static str, Vec<ToolDefinition>)> = vec![
         ("data", super::data_tools::tool_definitions()),
         ("shared", super::tool_executor::shared_tool_definitions()),
         ("analyst", super::tool_executor::analyst_tool_definitions()),
@@ -1466,10 +1466,6 @@ fn tool_bundles() -> Vec<(&'static str, Vec<ToolDefinition>)> {
         ),
         ("quality", super::quality_tools::quality_tool_definitions()),
         (
-            "funnel_repair",
-            super::funnel_repair_tools::funnel_repair_tool_definitions(),
-        ),
-        (
             "llm_quality",
             super::llm_quality_tools::llm_quality_tool_definitions(),
         ),
@@ -1478,7 +1474,10 @@ fn tool_bundles() -> Vec<(&'static str, Vec<ToolDefinition>)> {
             super::agent_task_tools::agent_task_tool_definitions(),
         ),
         ("meta", meta_tool_definitions()),
-    ]
+    ];
+    // Инструменты, объявленные срезами: ядро чата их имён не знает.
+    bundles.extend(super::tool_provider::bundles());
+    bundles
 }
 
 /// «Вселенная» всех определений инструментов (core + все бандлы + мета).

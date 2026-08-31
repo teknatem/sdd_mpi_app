@@ -26,6 +26,7 @@ use serde_json::json;
 static WORKER: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 async fn database() -> &'static DatabaseConnection {
+    backend::composition::install_all();
     db::init_test_database()
         .await
         .expect("тестовая база не поднялась");

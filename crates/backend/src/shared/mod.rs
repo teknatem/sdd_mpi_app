@@ -12,5 +12,6 @@ pub mod llm;
 pub mod logger;
 pub mod mail;
 pub mod marketplaces;
+pub mod registrators;
 pub mod representation;
 pub mod universal_dashboard;

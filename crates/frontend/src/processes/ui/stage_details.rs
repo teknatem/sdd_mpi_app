@@ -28,7 +28,9 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use super::super::api;
-use super::parts::{definition_status_badge, definition_status_label, input_skeleton, short_digest};
+use super::parts::{
+    definition_status_badge, definition_status_label, input_skeleton, short_digest,
+};
 use super::stage_card::{DryRunBlock, StageFacts};
 use crate::plugins::editor::CodeEditor;
 use crate::shared::components::page_tabs::{PageTabs, TabItem};

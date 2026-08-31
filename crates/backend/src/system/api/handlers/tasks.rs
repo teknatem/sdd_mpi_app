@@ -1,5 +1,4 @@
 use crate::system::tasks::abort_registry;
-use crate::system::tasks::change_token;
 use crate::system::tasks::logger::get_global_task_logger;
 use crate::system::tasks::registry::get_global_registry;
 use crate::system::tasks::resource_coordinator::get_global_resource_coordinator;
@@ -528,16 +527,16 @@ pub async fn abort_task_run(
 }
 
 /// GET /api/sys/change-tokens
+///
+/// Состав отдаёт реестр (`composition::change_tokens`), а не этот хендлер:
+/// перечисляя домены здесь, системный слой знал имена агрегатов.
 pub async fn get_change_tokens() -> impl IntoResponse {
-    Json(serde_json::json!({
-        "sys_tasks": change_token::TOKEN.get(),
-        "sys_tickets": crate::system::tickets::change_token::TOKEN.get(),
-        "a027_wb_documents": crate::domain::a027_wb_documents::change_token::TOKEN.get(),
-        "a015_wb_orders": crate::domain::a015_wb_orders::change_token::TOKEN.get(),
-        "a012_wb_sales": crate::domain::a012_wb_sales::change_token::TOKEN.get(),
-        "a013_ym_order": crate::domain::a013_ym_order::change_token::TOKEN.get(),
-        "plugins": crate::plugins::change_token::TOKEN.get(),
-    }))
+    let tokens: serde_json::Map<String, serde_json::Value> =
+        crate::shared::change_token::snapshot()
+            .into_iter()
+            .map(|(name, value)| (name.to_string(), serde_json::json!(value)))
+            .collect();
+    Json(serde_json::Value::Object(tokens))
 }
 
 /// GET /api/sys/scheduler/status

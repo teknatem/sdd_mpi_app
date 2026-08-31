@@ -21,6 +21,15 @@ pub enum PolicyMode {
     AdminOnly,
     /// Requires valid JWT but no scope check — a policy violation if intentional
     AuthOnly,
+    /// Authenticated by the shared `X-Api-Key` header instead of a JWT
+    /// (`check_api_key`) — the external integration API.
+    ///
+    /// Отдельный режим, а не `AuthOnly` и не `Public`. `AuthOnly` означал бы
+    /// «залогинен, но scope забыли» и считался бы нарушением; `Public` — «ключ
+    /// не нужен» и завысил бы счётчик открытых маршрутов в аудите. Потребитель
+    /// внешнего API анонимен по устройству (ключ один на всех), поэтому
+    /// `scope_id` у таких маршрутов всегда `None`.
+    ApiKey,
     /// No authentication required — must be in an explicit whitelist
     Public,
 }
@@ -32,6 +41,7 @@ impl PolicyMode {
             Self::ReadOnly => "read_only",
             Self::AdminOnly => "admin_only",
             Self::AuthOnly => "auth_only",
+            Self::ApiKey => "api_key",
             Self::Public => "public",
         }
     }

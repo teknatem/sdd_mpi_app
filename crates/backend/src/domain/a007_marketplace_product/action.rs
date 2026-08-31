@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
 
-use super::Action;
+use crate::processes::actions::Action;
 
 #[derive(Debug, Deserialize)]
 struct Input {

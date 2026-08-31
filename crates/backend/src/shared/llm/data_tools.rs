@@ -738,6 +738,7 @@ mod tests {
 
     #[test]
     fn wb_catalog_exposes_copyable_source_and_physical_columns() {
+        crate::composition::install_all();
         let source = list_sources(Some(DataSourceKind::Base))
             .into_iter()
             .find(|source| source.id == "a012")

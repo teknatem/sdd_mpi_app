@@ -633,3 +633,97 @@ pub async fn rebuild_range_from_existing(date_from: &str, date_to: &str) -> Resu
 
     Ok(day_keys.len())
 }
+
+/// Пересбор p903 за период для страницы перепроведения `u508`.
+///
+/// Один вызов на весь период, а не по строкам: `rebuild_range_from_existing`
+/// пересобирает GL-проводки диапазона целиком, и дробить его на элементы
+/// прогресса нечем — отсюда шкала из одного шага.
+pub struct Repost;
+
+#[async_trait::async_trait]
+impl crate::usecases::u508_repost_documents::ProjectionRepost for Repost {
+    fn key(&self) -> &'static str {
+        "p903_wb_finance_report"
+    }
+
+    fn option(&self) -> crate::usecases::u508_repost_documents::ProjectionOptionInfo {
+        crate::usecases::u508_repost_documents::ProjectionOptionInfo {
+            label: "p903 — WB Finance Report",
+            description:
+                "Локальная пересборка general ledger по сохранённым строкам p903_wb_finance_report",
+        }
+    }
+
+    async fn rebuild(
+        &self,
+        ctx: &crate::usecases::u508_repost_documents::RepostContext<'_>,
+    ) -> anyhow::Result<()> {
+        const STEP: &str = "Rebuilding p903 general ledger";
+        ctx.tracker.set_total(ctx.session_id, 1);
+        ctx.tracker
+            .update_progress(ctx.session_id, 0, 0, Some(STEP.to_string()));
+        rebuild_range_from_existing(ctx.date_from, ctx.date_to).await?;
+        ctx.tracker
+            .update_progress(ctx.session_id, 1, 1, Some(STEP.to_string()));
+        Ok(())
+    }
+}
+
+/// Detail-строки для drill-down по ресурсу Главной книги.
+///
+/// В отличие от проекций, связанных через `general_ledger_ref`, p903 —
+/// внешне связанная (`ExternalLinked`): проводка ссылается на её строку
+/// через `registrator_ref`, и форма ссылки исторически трёхвариантная —
+/// голый id, `p903:<source_row_ref>` и `p903:<rr_dt>:<rrd_id>`.
+pub struct GlDetail;
+
+#[async_trait::async_trait]
+impl crate::general_ledger::resource_detail::GlDetailSource for GlDetail {
+    fn detail_table(&self) -> &'static str {
+        "p903_wb_finance_report"
+    }
+
+    async fn fetch(
+        &self,
+        gl: &crate::general_ledger::repository::Model,
+    ) -> anyhow::Result<Vec<serde_json::Value>> {
+        use super::repository::{Column, Entity};
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let conn = crate::shared::data::db::get_connection();
+        let registrator_ref = gl.registrator_ref.as_str();
+
+        if !registrator_ref.starts_with("p903:") {
+            let row = Entity::find_by_id(registrator_ref.to_string())
+                .into_json()
+                .one(conn)
+                .await?;
+            return Ok(row.into_iter().collect());
+        }
+
+        let parts: Vec<&str> = registrator_ref.splitn(3, ':').collect();
+        if parts.len() == 2 {
+            return Ok(Entity::find()
+                .filter(Column::SourceRowRef.eq(registrator_ref))
+                .into_json()
+                .all(conn)
+                .await?);
+        }
+
+        if parts.len() == 3 {
+            let rr_dt = parts[1].to_string();
+            let rrd_id: i64 = parts[2].parse().map_err(|err| {
+                anyhow::anyhow!("Invalid rrd_id in registrator_ref '{registrator_ref}': {err}")
+            })?;
+            return Ok(Entity::find()
+                .filter(Column::RrDt.eq(rr_dt))
+                .filter(Column::RrdId.eq(rrd_id))
+                .into_json()
+                .all(conn)
+                .await?);
+        }
+
+        Ok(Vec::new())
+    }
+}

@@ -14,7 +14,10 @@ pub const SKILL_SCRIPT_EXECUTE: &str = "skill_script_execute";
 pub const SKILL_SCRIPT_DEVELOP: &str = "skill_script_develop";
 pub const DATA_REPAIR_EXECUTE: &str = "data_repair_execute";
 const MUTATING_ARTIFACT_TOOLS: &[&str] = &["build_chart", "build_table", "plugin_upsert"];
-const MUTATING_DATA_REPAIR_TOOLS: &[&str] = &["execute_funnel_repair"];
+/// Мутирующие инструменты ремонта данных, принадлежащие ядру чата. Сейчас
+/// таких нет: ремонт — свойство конкретной проекции, и её провайдер объявляет
+/// требуемое право сам (`tool_provider::required_capability`).
+const MUTATING_DATA_REPAIR_TOOLS: &[&str] = &[];
 const CAPABILITIES: &[&str] = &[
     ARTIFACT_PUBLISH,
     SKILL_SCRIPT_EXECUTE,
@@ -241,6 +244,7 @@ pub fn is_artifact_mutation(tool_name: &str) -> bool {
 
 pub fn is_data_repair_mutation(tool_name: &str) -> bool {
     MUTATING_DATA_REPAIR_TOOLS.contains(&tool_name)
+        || super::tool_provider::required_capability(tool_name) == Some(DATA_REPAIR_EXECUTE)
 }
 
 fn revision_for(
@@ -563,6 +567,7 @@ mod tests {
 
     #[test]
     fn data_repair_is_coordinator_only_by_default() {
+        crate::composition::install_all();
         assert!(default_capability(
             &AgentType::CoordinatorAdmin,
             DATA_REPAIR_EXECUTE

@@ -18,6 +18,10 @@ use sea_orm::DatabaseConnection;
 use serde_json::json;
 
 async fn database() -> DatabaseConnection {
+    // Состав системы ставится composition root'ом — у интеграционного теста
+    // своего `main` нет, а реестры (Действия, регистраторы) нужны те же.
+    // Вызов идемпотентен, поэтому его делает каждый тест, не сговариваясь.
+    backend::composition::install_all();
     db::init_test_database()
         .await
         .expect("тестовая база не поднялась")
@@ -199,6 +203,7 @@ async fn empty_idempotency_key_is_rejected() {
 /// проверяется здесь.
 #[tokio::test]
 async fn catalog_is_addressable() {
+    backend::composition::install_all();
     assert!(actions::exists("create_agent_task"));
     assert!(!actions::exists("нет-такого-действия"));
 

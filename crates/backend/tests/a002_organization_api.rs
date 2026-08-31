@@ -40,6 +40,7 @@ async fn app() -> axum::Router {
 /// читается из `sys_settings`, куда его кладёт подъём тестовой базы. Поэтому
 /// первым делом — база: выпуск токена ходит в неё через глобальный мост.
 async fn admin_token() -> String {
+    backend::composition::install_all();
     db::init_test_database().await.expect("нет тестовой базы");
 
     backend::system::auth::jwt::generate_access_token(

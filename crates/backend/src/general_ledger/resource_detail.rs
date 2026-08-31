@@ -12,12 +12,6 @@ use contracts::general_ledger::resource_detail::{
 use super::detail_links::{
     descriptor_for_resource_table, GlDetailLinkDescriptor, GlDetailLinkKind,
 };
-use crate::projections::p903_wb_finance_report::repository as p903;
-use crate::projections::p909_mp_order_line_turnovers::repository as p909;
-use crate::projections::p910_mp_unlinked_turnovers::repository as p910;
-use crate::projections::p911_wb_advert_by_items::repository as p911;
-use crate::projections::p913_wb_advert_order_attr::repository as p913;
-use crate::projections::p914_mp_finance_turnovers::repository as p914;
 use crate::shared::data::db::get_connection;
 
 const MATCH_TOLERANCE: f64 = 0.01;
@@ -154,152 +148,90 @@ async fn fetch_rows(
     descriptor: &GlDetailLinkDescriptor,
     gl: &super::repository::Model,
 ) -> Result<Vec<JsonValue>> {
-    match descriptor.kind {
-        GlDetailLinkKind::ProjectionLinked => match descriptor.detail_table {
-            "p909_mp_order_line_turnovers" => fetch_p909(gl).await,
-            "p910_mp_unlinked_turnovers" => fetch_p910(gl).await,
-            "p911_wb_advert_by_items" => fetch_p911(gl).await,
-            "p913_wb_advert_order_attr" => fetch_p913(gl).await,
-            "p914_mp_finance_turnovers" => fetch_p914(gl).await,
-            other => Err(anyhow::anyhow!(
-                "ProjectionLinked table '{other}' has no detail loader"
-            )),
-        },
-        GlDetailLinkKind::ExternalLinked => match descriptor.detail_table {
-            "p903_wb_finance_report" => fetch_p903(&gl.registrator_ref).await,
-            other => Err(anyhow::anyhow!(
-                "ExternalLinked table '{other}' has no detail loader"
-            )),
-        },
+    let source = detail_source(descriptor.detail_table).ok_or_else(|| {
+        anyhow::anyhow!("table '{}' has no detail loader", descriptor.detail_table)
+    })?;
+    source.fetch(gl).await
+}
+
+/// Источник detail-строк для одной таблицы ресурса.
+///
+/// **Зачем трейт.** Загрузчики жили здесь шестью функциями, и пять из них были
+/// побайтово одинаковы — отличался только тип сущности. Из-за них Главная книга
+/// знала имена шести маркетплейсных проекций, хотя знать ей нужно ровно одно:
+/// по какой таблице ресурса искать строки. Теперь загрузчик принадлежит
+/// проекции, а состав объявляет `composition::gl_detail_sources`.
+#[async_trait::async_trait]
+pub trait GlDetailSource: Send + Sync {
+    /// Таблица ресурса — то, что стоит в `resource_table` проводки.
+    fn detail_table(&self) -> &'static str;
+
+    async fn fetch(&self, gl: &super::repository::Model) -> Result<Vec<JsonValue>>;
+}
+
+static DETAIL_SOURCES: std::sync::OnceLock<Vec<std::sync::Arc<dyn GlDetailSource>>> =
+    std::sync::OnceLock::new();
+
+/// Установить источники detail-строк. Зовётся один раз из `composition::install_all()`.
+///
+/// # Panics
+/// При повторной установке и при конфликте таблиц.
+pub fn install_detail_sources(sources: Vec<std::sync::Arc<dyn GlDetailSource>>) {
+    let mut tables = std::collections::HashSet::new();
+    for source in &sources {
+        if !tables.insert(source.detail_table()) {
+            panic!(
+                "таблица ресурса '{}' заявлена двумя источниками",
+                source.detail_table()
+            );
+        }
+    }
+    if DETAIL_SOURCES.set(sources).is_err() {
+        panic!("источники detail-строк уже установлены");
     }
 }
 
-/// Загружает кандидатов: строки, которые либо уже указывают на эту GL-проводку
-/// (`general_ledger_ref = gl.id`), либо имеют тот же (registrator_type, registrator_ref,
-/// turnover_code), но с `general_ledger_ref IS NULL` — это сломанные/недоназначенные
-/// строки, которые `compute_integrity` пометит как ошибку целостности.
-async fn fetch_p909(gl: &super::repository::Model) -> Result<Vec<JsonValue>> {
-    let mut rows = p909::Entity::find()
-        .filter(p909::Column::GeneralLedgerRef.eq(gl.id.clone()))
+fn detail_source(detail_table: &str) -> Option<&'static std::sync::Arc<dyn GlDetailSource>> {
+    DETAIL_SOURCES
+        .get()?
+        .iter()
+        .find(|source| source.detail_table() == detail_table)
+}
+
+/// Кандидаты для проекции, связанной с проводкой через `general_ledger_ref`.
+///
+/// Берёт строки, которые либо уже указывают на эту проводку, либо имеют тот же
+/// `(registrator_type, registrator_ref, turnover_code)`, но с
+/// `general_ledger_ref IS NULL` — это сломанные/недоназначенные строки, и
+/// `compute_integrity` пометит их как нарушение целостности. Не отбросить их
+/// здесь принципиально: именно ради их обнаружения экран и существует.
+///
+/// Колонки передаются параметрами, потому что у каждой проекции свой `Column`,
+/// а тело отбора одно на всех — пять копий этого запроса и были тем, из-за
+/// чего Главная книга перечисляла проекции поимённо.
+pub async fn fetch_linked_rows<E>(
+    gl: &super::repository::Model,
+    general_ledger_ref: E::Column,
+    registrator_type: E::Column,
+    registrator_ref: E::Column,
+    turnover_code: E::Column,
+) -> Result<Vec<JsonValue>>
+where
+    E: EntityTrait,
+{
+    let mut rows = E::find()
+        .filter(general_ledger_ref.eq(gl.id.clone()))
         .into_json()
         .all(conn())
         .await?;
-    let orphans = p909::Entity::find()
-        .filter(p909::Column::RegistratorType.eq(gl.registrator_type.clone()))
-        .filter(p909::Column::RegistratorRef.eq(gl.registrator_ref.clone()))
-        .filter(p909::Column::TurnoverCode.eq(gl.turnover_code.clone()))
-        .filter(p909::Column::GeneralLedgerRef.is_null())
+    let orphans = E::find()
+        .filter(registrator_type.eq(gl.registrator_type.clone()))
+        .filter(registrator_ref.eq(gl.registrator_ref.clone()))
+        .filter(turnover_code.eq(gl.turnover_code.clone()))
+        .filter(general_ledger_ref.is_null())
         .into_json()
         .all(conn())
         .await?;
     rows.extend(orphans);
     Ok(rows)
-}
-
-async fn fetch_p910(gl: &super::repository::Model) -> Result<Vec<JsonValue>> {
-    let mut rows = p910::Entity::find()
-        .filter(p910::Column::GeneralLedgerRef.eq(gl.id.clone()))
-        .into_json()
-        .all(conn())
-        .await?;
-    let orphans = p910::Entity::find()
-        .filter(p910::Column::RegistratorType.eq(gl.registrator_type.clone()))
-        .filter(p910::Column::RegistratorRef.eq(gl.registrator_ref.clone()))
-        .filter(p910::Column::TurnoverCode.eq(gl.turnover_code.clone()))
-        .filter(p910::Column::GeneralLedgerRef.is_null())
-        .into_json()
-        .all(conn())
-        .await?;
-    rows.extend(orphans);
-    Ok(rows)
-}
-
-async fn fetch_p911(gl: &super::repository::Model) -> Result<Vec<JsonValue>> {
-    let mut rows = p911::Entity::find()
-        .filter(p911::Column::GeneralLedgerRef.eq(gl.id.clone()))
-        .into_json()
-        .all(conn())
-        .await?;
-    let orphans = p911::Entity::find()
-        .filter(p911::Column::RegistratorType.eq(gl.registrator_type.clone()))
-        .filter(p911::Column::RegistratorRef.eq(gl.registrator_ref.clone()))
-        .filter(p911::Column::TurnoverCode.eq(gl.turnover_code.clone()))
-        .filter(p911::Column::GeneralLedgerRef.is_null())
-        .into_json()
-        .all(conn())
-        .await?;
-    rows.extend(orphans);
-    Ok(rows)
-}
-
-async fn fetch_p913(gl: &super::repository::Model) -> Result<Vec<JsonValue>> {
-    let mut rows = p913::Entity::find()
-        .filter(p913::Column::GeneralLedgerRef.eq(gl.id.clone()))
-        .into_json()
-        .all(conn())
-        .await?;
-    let orphans = p913::Entity::find()
-        .filter(p913::Column::RegistratorType.eq(gl.registrator_type.clone()))
-        .filter(p913::Column::RegistratorRef.eq(gl.registrator_ref.clone()))
-        .filter(p913::Column::TurnoverCode.eq(gl.turnover_code.clone()))
-        .filter(p913::Column::GeneralLedgerRef.is_null())
-        .into_json()
-        .all(conn())
-        .await?;
-    rows.extend(orphans);
-    Ok(rows)
-}
-
-async fn fetch_p914(gl: &super::repository::Model) -> Result<Vec<JsonValue>> {
-    let mut rows = p914::Entity::find()
-        .filter(p914::Column::GeneralLedgerRef.eq(gl.id.clone()))
-        .into_json()
-        .all(conn())
-        .await?;
-    let orphans = p914::Entity::find()
-        .filter(p914::Column::RegistratorType.eq(gl.registrator_type.clone()))
-        .filter(p914::Column::RegistratorRef.eq(gl.registrator_ref.clone()))
-        .filter(p914::Column::TurnoverCode.eq(gl.turnover_code.clone()))
-        .filter(p914::Column::GeneralLedgerRef.is_null())
-        .into_json()
-        .all(conn())
-        .await?;
-    rows.extend(orphans);
-    Ok(rows)
-}
-
-async fn fetch_p903(registrator_ref: &str) -> Result<Vec<JsonValue>> {
-    if !registrator_ref.starts_with("p903:") {
-        let row = p903::Entity::find_by_id(registrator_ref.to_string())
-            .into_json()
-            .one(conn())
-            .await?;
-        return Ok(row.into_iter().collect());
-    }
-
-    let parts: Vec<&str> = registrator_ref.splitn(3, ':').collect();
-    if parts.len() == 2 {
-        let rows = p903::Entity::find()
-            .filter(p903::Column::SourceRowRef.eq(registrator_ref))
-            .into_json()
-            .all(conn())
-            .await?;
-        return Ok(rows);
-    }
-
-    if parts.len() == 3 {
-        let rr_dt = parts[1].to_string();
-        let rrd_id: i64 = parts[2].parse().map_err(|err| {
-            anyhow::anyhow!("Invalid rrd_id in registrator_ref '{registrator_ref}': {err}")
-        })?;
-        let rows = p903::Entity::find()
-            .filter(p903::Column::RrDt.eq(rr_dt))
-            .filter(p903::Column::RrdId.eq(rrd_id))
-            .into_json()
-            .all(conn())
-            .await?;
-        return Ok(rows);
-    }
-
-    Ok(Vec::new())
 }

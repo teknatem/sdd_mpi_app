@@ -8,7 +8,11 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::repository::{Column, Entity};
 use crate::shared::data::db::get_connection;
+use crate::shared::registrators::{Registrator, RegistratorMeta, RepostOption};
 use crate::shared::representation::{build, chunked};
+use anyhow::Result;
+use async_trait::async_trait;
+use uuid::Uuid;
 
 /// Батч-резолв представлений: название типа + дата продажи + номер документа.
 pub async fn represent_many(ids: &[String]) -> HashMap<String, AggregateRepresentation> {
@@ -33,4 +37,43 @@ pub async fn represent_many(ids: &[String]) -> HashMap<String, AggregateRepresen
             .collect()
     })
     .await
+}
+
+/// Регистратор `a012_wb_sales` — продажи WB, проводятся в Главную книгу.
+pub struct Provider;
+
+#[async_trait]
+impl Registrator for Provider {
+    fn kind(&self) -> &'static str {
+        "a012_wb_sales"
+    }
+
+    /// Ключ этого же типа в `p904_sales_data`.
+    fn aliases(&self) -> &'static [&'static str] {
+        &["WB_Sales"]
+    }
+
+    fn meta(&self) -> RegistratorMeta {
+        RegistratorMeta {
+            type_label: "Продажи WB",
+            link_label: Some("Продажа"),
+            can_post: true,
+            tab_key_prefix: Some("a012_wb_sales_details"),
+        }
+    }
+
+    async fn represent_many(&self, ids: &[String]) -> HashMap<String, AggregateRepresentation> {
+        represent_many(ids).await
+    }
+
+    async fn post_document(&self, id: Uuid) -> Result<()> {
+        super::posting::post_document(id).await
+    }
+
+    fn repost_option(&self) -> Option<RepostOption> {
+        Some(RepostOption {
+            label: "a012 — WB Sales",
+            description: "Перепроведение документов a012_wb_sales с пересборкой связанных проекций",
+        })
+    }
 }

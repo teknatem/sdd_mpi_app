@@ -558,6 +558,16 @@ if (Test-Path $archScript) {
         $arch = ($archRaw | Out-String).Trim() | ConvertFrom-Json
         Set-Metric 'arch.naming_violations' $arch.errors
         Set-Metric 'arch.waived_rules' $arch.waived
+        # Границу ядра считаем вместе с waiver'ами: закрытое исключение — это
+        # не сделанная работа, а отложенная, и метрика обязана это показывать.
+        $backedges = 0
+        if ($arch.PSObject.Properties.Name -contains 'matchesByRule') {
+            $byRule = $arch.matchesByRule
+            if ($byRule -and ($byRule.PSObject.Properties.Name -contains 'core_does_not_know_marketplaces')) {
+                $backedges = [int]$byRule.core_does_not_know_marketplaces
+            }
+        }
+        Set-Metric 'arch.core_backedges' $backedges
         if ($arch.violations.Count -gt 0) {
             $details += [ordered]@{
                 code        = 'arch.violations'

@@ -21,6 +21,7 @@
 )]
 
 pub mod api;
+pub mod composition;
 pub mod dashboards;
 pub mod data_schemes;
 pub mod data_view;

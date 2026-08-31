@@ -7,7 +7,6 @@
 use super::admin_tools::{execute_admin_tool, ADMIN_TOOL_NAMES};
 use super::chart_tools::{execute_chart_tool, CHART_TOOL_NAMES};
 use super::data_tools::{execute_data_tool, DATA_TOOL_NAMES};
-use super::funnel_repair_tools::{execute_funnel_repair_tool, FUNNEL_REPAIR_TOOL_NAMES};
 use super::kb_admin_tools::execute_kb_admin_tool;
 use super::mail_tools::{execute_mail_tool, MAIL_TOOL_NAMES};
 use super::metadata_registry::METADATA_REGISTRY;
@@ -274,7 +273,6 @@ enum Route {
     Mail,
     Schedule,
     Quality,
-    FunnelRepair,
     Plugin,
     Admin,
     Metadata,
@@ -340,7 +338,6 @@ const ROUTING_TABLE: &[(Route, &[&str])] = &[
     (Route::Mail, MAIL_TOOL_NAMES),
     (Route::Schedule, SCHEDULE_TOOL_NAMES),
     (Route::Quality, QUALITY_TOOL_NAMES),
-    (Route::FunnelRepair, FUNNEL_REPAIR_TOOL_NAMES),
     (Route::Plugin, PLUGIN_TOOL_NAMES),
     (Route::Admin, ADMIN_TOOL_NAMES),
     (Route::Metadata, METADATA_TOOL_NAMES),
@@ -351,6 +348,12 @@ fn route_of(name: &str) -> Option<Route> {
         .iter()
         .find(|(_, names)| names.contains(&name))
         .map(|(route, _)| *route)
+}
+
+/// Объявлен ли инструмент ядром чата. Реестр срезов сверяется с этим при
+/// установке, чтобы имя не оказалось объявленным дважды.
+pub(crate) fn is_core_tool_name(name: &str) -> bool {
+    route_of(name).is_some()
 }
 
 /// Оформить результат инструмента: конверт `_tool`/`_ok` и сериализация.
@@ -471,6 +474,13 @@ pub async fn execute_tool_call(call: &ToolCall, cx: &ToolContext<'_>) -> String 
     }
 
     // ── Маршрутизация ───────────────────────────────────────────────────────
+    //
+    // Сначала ядро, потом срезы: `install` не даёт именам пересечься, так что
+    // порядок ни на что не влияет, кроме стоимости поиска.
+    if let Some(provider) = super::tool_provider::find(name) {
+        return finish(name, provider.execute(name, &call.arguments, cx).await);
+    }
+
     let Some(route) = route_of(name) else {
         return refuse(
             name,
@@ -575,10 +585,6 @@ pub async fn execute_tool_call(call: &ToolCall, cx: &ToolContext<'_>) -> String 
         Route::Mail => execute_mail_tool(name, &call.arguments).await,
         Route::Schedule => execute_schedule_tool(name, &call.arguments).await,
         Route::Quality => execute_quality_tool(name, &call.arguments, &cx.effect()).await,
-        Route::FunnelRepair => {
-            execute_funnel_repair_tool(name, &call.arguments, cx.chat_id, cx.agent_id, cx.caller)
-                .await
-        }
         Route::Plugin => execute_plugin_tool(name, &call.arguments, cx.chat_id, cx.agent_id).await,
         Route::Admin => execute_admin_tool(name, &call.arguments).await,
         Route::Metadata => execute_metadata_tool(call, cx).await,
@@ -715,9 +721,13 @@ mod routing_tests {
     /// инструмент, который система ей же и предложила.
     #[test]
     fn every_declared_tool_has_a_route() {
+        crate::composition::install_all();
         let orphans: Vec<String> = super::super::skills::tool_universe()
             .into_iter()
-            .filter(|tool| route_of(&tool.name).is_none())
+            .filter(|tool| {
+                route_of(&tool.name).is_none()
+                    && super::super::tool_provider::find(&tool.name).is_none()
+            })
             .map(|tool| tool.name)
             .collect();
         assert!(
@@ -730,6 +740,7 @@ mod routing_tests {
     /// И наоборот: маршрут в никуда — мёртвая ветвь диспетчера.
     #[test]
     fn every_route_points_at_a_declared_tool() {
+        crate::composition::install_all();
         let declared: HashSet<String> = super::super::skills::tool_universe()
             .into_iter()
             .map(|tool| tool.name)

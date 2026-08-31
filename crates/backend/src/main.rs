@@ -1,7 +1,7 @@
 //! Точка входа. Вся структура крейта — в `lib.rs`; здесь только стартовая
 //! процедура, чтобы интеграционные тесты могли линковаться против библиотеки.
 
-use backend::{api, knowledge, processes, quality, shared, system, AppState};
+use backend::{api, composition, knowledge, processes, quality, shared, system, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -9,9 +9,9 @@ async fn main() -> anyhow::Result<()> {
     use axum::middleware;
     use std::net::SocketAddr;
     use tokio::net::TcpListener;
+    use tower::Layer;
     use tower_http::cors::{Any, CorsLayer};
     use tower_http::services::ServeDir;
-    use tower::Layer;
     use tower_http::set_header::SetResponseHeaderLayer;
 
     println!("\n");
@@ -19,6 +19,12 @@ async fn main() -> anyhow::Result<()> {
     println!("║           MARKETPLACE BACKEND STARTING...                ║");
     println!("╚══════════════════════════════════════════════════════════╝");
     println!("\n");
+
+    // 0. Composition root — состав системы. Стоит первым намеренно: реестры
+    // читаются из хендлеров и фоновых задач, и пустой реестр не падает, а тихо
+    // отвечает «тип неизвестен». Ошибка такого рода видна только по расхождению
+    // отчётов через недели, поэтому установка идёт до всего остального.
+    composition::install_all();
 
     // 1. Initialize tracing (системное логирование)
     println!("Step 1: Initializing logging system...");

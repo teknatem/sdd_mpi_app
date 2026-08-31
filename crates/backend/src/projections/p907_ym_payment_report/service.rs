@@ -284,3 +284,77 @@ pub async fn rebuild_record_key_from_existing(record_key: &str) -> Result<usize>
     // Строка уже загружена — перестраиваем напрямую, без повторного SELECT по id.
     rebuild_from_row(row).await
 }
+
+/// Пересбор p907 за период для страницы перепроведения `u508`.
+///
+/// Два прохода, и второй не забыть: построчный GL пересобирается по каждой
+/// записи периода, а перечисления (Дт51/Кт7609) строятся одной проводкой на
+/// банковский ордер — отдельно от строк. Один репост p907 обязан покрывать и
+/// то и другое, иначе остаток по 7609 разъедется молча.
+pub struct Repost;
+
+#[async_trait::async_trait]
+impl crate::usecases::u508_repost_documents::ProjectionRepost for Repost {
+    fn key(&self) -> &'static str {
+        "p907_ym_payment_report"
+    }
+
+    fn option(&self) -> crate::usecases::u508_repost_documents::ProjectionOptionInfo {
+        crate::usecases::u508_repost_documents::ProjectionOptionInfo {
+            label: "p907 — YM Payment Report",
+            description: "Пересборка general ledger по всем строкам p907 за период (включая перечисления Дт51/Кт7609 по банковским ордерам) и событий оплаты p915",
+        }
+    }
+
+    async fn rebuild(
+        &self,
+        ctx: &crate::usecases::u508_repost_documents::RepostContext<'_>,
+    ) -> anyhow::Result<()> {
+        const KEY: &str = "p907_ym_payment_report";
+
+        let ids = super::repository::list_ids_by_transaction_date_range(ctx.date_from, ctx.date_to)
+            .await?;
+        let total = ids.len() as i32;
+        ctx.tracker.set_total(ctx.session_id, total);
+
+        let mut reposted = 0;
+        for (index, id) in ids.iter().enumerate() {
+            let current_item = format!("{KEY} {id}");
+            ctx.tracker.update_progress(
+                ctx.session_id,
+                index as i32,
+                reposted,
+                Some(current_item.clone()),
+            );
+
+            match rebuild_entry_from_existing(id).await {
+                Ok(_) => reposted += 1,
+                Err(error) => ctx.tracker.add_error(
+                    ctx.session_id,
+                    format!("Failed to repost {KEY} {id}: {error}"),
+                ),
+            }
+
+            ctx.tracker.update_progress(
+                ctx.session_id,
+                (index + 1) as i32,
+                reposted,
+                Some(current_item),
+            );
+        }
+
+        if let Err(error) =
+            super::settlement_posting::rebuild_settlements_for_range(ctx.date_from, ctx.date_to)
+                .await
+        {
+            ctx.tracker.add_error(
+                ctx.session_id,
+                format!("Failed to rebuild {KEY} settlements: {error}"),
+            );
+        }
+
+        ctx.tracker
+            .update_progress(ctx.session_id, total, reposted, None);
+        Ok(())
+    }
+}

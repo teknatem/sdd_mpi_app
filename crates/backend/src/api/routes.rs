@@ -113,7 +113,7 @@ fn ym_maintenance_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/api/ym/consolidate-connections",
-            post(handlers::ym_consolidation::consolidate_ym_connections),
+            post(crate::domain::a006_connection_mp::api::consolidate_ym_connections),
         )
         .layer(middleware::from_fn(
             |req: Request<Body>, next: Next| async move { require_admin(req, next).await },
@@ -1932,11 +1932,11 @@ fn u508_routes() -> Router<AppState> {
         )
         .route(
             "/api/u508/repost/funnel/start",
-            post(handlers::usecases::u508_start_funnel_rebuild),
+            post(crate::projections::p916_mp_sales_funnel_turnovers::api::start_funnel_rebuild),
         )
         .route(
             "/api/u508/repost/funnel/diagnostics",
-            get(handlers::usecases::u508_funnel_diagnostics),
+            get(crate::projections::p916_mp_sales_funnel_turnovers::api::funnel_diagnostics),
         )
         .route(
             "/api/u508/repost/:session_id/progress",
@@ -2610,35 +2610,35 @@ fn ext_routes() -> Router<AppState> {
     let data_routes = Router::new()
         .route(
             "/api/ext/v1/wb-supplies",
-            get(handlers::ext_1c_wb_supply::list_supplies),
+            get(crate::domain::a029_wb_supply::api::list_supplies),
         )
         .route(
             "/api/ext/v1/wb-supplies/:id",
-            get(handlers::ext_1c_wb_supply::get_supply_detail),
+            get(crate::domain::a029_wb_supply::api::get_supply_detail),
         )
         .route(
             "/api/ext/v1/wb-sales-funnel",
-            get(handlers::ext_bi_wb_funnel::list_funnel),
+            get(crate::domain::a036_wb_sales_funnel_daily::api::list_funnel),
         )
         .route(
             "/api/ext/v1/ym-sales-funnel",
-            get(handlers::ext_bi_ym_funnel::list_funnel),
+            get(crate::domain::a041_ym_shows_sales_daily::api::list_funnel),
         )
         .route(
             "/api/ext/v1/wb-advert-daily",
-            get(handlers::ext_bi_wb_advert::list_advert),
+            get(crate::domain::a026_wb_advert_daily::api::list_advert),
         )
         .route(
             "/api/ext/v1/wb-stocks",
-            get(handlers::ext_bi_wb_stocks::list_stocks),
+            get(crate::domain::a037_wb_product_snapshot::api::list_stocks),
         )
         .route(
             "/api/ext/v1/wb-finance-report",
-            get(handlers::ext_bi_wb_finance::list_finance_report),
+            get(crate::projections::p903_wb_finance_report::api::list_finance_report),
         )
         .route(
             "/api/ext/v1/ym-payment-report",
-            get(handlers::ext_bi_ym_payments::list_payment_report),
+            get(crate::projections::p907_ym_payment_report::api::list_payment_report),
         )
         .route(
             "/api/ext/v1/nomenclature",

@@ -11,6 +11,7 @@
 //! номенклатуре, либо привязка появилась позже, но документы не были
 //! перепроведены.
 
+use crate::shared::registrators;
 use contracts::quality::{
     BreakdownRow, CheckBreakdown, CheckMetric, CheckResult, NipGroupsResponse, NipProjectionRow,
     NipRegistratorGroup, NipRepostResult, QualityCheckInfo, QualityCheckSource,
@@ -211,13 +212,10 @@ async fn fixability_breakdown() -> anyhow::Result<Option<CheckBreakdown>> {
             let registrator_ref: String = row.try_get("", "registrator_ref").unwrap_or_default();
             let cnt: i64 = row.try_get("", "cnt").unwrap_or(0);
 
-            let meta = super::registrator_registry::get_meta(&registrator_type);
-            let exists = super::registrator_registry::source_document_exists(
-                &registrator_type,
-                &registrator_ref,
-            )
-            .await
-            .unwrap_or(false);
+            let meta = registrators::meta(&registrator_type);
+            let exists = registrators::source_document_exists(&registrator_type, &registrator_ref)
+                .await
+                .unwrap_or(false);
 
             if !exists {
                 orphaned += cnt;
@@ -377,15 +375,13 @@ pub async fn list_groups(
         let min_entry_date: Option<String> = row.try_get("", "min_entry_date").ok();
         let max_entry_date: Option<String> = row.try_get("", "max_entry_date").ok();
 
-        let meta = super::registrator_registry::get_meta(&registrator_type);
-        let source_exists = super::registrator_registry::source_document_exists(
-            &registrator_type,
-            &registrator_ref,
-        )
-        .await
-        .unwrap_or(false);
+        let meta = registrators::meta(&registrator_type);
+        let source_exists =
+            registrators::source_document_exists(&registrator_type, &registrator_ref)
+                .await
+                .unwrap_or(false);
         let source_columns = if source_exists {
-            super::registrator_registry::source_columns(&registrator_type, &registrator_ref).await
+            registrators::source_columns(&registrator_type, &registrator_ref).await
         } else {
             Vec::new()
         };
@@ -499,7 +495,7 @@ pub async fn bulk_repost(
     registrator_type: &str,
     registrator_refs: &[String],
 ) -> anyhow::Result<NipRepostResult> {
-    let meta = super::registrator_registry::get_meta(registrator_type);
+    let meta = registrators::meta(registrator_type);
     if !meta.can_post {
         return Err(anyhow::anyhow!(
             "Тип регистратора '{}' не поддерживает перепроведение",
@@ -512,7 +508,7 @@ pub async fn bulk_repost(
     let mut errors = Vec::new();
 
     for reg_ref in registrator_refs {
-        match super::registrator_registry::repost_document(registrator_type, reg_ref).await {
+        match registrators::repost_document(registrator_type, reg_ref).await {
             Ok(()) => reposted += 1,
             Err(e) => errors.push(format!("{}: {}", reg_ref, e)),
         }

@@ -12,8 +12,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 
-use super::Action;
-use crate::domain::a033_wb_day_close::service as day_close;
+use super::service as day_close;
+use crate::processes::actions::Action;
 
 #[derive(Debug, Deserialize)]
 struct Input {

@@ -2072,6 +2072,87 @@ pub static ROUTE_REGISTRY: &[RoutePolicy] = &[
         scope_id: None,
         mode: PolicyMode::AdminOnly,
     },
+    // ========================================================================
+    // Внешний интеграционный API — X-Api-Key вместо JWT
+    // ========================================================================
+    // Ключ один на всех потребителей (1С, Power BI), поэтому потребитель
+    // анонимен и scope_id у этих маршрутов нет: разделять права некому.
+    // Различает вызывающих только журнал (`sys_ext_api_log`) — по IP и
+    // User-Agent, а не по идентичности.
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/wb-supplies",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/wb-supplies/:id",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/wb-sales-funnel",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/ym-sales-funnel",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/wb-advert-daily",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/wb-stocks",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/wb-finance-report",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/ym-payment-report",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/nomenclature",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/nomenclature-skus",
+        scope_id: None,
+        mode: PolicyMode::ApiKey,
+    },
+    // Документация — намеренно вне check_api_key: потребитель читает её до
+    // того, как получит ключ, и данных она не раскрывает.
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/openapi.json",
+        scope_id: None,
+        mode: PolicyMode::Public,
+    },
+    RoutePolicy {
+        method: "GET",
+        path: "/api/ext/v1/docs",
+        scope_id: None,
+        mode: PolicyMode::Public,
+    },
 ];
 
 /// Look up the policy entries for a given scope_id.
@@ -2107,7 +2188,11 @@ mod tests {
     ///
     /// Уменьшили долг — уменьшите и константу: тест этого требует, иначе
     /// планка тихо перестанет держать.
-    const ROUTES_WITHOUT_POLICY_BASELINE: usize = 221;
+    ///
+    /// 221 → 211: закрыто всё семейство `/api/ext/v1/*`. Оно висело без
+    /// политики не по забывчивости, а потому что его защищает `X-Api-Key`, для
+    /// которого не было режима — теперь есть `PolicyMode::ApiKey`.
+    const ROUTES_WITHOUT_POLICY_BASELINE: usize = 211;
 
     /// Пути всех `.route("…")` из обоих файлов маршрутов.
     ///

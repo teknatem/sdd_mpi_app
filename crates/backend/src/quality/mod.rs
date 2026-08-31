@@ -38,7 +38,6 @@
 //! reload без пересборки. Rust нужен только для доменных сервисов и мутаций.
 
 pub mod checks;
-pub mod funnel_repair;
 pub mod history;
 pub mod registry;
 

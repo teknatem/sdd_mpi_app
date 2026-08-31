@@ -9,10 +9,7 @@
 //! расширяет то, что система вообще способна сделать с миром.
 
 pub mod create_agent_task;
-pub mod import_marketplace_products;
 pub mod import_nomenclature;
-pub mod match_nomenclature;
-pub mod rebuild_day_close;
 pub mod repair_empty_nomenclature_refs;
 pub mod repost_documents;
 pub mod request_human_action;
@@ -59,21 +56,33 @@ pub trait Action: Send + Sync {
     ) -> Result<Value>;
 }
 
+static CATALOG: OnceLock<Vec<Arc<dyn Action>>> = OnceLock::new();
+
+/// Установить каталог Действий. Зовётся один раз из `composition::install_all()`.
+///
+/// Состав живёт в composition root, а не здесь: Действия принадлежат своим
+/// срезам (`a007::action`, `a033::action`, …), и перечисляя их в ядре
+/// механизма, оно зависело бы от прикладного слоя.
+///
+/// # Panics
+/// При повторной установке и при конфликте имён: одно имя на два Действия —
+/// это молча выбранное «какое-нибудь» при вызове по манифесту Этапа.
+pub fn install(actions: Vec<Arc<dyn Action>>) {
+    let mut names = std::collections::HashSet::new();
+    for action in &actions {
+        if !names.insert(action.info().name) {
+            panic!("Действие '{}' заявлено дважды", action.info().name);
+        }
+    }
+    if CATALOG.set(actions).is_err() {
+        panic!("каталог Действий уже установлен");
+    }
+}
+
 fn catalog() -> &'static Vec<Arc<dyn Action>> {
-    static CATALOG: OnceLock<Vec<Arc<dyn Action>>> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        vec![
-            Arc::new(rebuild_day_close::RebuildDayClose) as Arc<dyn Action>,
-            Arc::new(repost_documents::RepostDocuments),
-            Arc::new(run_quality_check::RunQualityCheck),
-            Arc::new(create_agent_task::CreateAgentTask),
-            Arc::new(request_human_action::RequestHumanAction),
-            Arc::new(import_nomenclature::ImportNomenclature),
-            Arc::new(import_marketplace_products::ImportMarketplaceProducts),
-            Arc::new(match_nomenclature::MatchNomenclature),
-            Arc::new(repair_empty_nomenclature_refs::RepairEmptyNomenclatureRefs),
-        ]
-    })
+    CATALOG
+        .get()
+        .expect("каталог Действий не установлен: composition::install_all() не был вызван")
 }
 
 /// Паспорта всех Действий — для UI каталога и для проверки манифестов Этапов.
@@ -233,6 +242,7 @@ mod tests {
     /// расхождение обнаружится только в рантайме.
     #[test]
     fn catalog_entries_are_consistent() {
+        crate::composition::install_all();
         for info in list() {
             assert_eq!(
                 info.capability,
@@ -252,6 +262,7 @@ mod tests {
 
     #[test]
     fn action_names_are_unique() {
+        crate::composition::install_all();
         let mut names: Vec<&str> = list().iter().map(|info| info.name).collect();
         names.sort_unstable();
         let count = names.len();

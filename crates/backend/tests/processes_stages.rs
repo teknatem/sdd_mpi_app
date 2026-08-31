@@ -15,6 +15,7 @@ use sea_orm::DatabaseConnection;
 use serde_json::{json, Value};
 
 async fn database() -> &'static DatabaseConnection {
+    backend::composition::install_all();
     db::init_test_database()
         .await
         .expect("тестовая база не поднялась");

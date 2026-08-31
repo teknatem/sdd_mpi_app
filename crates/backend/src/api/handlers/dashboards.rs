@@ -206,24 +206,14 @@ fn link_for_registrator(
     registrator_type: &str,
     registrator_ref: &str,
 ) -> Option<WbAdvertReportLink> {
-    let clean_ref = registrator_ref
-        .strip_prefix("a026:")
-        .unwrap_or(registrator_ref);
-    match registrator_type {
-        "a026_wb_advert_daily" => Some(WbAdvertReportLink {
-            label: "Реклама".to_string(),
-            tab_key: format!("a026_wb_advert_daily_details_{clean_ref}"),
-        }),
-        "a012_wb_sales" => Some(WbAdvertReportLink {
-            label: "Продажа".to_string(),
-            tab_key: format!("a012_wb_sales_details_{clean_ref}"),
-        }),
-        "a015_wb_orders" => Some(WbAdvertReportLink {
-            label: "Заказ".to_string(),
-            tab_key: format!("a015_wb_orders_details_{clean_ref}"),
-        }),
-        _ => None,
-    }
+    let meta = crate::shared::registrators::meta(registrator_type);
+    let label = meta.link_label?;
+    let prefix = meta.tab_key_prefix?;
+    let clean_ref = crate::shared::registrators::document_id(registrator_ref);
+    Some(WbAdvertReportLink {
+        label: label.to_string(),
+        tab_key: format!("{prefix}_{clean_ref}"),
+    })
 }
 
 fn parse_registrator_links(value: &str) -> Vec<WbAdvertReportLink> {

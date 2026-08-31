@@ -1,10 +1,6 @@
 use crate::shared::error::ApiError;
-use axum::{
-    extract::{Path, Query},
-    Json,
-};
+use axum::{extract::Path, Json};
 use once_cell::sync::Lazy;
-use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::usecases;
@@ -232,14 +228,6 @@ static ERP_IMPORT_EXECUTOR: Lazy<Arc<usecases::u507_import_from_erp::ImportExecu
         Arc::new(usecases::u507_import_from_erp::ImportExecutor::new(tracker))
     });
 
-static REPOST_EXECUTOR: Lazy<Arc<usecases::u508_repost_documents::RepostExecutor>> =
-    Lazy::new(|| {
-        let tracker = Arc::new(usecases::u508_repost_documents::ProgressTracker::new());
-        Arc::new(usecases::u508_repost_documents::RepostExecutor::new(
-            tracker,
-        ))
-    });
-
 /// POST /api/u507/import/start
 pub async fn u507_start_import(
     Json(request): Json<contracts::usecases::u507_import_from_erp::ImportRequest>,
@@ -266,20 +254,27 @@ pub async fn u507_get_progress(
 /// GET /api/u508/repost/projections
 pub async fn u508_get_projections(
 ) -> Result<Json<Vec<contracts::usecases::u508_repost_documents::ProjectionOption>>, ApiError> {
-    Ok(Json(REPOST_EXECUTOR.list_available_projections()))
+    Ok(Json(
+        usecases::u508_repost_documents::shared().list_available_projections(),
+    ))
 }
 
 /// GET /api/u508/repost/aggregates
 pub async fn u508_get_aggregates(
 ) -> Result<Json<Vec<contracts::usecases::u508_repost_documents::AggregateOption>>, ApiError> {
-    Ok(Json(REPOST_EXECUTOR.list_available_aggregates()))
+    Ok(Json(
+        usecases::u508_repost_documents::shared().list_available_aggregates(),
+    ))
 }
 
 /// POST /api/u508/repost/start
 pub async fn u508_start_repost(
     Json(request): Json<contracts::usecases::u508_repost_documents::RepostRequest>,
 ) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, ApiError> {
-    match REPOST_EXECUTOR.start_repost(request).await {
+    match usecases::u508_repost_documents::shared()
+        .start_repost(request)
+        .await
+    {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start projection repost: {}", e);
@@ -292,7 +287,10 @@ pub async fn u508_start_repost(
 pub async fn u508_start_aggregate_repost(
     Json(request): Json<contracts::usecases::u508_repost_documents::AggregateRepostRequest>,
 ) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, ApiError> {
-    match REPOST_EXECUTOR.start_aggregate_repost(request).await {
+    match usecases::u508_repost_documents::shared()
+        .start_aggregate_repost(request)
+        .await
+    {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             tracing::error!("Failed to start aggregate repost: {}", e);
@@ -305,63 +303,8 @@ pub async fn u508_start_aggregate_repost(
 pub async fn u508_get_progress(
     Path(session_id): Path<String>,
 ) -> Result<Json<contracts::usecases::u508_repost_documents::progress::RepostProgress>, ApiError> {
-    match REPOST_EXECUTOR.get_progress(&session_id) {
+    match usecases::u508_repost_documents::shared().get_progress(&session_id) {
         Some(progress) => Ok(Json(progress)),
         None => Err(axum::http::StatusCode::NOT_FOUND.into()),
-    }
-}
-
-/// POST /api/u508/repost/funnel/start — пересбор воронки p916 за период
-/// (перепроведение a015/a012 + пересборка стадии 1 из a036).
-pub async fn u508_start_funnel_rebuild(
-    Json(request): Json<
-        contracts::projections::p916_mp_sales_funnel_turnovers::dto::FunnelRebuildRequest,
-    >,
-) -> Result<Json<contracts::usecases::u508_repost_documents::RepostResponse>, ApiError> {
-    match REPOST_EXECUTOR.start_funnel_rebuild(request).await {
-        Ok(response) => Ok(Json(response)),
-        Err(e) => {
-            tracing::error!("Failed to start funnel rebuild: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct FunnelDiagnosticsQuery {
-    pub date_from: String,
-    pub date_to: String,
-    /// Список кабинетов через запятую; пусто → все кабинеты.
-    #[serde(default)]
-    pub connection_mp_refs: Option<String>,
-}
-
-/// GET /api/u508/repost/funnel/diagnostics — сводка воронки за период (после пересбора).
-pub async fn u508_funnel_diagnostics(
-    Query(query): Query<FunnelDiagnosticsQuery>,
-) -> Result<
-    Json<contracts::projections::p916_mp_sales_funnel_turnovers::dto::FunnelPeriodSummary>,
-    ApiError,
-> {
-    let connection_mp_refs: Vec<String> = query
-        .connection_mp_refs
-        .unwrap_or_default()
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    match crate::projections::p916_mp_sales_funnel_turnovers::repository::funnel_period_summary(
-        &query.date_from,
-        &query.date_to,
-        &connection_mp_refs,
-    )
-    .await
-    {
-        Ok(summary) => Ok(Json(summary)),
-        Err(e) => {
-            tracing::error!("Failed to compute funnel diagnostics: {}", e);
-            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into())
-        }
     }
 }

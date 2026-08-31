@@ -105,10 +105,19 @@ stage        = { prefix = "st", pattern = "st\\d{4}", range = [1, 9999] }
 
 [roles.aggregate.backend]
 required = ["mod.rs", "repository.rs", "service.rs"]           # 43/43
-optional = ["representation.rs", "posting.rs", "change_token.rs", "llm.md"]
-# representation.rs 14/43 — нужен только тем, кто участвует в drilldown.
+optional = ["representation.rs", "posting.rs", "change_token.rs", "api.rs", "action.rs", "llm.md"]
+# representation.rs 30/43 — участие в drilldown Главной книги плюс паспорт
+# регистратора (`impl Registrator`): что срез умеет делать со своим документом,
+# объявляет он сам, а не диспетчер в ядре.
 # posting.rs 11/43 — только у документов, которые проводятся в Главную книгу.
 # change_token.rs 4/43 — только там, где нужна инвалидация кэша фронта.
+# api.rs 5/43 — HTTP-хендлеры среза. Заведён 2026-08-29: хендлеры внешнего API
+# лежали в api/handlers/ и делали каталог ядра зависимым от маркетплейсов.
+# Роутер их по-прежнему собирает сам — в api/routes.rs остаётся только вызов.
+# action.rs 2/43 — Действие механизма Процессов, которым владеет срез (ADR-0011).
+# Заведён тогда же и по той же причине: каталог `processes/actions/` держал
+# Действия, которые целиком про маркетплейсы. Реестр Действий не изменился —
+# `impl Action` просто живёт рядом со своим предметом.
 # llm.md 7/43 — заметки для LLM у тех срезов, где домен неочевиден.
 
 [roles.aggregate.contracts]
@@ -140,11 +149,15 @@ optional = ["state.rs", "widget.rs"]
 
 [roles.projection.backend]
 required = ["mod.rs", "repository.rs"]                          # 17/17
-optional = ["service.rs", "builder.rs", "general_ledger_builder.rs", "representation.rs", "llm.md"]
+optional = ["service.rs", "builder.rs", "general_ledger_builder.rs", "representation.rs", "api.rs", "repair.rs", "llm.md"]
 # builder.rs — построение самой проекции; general_ledger_builder.rs — отдельная
 # роль (проводки в ГК), не синоним. Раньше первая называлась двумя именами
 # (builder.rs / projection_builder.rs); приведено к builder.rs.
-# service.rs 12/17 · builder.rs 7/17 · остальные по 2/17.
+# service.rs 17/17 · builder.rs 7/17 · api.rs 2/17 · остальные по 2–4/17.
+# api.rs — то же, что у агрегата: хендлеры внешнего BI-доступа к проекции.
+# repair.rs 1/17 — процедура ремонта проекции (импорт-починка-пересбор-сверка)
+# со своим состоянием и шагами. Отдельно от service.rs: у p916 это 744 строки,
+# и смешивать их с обычными операциями проекции значит потерять и то и другое.
 
 [roles.projection.contracts]
 required = ["mod.rs"]                                           # 17/17
@@ -153,7 +166,7 @@ optional = ["dto.rs", "metadata.json", "metadata_gen.rs"]
 
 [roles.usecase.backend]
 required = ["mod.rs", "executor.rs", "progress_tracker.rs"]     # 8/8
-optional = ["processors", "docs", "llm.md"]
+optional = ["processors", "docs", "action.rs", "llm.md"]
 # processors/ 3/8. docs/ 2/8 — описания внешних API маркетплейсов рядом с
 # клиентом, который их вызывает. Каталог назывался `api/`, что читалось как
 # роль кода (ср. api.rs фронтового usecase); переименован 2026-08-17.
@@ -624,4 +637,64 @@ files = [
   "package_ym_cash_payments_plugin.ps1",
   "test_data_a024_bi_indicator.sql",
   "update-release.ps1",
+]
+
+# ============================================================================
+# Границы срезов
+# ============================================================================
+# Ядро не знает маркетплейсы поимённо.
+#
+# Это не стилистика, а условие разреза на крейты: пока файл ядра пишет
+# `crate::domain::a015_wb_orders`, вынести маркетплейсы в отдельный крейт
+# нельзя — получится цикл. Разбор, из которого выросло правило, —
+# docs/plans/2026-08-29-crate-split-analysis.md; инверсия хабов — Этап 0 там же.
+#
+# Как читать список `modules`: это каталоги, которые при разрезе уезжают
+# в крейт маркетплейсов. Файл, чей путь содержит такое имя, — код среза,
+# и он проверку не проходит вовсе: маркетплейс вправе знать маркетплейс.
+#
+# Как добавить новый маркетплейсный срез: дописать его каталог в `modules`.
+# Как НЕ надо: заводить waiver, чтобы ядро могло позвать срез напрямую.
+# Правильный ход — реестр в ядре и регистрация из composition root
+# (crates/backend/src/composition/).
+[[rules]]
+id = "core_does_not_know_marketplaces"
+type = "forbidden_dependency"
+severity = "error"
+scope = "crates/backend/src"
+layers = ["domain", "projections", "usecases", "data_schemes"]
+modules = [
+  "a005_marketplace", "a006_connection_mp", "a007_marketplace_product",
+  "a008_marketplace_sales", "a009_ozon_returns", "a010_ozon_fbs_posting",
+  "a011_ozon_fbo_posting", "a012_wb_sales", "a013_ym_order",
+  "a014_ozon_transactions", "a015_wb_orders", "a016_ym_returns",
+  "a020_wb_promotion", "a026_wb_advert_daily", "a027_wb_documents",
+  "a029_wb_supply", "a030_wb_advert_campaign", "a032_wb_returns_claims",
+  "a033_wb_day_close", "a034_ym_realization", "a035_ym_settlement_recon",
+  "a036_wb_sales_funnel_daily", "a037_wb_product_snapshot", "a040_wb_search_analytics_daily",
+  "a041_ym_shows_sales_daily", "a043_wb_finance_report", "p900_mp_sales_register",
+  "p902_ozon_finance_realization", "p903_wb_finance_report", "p904_sales_data",
+  "p905_wb_commission_history", "p907_ym_payment_report", "p908_wb_goods_prices",
+  "p909_mp_order_line_turnovers", "p910_mp_unlinked_turnovers", "p911_wb_advert_by_items",
+  "p913_wb_advert_order_attr", "p914_mp_finance_turnovers", "p915_mp_order_events",
+  "p916_mp_sales_funnel_turnovers", "u502_import_from_ozon", "u503_import_from_yandex",
+  "u504_import_from_wildberries", "u505_match_nomenclature", "u506_import_from_lemanapro",
+  "ds01_wb_finance_report", "ds02_mp_sales_register", "ds03_p904_sales",
+  "task001_wb_orders_fbs_polling", "task002_wb_orders_stats_hourly", "task003_wb_products",
+  "task004_wb_sales", "task005_wb_supplies", "task006_wb_finance",
+  "task007_wb_commissions", "task008_wb_prices", "task009_wb_promotions",
+  "task010_wb_documents", "task011_wb_advert", "task012_wb_advert_campaigns",
+  "task013_ym_orders_polling", "task017_wb_returns_claims", "task018_ym_returns",
+  "task019_ym_payment_report", "task020_wb_product_snapshot", "task023_wb_sales_funnel_daily",
+  "task024_wb_search_analytics_daily", "task026_ym_shows_sales_daily", "task030_wb_finance_reports",
+  "u502_import_ozon", "u503_import_yandex",
+]
+# Composition root перечисляет состав системы по назначению — это его работа.
+exempt = [
+  "crates/backend/src/composition/**",
+  "crates/backend/src/api/routes.rs",
+  "crates/backend/src/system/tasks/managers/mod.rs",
+]
+waivers = [
+  { path = "crates/backend/src/api/handlers/dashboards.rs", why = "пять дашбордов по четырём срезам (реклама WB, поток заказов WB и YM, воронка WB) в одном файле на 1200 строк с общими SQL-хелперами. Переезд по срезам — это разделение файла, а не перенос: делается вместе с приведением бэкенда дашбордов к d4XX, как во фронте" },
 ]

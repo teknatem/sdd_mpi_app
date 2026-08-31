@@ -144,3 +144,38 @@ pub async fn project_ozon_returns(document: &OzonReturns, document_id: Uuid) -> 
 
     Ok(())
 }
+
+/// Пересбор p904 за период для страницы перепроведения `u508`.
+///
+/// Сама проекция не пересобирается: перепроводятся документы-регистраторы,
+/// на которые она ссылается, и строки появляются заново как побочный эффект
+/// проведения. Типы приходят историческими (`WB_Sales`, `OZON_FBS`) —
+/// их резолвит реестр регистраторов через `aliases`.
+pub struct Repost;
+
+#[async_trait::async_trait]
+impl crate::usecases::u508_repost_documents::ProjectionRepost for Repost {
+    fn key(&self) -> &'static str {
+        "p904_sales_data"
+    }
+
+    fn option(&self) -> crate::usecases::u508_repost_documents::ProjectionOptionInfo {
+        crate::usecases::u508_repost_documents::ProjectionOptionInfo {
+            label: "p904 — Sales Data",
+            description: "Перепроведение документов по registrator_ref из p904_sales_data",
+        }
+    }
+
+    async fn rebuild(
+        &self,
+        ctx: &crate::usecases::u508_repost_documents::RepostContext<'_>,
+    ) -> anyhow::Result<()> {
+        let registrators: Vec<(String, String)> =
+            repository::list_registrators_by_period(ctx.date_from, ctx.date_to)
+                .await?
+                .into_iter()
+                .map(|row| (row.registrator_type, row.registrator_ref))
+                .collect();
+        ctx.repost_registrators(&registrators).await
+    }
+}

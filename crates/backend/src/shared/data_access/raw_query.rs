@@ -33,8 +33,15 @@ pub struct RawQueryRequest {
 fn is_secret_table(table: &str) -> bool {
     // a006_connection_mp намеренно разблокирован для raw SQL (нужен JOIN по marketplace в
     // аналитике/графиках) — ВНИМАНИЕ: таблица содержит credentials (api_key и т.п.), которые
-    // тем самым становятся доступны LLM-генерируемому SQL. a001_connection_1c остаётся секретной.
-    matches!(table, "a001_connection_1c")
+    // тем самым становятся доступны LLM-генерируемому SQL.
+    //
+    // Остальные носители кредов закрыты целиком. a038_llm_connection попал сюда
+    // не сразу: он платформенный (настройки провайдеров LLM), но носит имя вида
+    // `aNNN_`, а `is_analytics_table` классифицирует именно по имени — и таблица
+    // с `api_key` считалась аналитической. Пофамильный запрет колонки при этом
+    // не спасал: `SELECT *` не называет ни одного поля, а запрет звёздочки был
+    // заведён только для a006.
+    matches!(table, "a001_connection_1c" | "a038_llm_connection")
 }
 
 fn is_knowledge_table(table: &str) -> bool {
@@ -167,6 +174,25 @@ pub async fn execute_raw_query(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Носитель кредов закрыт для сырого SQL целиком — во всех профилях.
+    ///
+    /// Проверяется именно `*`, а не `SELECT api_key`: имя поля ловит гард
+    /// `sql_guard`, а звёздочка не называет полей вовсе, и до правки таблица
+    /// проходила как аналитическая по одному только префиксу `a038_`.
+    #[test]
+    fn llm_connection_is_never_reachable_by_raw_sql() {
+        for profile in [
+            SqlAccessProfile::Analytics,
+            SqlAccessProfile::KnowledgeBase,
+            SqlAccessProfile::General,
+        ] {
+            assert!(
+                enforce_access_profile(profile, &["a038_llm_connection".to_string()]).is_err(),
+                "a038_llm_connection доступна профилю {profile:?}"
+            );
+        }
+    }
 
     #[test]
     fn analytics_profile_blocks_secret_and_system_tables() {

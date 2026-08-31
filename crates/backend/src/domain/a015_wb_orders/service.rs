@@ -719,3 +719,43 @@ pub async fn update_line_id_by_document_no(document_no: &str, line_id: i64) -> R
 pub async fn delete(id: Uuid) -> Result<bool> {
     repository::soft_delete(id).await
 }
+
+/// Заказы WB для вкладки «Заказы» на карточке номенклатуры.
+pub struct NomenclatureOrders;
+
+#[async_trait::async_trait]
+impl crate::domain::a004_nomenclature::service::NomenclatureOrderSource for NomenclatureOrders {
+    async fn orders_for_nomenclature(
+        &self,
+        nomenclature_ref: &str,
+        date_from: &str,
+    ) -> anyhow::Result<
+        Vec<contracts::domain::a004_nomenclature::orders_dto::NomenclatureOrderRowDto>,
+    > {
+        use contracts::domain::a004_nomenclature::orders_dto::NomenclatureOrderRowDto;
+
+        let rows =
+            super::repository::list_orders_for_nomenclature(nomenclature_ref, date_from).await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| NomenclatureOrderRowDto {
+                id: r.id,
+                marketplace: "WB".to_string(),
+                document_no: r.document_no,
+                order_date: r.document_date,
+                is_cancel: r.is_cancel,
+                is_supply: r.is_supply,
+                is_realization: r.is_realization,
+                line_status: None,
+                status_norm: None,
+                qty: r.qty.unwrap_or(1.0),
+                price_before_discount: r.total_price.or(r.price),
+                price_after_discount: r.price_with_disc.or(r.finished_price),
+                final_buyer_price: r.finished_price,
+                dealer_price_ut: r.dealer_price_ut,
+                margin_pro: r.margin_pro,
+            })
+            .collect())
+    }
+}

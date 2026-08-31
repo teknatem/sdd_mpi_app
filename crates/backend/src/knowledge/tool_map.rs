@@ -113,6 +113,7 @@ pub static TOOL_YIELD: &[(&str, ToolYield)] = &[
     ("plugin_examples", Surfaces(&["tool_help"])),
     ("plugin_template", Surfaces(&["tool_help"])),
     ("get_plugin_ui_contract", Surfaces(&["tool_help"])),
+    ("get_flow_ui_contract", Surfaces(&["tool_help"])),
     ("plugin_upsert", NoKnowledge),
     ("plugin_validate", NoKnowledge),
     ("plugin_smoke_test", NoKnowledge),
@@ -291,6 +292,7 @@ mod tests {
     /// полгода будет гадать по метрике.
     #[test]
     fn every_tool_is_classified() {
+        crate::composition::install_all();
         let universe: BTreeSet<String> = crate::shared::llm::skills::tool_universe()
             .into_iter()
             .map(|def| def.name)

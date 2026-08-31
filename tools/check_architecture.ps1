@@ -349,8 +349,15 @@ $spec = ConvertFrom-TomlText ([System.IO.File]::ReadAllText($tomlPath, (New-Obje
 
 $violations = @()
 $waivedCount = 0
+# Сколько совпадений каждое правило дало всего — с учётом закрытых waiver'ом.
+# Нужно метрикам: «нарушений ноль» и «работы не осталось» — разные утверждения,
+# и второе читается только вместе с waiver'ами.
+$matchesByRule = @{}
 
 function Add-Violation($rule, [string]$path, [string]$message) {
+    $id = $rule['id']
+    if (-not $script:matchesByRule.ContainsKey($id)) { $script:matchesByRule[$id] = 0 }
+    $script:matchesByRule[$id]++
     $waivers = if ($rule.Contains('waivers')) { $rule['waivers'] } else { @() }
     foreach ($w in @($waivers)) {
         # A waiver is an inline table { path = "...", why = "..." }. The `why`
@@ -539,6 +546,42 @@ foreach ($rule in $rules) {
             }
         }
 
+        # No file in scope may name a module that belongs to another slice.
+        #
+        # Ядро не должно знать прикладные срезы поимённо: пока знает, вынести их
+        # в отдельный крейт нельзя — получится цикл. Правило проверяет именно
+        # это, а не стиль: `modules` перечисляет чужие модули, `layers` —
+        # слои, через которые до них дотягиваются.
+        #
+        # Файл самого среза пропускается: маркетплейс вправе знать маркетплейс.
+        # Признак — имя модуля из списка внутри пути файла.
+        'forbidden_dependency' {
+            $dir = Join-Path $root $scope
+            if (-not (Test-Path $dir)) {
+                Add-Violation $rule $scope "dependency scope directory does not exist"
+            } else {
+                $modules = @($rule['modules'])
+                $layers = @($rule['layers'])
+                $pattern = 'crate::(?:' + ($layers -join '|') + ')::(' + ($modules -join '|') + ')\b'
+                foreach ($f in [System.IO.Directory]::EnumerateFiles($dir, '*.rs', 'AllDirectories')) {
+                    $rel = Get-RelPath $f
+                    if (Test-AnyGlob $rel $rule['exempt']) { continue }
+                    $own = $false
+                    foreach ($m in $modules) {
+                        if ($rel -like "*$m*") { $own = $true; break }
+                    }
+                    if ($own) { continue }
+                    $text = [System.IO.File]::ReadAllText($f)
+                    $hits = [regex]::Matches($text, $pattern)
+                    if ($hits.Count -gt 0) {
+                        $named = @($hits | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+                        $shown = if ($named.Count -gt 4) { ($named[0..3] -join ', ') + ", +$($named.Count - 4)" } else { $named -join ', ' }
+                        Add-Violation $rule $rel "core file names slice modules: $shown"
+                    }
+                }
+            }
+        }
+
         default {
             throw "architecture.toml: rule '$($rule['id'])' has unknown type '$type'. Add the type to tools/check_architecture.ps1 or fix the spelling."
         }
@@ -557,6 +600,7 @@ if ($Json) {
         warnings   = $warnings.Count
         waived     = $waivedCount
         rules      = $rules.Count
+        matchesByRule = $matchesByRule
         violations = @($violations | ForEach-Object {
             [ordered]@{ rule = $_.Rule; severity = $_.Severity; path = $_.Path; message = $_.Message }
         })

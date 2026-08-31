@@ -1138,3 +1138,275 @@ pub async fn refresh_dealer_price(id: Uuid) -> Result<()> {
 
     Ok(())
 }
+
+/// Перепроведение a012 за период с кэшом по дню продажи.
+///
+/// Общий путь движка (`ids_in_period` + конкурентный прогон) здесь проигрывает:
+/// `post_document` собирает `PostingPreparationCache` заново на каждый документ,
+/// а набор за месяц — сотни тысяч строк. Поэтому документы группируются по дню
+/// продажи, кэш прогревается один раз на день, а прогресс отчитывается чанками
+/// «день × кабинет» — так пользователь видит, где именно идёт долгий прогон.
+/// Ключ агрегата — он же имя таблицы и каталога.
+const KIND: &str = "a012_wb_sales";
+
+pub struct BulkRepost;
+
+#[async_trait::async_trait]
+impl crate::usecases::u508_repost_documents::AggregateBulkRepost for BulkRepost {
+    fn key(&self) -> &'static str {
+        "a012_wb_sales"
+    }
+
+    async fn repost(
+        &self,
+        tracker: &std::sync::Arc<crate::usecases::u508_repost_documents::ProgressTracker>,
+        session_id: &str,
+        request: &contracts::usecases::u508_repost_documents::aggregate_request::AggregateRepostRequest,
+    ) -> anyhow::Result<()> {
+        let connection_labels: std::collections::HashMap<String, String> =
+            crate::domain::a006_connection_mp::service::list_all()
+                .await?
+                .into_iter()
+                .map(|connection| {
+                    let label = if connection.base.description.trim().is_empty() {
+                        connection.base.code.clone()
+                    } else {
+                        connection.base.description.clone()
+                    };
+                    (connection.base.id.as_string(), label)
+                })
+                .collect();
+
+        let chunks = super::repository::list_repost_chunks_by_sale_date_range(
+            &request.date_from,
+            &request.date_to,
+            request.only_posted,
+            &request.connection_mp_refs,
+        )
+        .await?;
+
+        let mut prepared_chunks = Vec::with_capacity(chunks.len());
+        let mut total_documents = 0_i32;
+
+        for chunk in chunks {
+            let ids = super::repository::list_ids_by_sale_date_and_connection(
+                &chunk.sale_date,
+                &chunk.connection_mp_ref,
+                request.only_posted,
+            )
+            .await?;
+            total_documents += ids.len() as i32;
+            prepared_chunks.push((chunk, ids));
+        }
+
+        tracker.set_total(session_id, total_documents);
+        tracker.set_chunks_total(session_id, prepared_chunks.len() as i32);
+
+        let mut processed = 0_i32;
+        let mut reposted = 0_i32;
+        let mut chunks_processed = 0_i32;
+        let mut day_start = 0_usize;
+        while day_start < prepared_chunks.len() {
+            let current_day = prepared_chunks[day_start].0.sale_date.clone();
+            let mut day_end = day_start;
+            while day_end < prepared_chunks.len()
+                && prepared_chunks[day_end].0.sale_date == current_day
+            {
+                day_end += 1;
+            }
+
+            let mut posting_cache = PostingPreparationCache::default();
+            let day_document_ids = prepared_chunks[day_start..day_end]
+                .iter()
+                .flat_map(|(_, ids)| ids.iter().cloned())
+                .collect::<Vec<_>>();
+            if !day_document_ids.is_empty() {
+                let day_documents = super::repository::list_by_ids(&day_document_ids).await?;
+                preload_prod_cost_context_for_documents(&mut posting_cache, &day_documents).await?;
+            }
+
+            for (chunk, ids) in &prepared_chunks[day_start..day_end] {
+                let cabinet_label = connection_labels
+                    .get(&chunk.connection_mp_ref)
+                    .cloned()
+                    .unwrap_or_else(|| chunk.connection_mp_ref.clone());
+                let chunk_label = format!("{} | {}", chunk.sale_date, cabinet_label);
+                tracker.update_chunk_progress(
+                    session_id,
+                    chunks_processed,
+                    Some(chunk.sale_date.clone()),
+                    Some(chunk.connection_mp_ref.clone()),
+                    Some(chunk_label.clone()),
+                );
+
+                for document_id in ids {
+                    let current_item = format!("{} {}", KIND, document_id);
+                    tracker.update_progress(
+                        session_id,
+                        processed,
+                        reposted,
+                        Some(current_item.clone()),
+                    );
+
+                    let aggregate_id = match Uuid::parse_str(document_id) {
+                        Ok(id) => id,
+                        Err(error) => {
+                            processed += 1;
+                            tracker.add_error(
+                                session_id,
+                                format!("Invalid aggregate id {}: {}", document_id, error),
+                            );
+                            tracker.update_progress(
+                                session_id,
+                                processed,
+                                reposted,
+                                Some(current_item),
+                            );
+                            continue;
+                        }
+                    };
+
+                    let post_start = std::time::Instant::now();
+                    let post_result =
+                        super::posting::post_document_with_cache(aggregate_id, &mut posting_cache)
+                            .await;
+                    let elapsed_ms = post_start.elapsed().as_millis() as i64;
+                    tracker.record_post_timing(session_id, document_id, elapsed_ms);
+                    // Порог предупреждения о медленном проведении (диагностика динамики).
+                    const SLOW_DOC_MS: i64 = 500;
+                    if elapsed_ms > SLOW_DOC_MS {
+                        tracing::warn!(
+                            "Slow {} post: {} took {} ms",
+                            KIND,
+                            aggregate_id,
+                            elapsed_ms
+                        );
+                    }
+                    match post_result {
+                        Ok(()) => reposted += 1,
+                        Err(error) => tracker.add_error(
+                            session_id,
+                            format!("Failed to repost {} {}: {}", KIND, aggregate_id, error),
+                        ),
+                    }
+
+                    processed += 1;
+                    tracker.update_progress(session_id, processed, reposted, Some(current_item));
+                }
+
+                chunks_processed += 1;
+                tracker.update_chunk_progress(
+                    session_id,
+                    chunks_processed,
+                    Some(chunk.sale_date.clone()),
+                    Some(chunk.connection_mp_ref.clone()),
+                    Some(chunk_label),
+                );
+            }
+
+            day_start = day_end;
+        }
+
+        tracker.update_progress(session_id, processed, reposted, None);
+
+        let final_status = if tracker
+            .get_progress(session_id)
+            .map(|progress| progress.errors > 0)
+            .unwrap_or(false)
+        {
+            contracts::usecases::u508_repost_documents::progress::RepostStatus::CompletedWithErrors
+        } else {
+            contracts::usecases::u508_repost_documents::progress::RepostStatus::Completed
+        };
+
+        tracker.complete_session(session_id, final_status);
+
+        Ok(())
+    }
+}
+
+/// Перепроведение набора a012 с кэшом по дню продажи.
+///
+/// Отдельно от `BulkRepost`: тому период задают датами и кабинетами, а сюда
+/// приходит готовый список id — так его зовёт пересбор воронки, где набор
+/// отобран когортой заказов, а не календарём. Общее у них — причина не
+/// пользоваться общим путём движка: `post_document` собирал бы
+/// `PostingPreparationCache` заново на каждый документ.
+pub async fn repost_ids_with_daily_cache(
+    tracker: &std::sync::Arc<crate::usecases::u508_repost_documents::ProgressTracker>,
+    session_id: &str,
+    a012_ids: Vec<String>,
+    processed: &std::sync::Arc<std::sync::atomic::AtomicI32>,
+    reposted: &std::sync::Arc<std::sync::atomic::AtomicI32>,
+) -> anyhow::Result<()> {
+    if a012_ids.is_empty() {
+        return Ok(());
+    }
+
+    let id_days = super::repository::list_id_sale_days_by_ids(&a012_ids).await?;
+
+    // Группируем id по дню продажи (id_days отсортирован по дню, затем по id).
+    let mut covered: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut day_groups: Vec<(String, Vec<String>)> = Vec::new();
+    for (id, day) in id_days {
+        covered.insert(id.clone());
+        match day_groups.last_mut() {
+            Some((current_day, ids)) if *current_day == day => ids.push(id),
+            _ => day_groups.push((day, vec![id])),
+        }
+    }
+
+    for (day, day_ids) in day_groups {
+        let mut posting_cache = PostingPreparationCache::default();
+        let day_documents = super::repository::list_by_ids(&day_ids).await?;
+        preload_prod_cost_context_for_documents(&mut posting_cache, &day_documents).await?;
+
+        for id_str in &day_ids {
+            let current_item = format!("a012 {} | {}", id_str, day);
+            match uuid::Uuid::parse_str(id_str) {
+                Ok(id) => {
+                    let post_start = std::time::Instant::now();
+                    let post_result =
+                        super::posting::post_document_with_cache(id, &mut posting_cache).await;
+                    let elapsed_ms = post_start.elapsed().as_millis() as i64;
+                    tracker.record_post_timing(session_id, id_str, elapsed_ms);
+                    const SLOW_DOC_MS: i64 = 500;
+                    if elapsed_ms > SLOW_DOC_MS {
+                        tracing::warn!("Slow {} post: {} took {} ms", KIND, id, elapsed_ms);
+                    }
+                    match post_result {
+                        Ok(()) => {
+                            reposted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        Err(error) => {
+                            tracker.add_error(session_id, format!("a012 {}: {}", id_str, error))
+                        }
+                    }
+                }
+                Err(error) => {
+                    tracker.add_error(session_id, format!("Invalid a012 id {}: {}", id_str, error))
+                }
+            }
+            let p = processed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            let r = reposted.load(std::sync::atomic::Ordering::Relaxed);
+            tracker.update_progress(session_id, p, r, Some(current_item));
+        }
+    }
+
+    // id, пропавшие из выборки между отбором и пересбором (soft-delete/удаление), —
+    // отмечаем ошибкой и учитываем в прогрессе, чтобы processed совпадал с числом
+    // отобранных.
+    for id_str in &a012_ids {
+        if !covered.contains(id_str) {
+            tracker.add_error(
+                session_id,
+                format!("a012 {}: документ не найден при пересборе", id_str),
+            );
+            let p = processed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            let r = reposted.load(std::sync::atomic::Ordering::Relaxed);
+            tracker.update_progress(session_id, p, r, None);
+        }
+    }
+
+    Ok(())
+}

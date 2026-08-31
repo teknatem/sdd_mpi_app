@@ -451,17 +451,16 @@ async fn execute_run(id: &str, spec: &RepairSpec) -> Result<()> {
     sessions.push(rebuild_session.clone());
     let tracker = Arc::new(crate::usecases::u508_repost_documents::ProgressTracker::new());
     tracker.create_session(rebuild_session.clone());
-    let executor = crate::usecases::u508_repost_documents::RepostExecutor::new(tracker);
-    if let Err(error) = executor
-        .run_funnel_rebuild(
-            &rebuild_session,
-            &FunnelRebuildRequest {
-                date_from: spec.date_from.clone(),
-                date_to: spec.date_to.clone(),
-                connection_mp_refs: spec.connection_mp_refs.clone(),
-            },
-        )
-        .await
+    if let Err(error) = super::service::run_rebuild(
+        &tracker,
+        &rebuild_session,
+        &FunnelRebuildRequest {
+            date_from: spec.date_from.clone(),
+            date_to: spec.date_to.clone(),
+            connection_mp_refs: spec.connection_mp_refs.clone(),
+        },
+    )
+    .await
     {
         errors.push(format!("u508: {:#}", error));
     }

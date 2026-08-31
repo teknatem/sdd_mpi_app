@@ -202,6 +202,7 @@ mod tests {
 
     #[test]
     fn catalog_links_overlapping_schema_and_view() {
+        crate::composition::install_all();
         let items = list_sources(None);
         let ds03 = items
             .iter()
@@ -215,6 +216,7 @@ mod tests {
 
     #[test]
     fn safe_connection_schema_exposes_id_but_not_credentials() {
+        crate::composition::install_all();
         let items = list_sources(Some(DataSourceKind::Base));
         let a006 = items.iter().find(|item| item.id == "a006").unwrap();
         let ids: HashSet<_> = a006

@@ -6,17 +6,15 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use contracts::processes::{ActionActor, ActionInfo};
-use contracts::usecases::u505_match_nomenclature::{
-    progress::MatchStatus, request::MatchRequest,
-};
+use contracts::usecases::u505_match_nomenclature::{progress::MatchStatus, request::MatchRequest};
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
 
-use super::Action;
-use crate::usecases::u505_match_nomenclature::{MatchExecutor, ProgressTracker};
+use super::{MatchExecutor, ProgressTracker};
+use crate::processes::actions::Action;
 
 #[derive(Debug, Deserialize)]
 struct Input {

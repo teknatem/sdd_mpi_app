@@ -582,6 +582,8 @@ mod tests {
     /// Критичность выводится из прав Этапов: автор её не объявляет.
     #[test]
     fn criticality_comes_from_stage_capabilities() {
+        // Критичность читает права Действий — значит, каталог должен стоять.
+        crate::composition::install_all();
         let plain = catalog(vec![stage("st0001", &["готово"], &[])]);
         let manifest = manifest(vec![edge("st0001", "готово", EdgeTarget::Done)]);
         assert_eq!(criticality(&manifest, &plain), ProcessCriticality::ReadOnly);

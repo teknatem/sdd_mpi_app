@@ -131,10 +131,47 @@ pub async fn sync_kit_variant_links(
     super::kit_variant_link_sync::sync_links().await
 }
 
-/// Объединённый список заказов WB + YM за последние `days` дней, относящихся
-/// к номенклатуре `nomenclature_ref` (напрямую или через её деривативы,
-/// у которых base_nomenclature_ref указывает на неё). Для вкладки «Заказы»
-/// на карточке номенклатуры.
+/// Источник заказов по номенклатуре — вкладка «Заказы» на её карточке.
+///
+/// **Зачем трейт.** Справочник номенклатуры не должен знать, какие
+/// маркетплейсы заведены в системе: список источников — это её состав, а не
+/// свойство справочника. Пока здесь стоял прямой вызов a015 и a013, каталожный
+/// срез зависел от маркетплейсного, и вынести маркетплейсы в отдельный крейт
+/// было нельзя.
+///
+/// Приведение к [`NomenclatureOrderRowDto`] делает сам источник: только он
+/// знает, что у его заказа считать ценой и как относить маржу к строке.
+#[async_trait::async_trait]
+pub trait NomenclatureOrderSource: Send + Sync {
+    /// Заказы, относящиеся к номенклатуре напрямую или через её деривативы
+    /// (у которых `base_nomenclature_ref` указывает на неё), начиная с даты.
+    async fn orders_for_nomenclature(
+        &self,
+        nomenclature_ref: &str,
+        date_from: &str,
+    ) -> anyhow::Result<Vec<NomenclatureOrderRowDto>>;
+}
+
+static ORDER_SOURCES: std::sync::OnceLock<Vec<std::sync::Arc<dyn NomenclatureOrderSource>>> =
+    std::sync::OnceLock::new();
+
+/// Установить источники заказов. Зовётся один раз из `composition::install_all()`.
+///
+/// # Panics
+/// При повторной установке: второй состав означал бы, что вкладка «Заказы»
+/// показывает разный набор маркетплейсов в разных местах приложения.
+pub fn install_order_sources(sources: Vec<std::sync::Arc<dyn NomenclatureOrderSource>>) {
+    if ORDER_SOURCES.set(sources).is_err() {
+        panic!("источники заказов номенклатуры уже установлены");
+    }
+}
+
+/// Объединённый список заказов всех источников за последние `days` дней,
+/// относящихся к номенклатуре `nomenclature_ref`.
+///
+/// Отказ одного источника не обнуляет вкладку: ошибка возвращается наружу
+/// целиком, потому что частичный список хуже явной ошибки — по нему нельзя
+/// понять, что чего-то не хватает.
 pub async fn list_related_orders(
     nomenclature_ref: &str,
     days: u32,
@@ -143,63 +180,14 @@ pub async fn list_related_orders(
         .format("%Y-%m-%d")
         .to_string();
 
-    let wb_rows = crate::domain::a015_wb_orders::repository::list_orders_for_nomenclature(
-        nomenclature_ref,
-        &date_from,
-    )
-    .await?;
-    let ym_rows = crate::domain::a013_ym_order::repository::list_lines_for_nomenclature(
-        nomenclature_ref,
-        &date_from,
-    )
-    .await?;
-
-    let mut items: Vec<NomenclatureOrderRowDto> = Vec::with_capacity(wb_rows.len() + ym_rows.len());
-
-    for r in wb_rows {
-        items.push(NomenclatureOrderRowDto {
-            id: r.id,
-            marketplace: "WB".to_string(),
-            document_no: r.document_no,
-            order_date: r.document_date,
-            is_cancel: r.is_cancel,
-            is_supply: r.is_supply,
-            is_realization: r.is_realization,
-            line_status: None,
-            status_norm: None,
-            qty: r.qty.unwrap_or(1.0),
-            price_before_discount: r.total_price.or(r.price),
-            price_after_discount: r.price_with_disc.or(r.finished_price),
-            final_buyer_price: r.finished_price,
-            dealer_price_ut: r.dealer_price_ut,
-            margin_pro: r.margin_pro,
-        });
-    }
-
-    for r in ym_rows {
-        // Маржа заказа относится ко всему заказу целиком, поэтому переносим её
-        // на строку, только если заказ однострочный — иначе некорректно.
-        let margin_pro = match r.order_lines_count {
-            Some(1) => r.order_margin_pro,
-            _ => None,
-        };
-        items.push(NomenclatureOrderRowDto {
-            id: r.order_id,
-            marketplace: "YM".to_string(),
-            document_no: r.document_no,
-            order_date: r.creation_date,
-            is_cancel: None,
-            is_supply: None,
-            is_realization: None,
-            line_status: r.line_status,
-            status_norm: r.status_norm,
-            qty: r.qty,
-            price_before_discount: r.price_list,
-            price_after_discount: r.price_effective,
-            final_buyer_price: r.buyer_price,
-            dealer_price_ut: r.dealer_price_ut,
-            margin_pro,
-        });
+    let sources = ORDER_SOURCES.get().map(Vec::as_slice).unwrap_or_default();
+    let mut items: Vec<NomenclatureOrderRowDto> = Vec::new();
+    for source in sources {
+        items.extend(
+            source
+                .orders_for_nomenclature(nomenclature_ref, &date_from)
+                .await?,
+        );
     }
 
     items.sort_by(|a, b| b.order_date.cmp(&a.order_date));

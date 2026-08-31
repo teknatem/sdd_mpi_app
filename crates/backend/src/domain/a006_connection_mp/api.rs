@@ -111,7 +111,7 @@ fn pick_target(group: &[ConnInfo]) -> usize {
 
 async fn run(dry_run: bool) -> anyhow::Result<ConsolidateReport> {
     // 1. Загрузить подключения и отобрать YM с заданным business_account_id.
-    let connections = crate::domain::a006_connection_mp::service::list_all().await?;
+    let connections = super::service::list_all().await?;
 
     let mut mp_type_cache: HashMap<String, Option<MarketplaceType>> = HashMap::new();
     let mut groups: HashMap<String, Vec<ConnInfo>> = HashMap::new();

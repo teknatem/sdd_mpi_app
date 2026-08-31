@@ -159,3 +159,29 @@ pub fn build_expense_entries(
 fn round_kopeyka(value: f64) -> f64 {
     (value * 100.0).round() / 100.0
 }
+
+/// Detail-строки для drill-down по ресурсу Главной книги.
+pub struct GlDetail;
+
+#[async_trait::async_trait]
+impl crate::general_ledger::resource_detail::GlDetailSource for GlDetail {
+    fn detail_table(&self) -> &'static str {
+        "p913_wb_advert_order_attr"
+    }
+
+    async fn fetch(
+        &self,
+        gl: &crate::general_ledger::repository::Model,
+    ) -> anyhow::Result<Vec<serde_json::Value>> {
+        use super::repository::{Column, Entity};
+
+        crate::general_ledger::resource_detail::fetch_linked_rows::<Entity>(
+            gl,
+            Column::GeneralLedgerRef,
+            Column::RegistratorType,
+            Column::RegistratorRef,
+            Column::TurnoverCode,
+        )
+        .await
+    }
+}
