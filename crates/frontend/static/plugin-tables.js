@@ -447,25 +447,48 @@
         return (v === null || v === undefined ? "" : String(v)).replace(/[\t\n\r]+/g, " ");
       }).join("\t"));
     });
-    var text = lines.join("\n");
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(function () { fallbackCopy(text); });
-    } else {
-      fallbackCopy(text);
-    }
+    return copyPlain(lines.join("\n"));
+  }
+
+  function copyPlain(text) {
+    return new Promise(function (resolve) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          navigator.clipboard.writeText(text).then(function () { resolve(true); }, function () {
+            fallbackCopy(text).then(resolve);
+          });
+          return;
+        } catch (e) {
+          /* Permissions-Policy throws synchronously */
+        }
+      }
+      fallbackCopy(text).then(resolve);
+    });
   }
 
   function fallbackCopy(text) {
-    try {
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    } catch (e) { /* буфер недоступен в sandbox — тихо игнорируем */ }
+    return new Promise(function (resolve) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) {
+          resolve(true);
+          return;
+        }
+      } catch (e) { /* буфер недоступен в sandbox */ }
+      var host = window.__pluginHost;
+      if (host && typeof host.copyText === "function") {
+        Promise.resolve(host.copyText(text)).then(function () { resolve(true); }, function () { resolve(false); });
+        return;
+      }
+      resolve(false);
+    });
   }
 
   // ── Публичный render ───────────────────────────────────────────────────────
@@ -599,10 +622,17 @@
       copyBtn.type = "button";
       copyBtn.textContent = "Копировать";
       copyBtn.addEventListener("click", function () {
-        copyTsv(visibleColumns(columns, state.hidden), currentFiltered());
         var was = copyBtn.textContent;
-        copyBtn.textContent = "Скопировано";
-        setTimeout(function () { copyBtn.textContent = was; }, 1200);
+        copyTsv(visibleColumns(columns, state.hidden), currentFiltered()).then(function (ok) {
+          if (!ok) {
+            exportCsv(spec.title, visibleColumns(columns, state.hidden), currentFiltered());
+            copyBtn.textContent = "CSV";
+            setTimeout(function () { copyBtn.textContent = was; }, 1600);
+            return;
+          }
+          copyBtn.textContent = "Скопировано";
+          setTimeout(function () { copyBtn.textContent = was; }, 1200);
+        });
       });
       toolbar.appendChild(copyBtn);
     }

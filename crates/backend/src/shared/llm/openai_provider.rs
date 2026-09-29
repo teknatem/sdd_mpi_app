@@ -11,7 +11,7 @@ use async_openai::{
         ChatCompletionRequestUserMessageArgs, ChatCompletionRequestUserMessageContentPart,
         ChatCompletionTool, ChatCompletionTools, CompletionUsage, CreateChatCompletionRequest,
         CreateChatCompletionRequestArgs, CreateChatCompletionResponse, FunctionCall,
-        FunctionObject, ImageUrl,
+        FunctionObject, ImageUrl, ReasoningEffort,
     },
     Client,
 };
@@ -288,6 +288,13 @@ impl OpenAiProvider {
             request_builder.tool_choice(ChatCompletionToolChoiceOption::Mode(
                 ToolChoiceOptions::Auto,
             ));
+            // gpt-5.6+ на Chat Completions по умолчанию ставит reasoning_effort=medium
+            // и отвергает tools, даже если параметр не передавали. Явный `none` —
+            // единственный способ оставить function tools на /v1/chat/completions;
+            // reasoning при вызове инструментов при этом выключается.
+            if chat_completions_rejects_tools_with_reasoning(&self.model) {
+                request_builder.reasoning_effort(ReasoningEffort::None);
+            }
         }
 
         // Добавляем расширенные параметры только для поддерживающих моделей
@@ -581,7 +588,7 @@ impl OpenAiProvider {
     /// - Не поддерживают logprobs для расчета confidence
     /// - Не поддерживают max_completion_tokens
     fn supports_advanced_params(model_id: &str) -> bool {
-        let normalized_model_id = model_id.rsplit('/').next().unwrap_or(model_id);
+        let normalized_model_id = normalize_model_id(model_id);
         let is_restricted = normalized_model_id.starts_with("gpt-5")
             || is_reasoning_model_family(normalized_model_id, "o1")
             || is_reasoning_model_family(normalized_model_id, "o3")
@@ -738,6 +745,40 @@ fn is_reasoning_model_family(model_id: &str, family: &str) -> bool {
     model_id == family || model_id.starts_with(&format!("{family}-"))
 }
 
+fn normalize_model_id(model_id: &str) -> &str {
+    model_id.rsplit('/').next().unwrap_or(model_id)
+}
+
+/// Chat Completions не принимает function tools вместе с reasoning для gpt-5.6+.
+/// Модель сама подставляет `reasoning_effort=medium`, поэтому запрос с tools
+/// падает 400, даже если параметр в теле не указывали.
+fn chat_completions_rejects_tools_with_reasoning(model_id: &str) -> bool {
+    gpt_version_at_least(normalize_model_id(model_id), 5, 6)
+}
+
+fn gpt_version_at_least(model_id: &str, min_major: u32, min_minor: u32) -> bool {
+    let Some((major, minor)) = parse_gpt_version(model_id) else {
+        return false;
+    };
+    major > min_major || (major == min_major && minor >= min_minor)
+}
+
+fn parse_gpt_version(model_id: &str) -> Option<(u32, u32)> {
+    let rest = model_id.strip_prefix("gpt-")?;
+    // "5.6-sol" / "5.6" / "4o" / "4-turbo" — берём только ведущую major[.minor].
+    let ver = rest
+        .split(|c: char| !c.is_ascii_digit() && c != '.')
+        .next()
+        .unwrap_or("");
+    if ver.is_empty() {
+        return None;
+    }
+    let mut parts = ver.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    Some((major, minor))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -770,5 +811,52 @@ mod tests {
             }
             other => panic!("expected ApiError, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn gpt_5_6_chat_completions_rejects_tools_with_reasoning() {
+        assert!(chat_completions_rejects_tools_with_reasoning("gpt-5.6-sol"));
+        assert!(chat_completions_rejects_tools_with_reasoning("openai/gpt-5.6-sol"));
+        assert!(chat_completions_rejects_tools_with_reasoning("gpt-5.6"));
+        assert!(chat_completions_rejects_tools_with_reasoning("gpt-6"));
+        assert!(!chat_completions_rejects_tools_with_reasoning("gpt-5.4"));
+        assert!(!chat_completions_rejects_tools_with_reasoning("gpt-5"));
+        assert!(!chat_completions_rejects_tools_with_reasoning("gpt-4o"));
+        assert!(!chat_completions_rejects_tools_with_reasoning("deepseek-chat"));
+    }
+
+    fn sample_tool() -> ToolDefinition {
+        ToolDefinition {
+            name: "ping".to_string(),
+            description: "ping".to_string(),
+            parameters: serde_json::json!({"type": "object", "properties": {}}),
+        }
+    }
+
+    #[test]
+    fn tool_request_for_gpt_5_6_sets_reasoning_none() {
+        let provider = OpenAiProvider::new("k".into(), "gpt-5.6-sol".into(), 0.7, 4096);
+        let request = provider
+            .build_request(&[ChatMessage::user("hi")], &[sample_tool()], false)
+            .expect("request");
+        assert_eq!(request.reasoning_effort, Some(ReasoningEffort::None));
+    }
+
+    #[test]
+    fn plain_request_for_gpt_5_6_leaves_reasoning_unset() {
+        let provider = OpenAiProvider::new("k".into(), "gpt-5.6-sol".into(), 0.7, 4096);
+        let request = provider
+            .build_request(&[ChatMessage::user("hi")], &[], false)
+            .expect("request");
+        assert_eq!(request.reasoning_effort, None);
+    }
+
+    #[test]
+    fn tool_request_for_gpt_4o_does_not_force_reasoning_none() {
+        let provider = OpenAiProvider::new("k".into(), "gpt-4o".into(), 0.7, 4096);
+        let request = provider
+            .build_request(&[ChatMessage::user("hi")], &[sample_tool()], false)
+            .expect("request");
+        assert_eq!(request.reasoning_effort, None);
     }
 }

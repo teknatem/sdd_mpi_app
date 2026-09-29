@@ -1159,6 +1159,7 @@ pub async fn insert_test_data() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use contracts::plugins::{DataBinding, ViewSpec};
     use serde_json::json;
 
     #[test]
@@ -1193,5 +1194,83 @@ export async function mount(root, host) {
         assert!(failures.iter().any(|f| {
             f.stage == "table_spec" && f.message.contains("column.key 'revenue' is absent")
         }));
+    }
+
+    #[tokio::test]
+    async fn wb_daily_kpi_plugin_validates() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/wb-daily-kpi");
+        let envelope: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("plugin.json")).expect("plugin.json"),
+        )
+        .expect("plugin.json json");
+        let mut sql_resources = std::collections::HashMap::new();
+        for entry in std::fs::read_dir(root.join("sql")).expect("sql dir") {
+            let entry = entry.expect("sql entry");
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("sql") {
+                continue;
+            }
+            let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+            sql_resources.insert(name, std::fs::read_to_string(path).expect("sql file"));
+        }
+        let bundle = PluginBundle {
+            manifest: serde_json::from_value(envelope["manifest"].clone()).expect("manifest"),
+            params: vec![],
+            data: DataBinding::default(),
+            client_script: Some(std::fs::read_to_string(root.join("client.js")).unwrap()),
+            server_script: Some(std::fs::read_to_string(root.join("server.js")).unwrap()),
+            view_spec: ViewSpec::default(),
+            styles: Some(std::fs::read_to_string(root.join("styles.css")).unwrap()),
+            sql_resources,
+            assets: Default::default(),
+        };
+        let report = validate(&bundle).await;
+        assert!(
+            report.ok,
+            "plugin validate failed: {:?}",
+            report.errors
+        );
+        assert!(report.server_exports.iter().any(|n| n == "loadTable"));
+        assert!(report.server_exports.iter().any(|n| n == "loadCabinets"));
+        assert!(report.client_exports.iter().any(|n| n == "mount"));
+    }
+
+    #[tokio::test]
+    async fn wb_category_kpi_plugin_validates() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/wb-category-daily");
+        let envelope: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("plugin.json")).expect("plugin.json"),
+        )
+        .expect("plugin.json json");
+        let mut sql_resources = std::collections::HashMap::new();
+        for entry in std::fs::read_dir(root.join("sql")).expect("sql dir") {
+            let entry = entry.expect("sql entry");
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("sql") {
+                continue;
+            }
+            let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+            sql_resources.insert(name, std::fs::read_to_string(path).expect("sql file"));
+        }
+        let bundle = PluginBundle {
+            manifest: serde_json::from_value(envelope["manifest"].clone()).expect("manifest"),
+            params: vec![],
+            data: DataBinding::default(),
+            client_script: Some(std::fs::read_to_string(root.join("client.js")).unwrap()),
+            server_script: Some(std::fs::read_to_string(root.join("server.js")).unwrap()),
+            view_spec: ViewSpec::default(),
+            styles: Some(std::fs::read_to_string(root.join("styles.css")).unwrap()),
+            sql_resources,
+            assets: Default::default(),
+        };
+        let report = validate(&bundle).await;
+        assert!(
+            report.ok,
+            "plugin validate failed: {:?}",
+            report.errors
+        );
+        assert!(report.server_exports.iter().any(|n| n == "loadTable"));
+        assert!(report.server_exports.iter().any(|n| n == "loadCabinets"));
+        assert!(report.client_exports.iter().any(|n| n == "mount"));
     }
 }

@@ -99,6 +99,11 @@ host.setDirty(true);  // есть несохранённые правки
 Обычные данные для отображения по-прежнему идут через `host.invoke` — `loadDocument` только
 для редактируемого поля.
 
+**Буфер обмена.** В iframe `navigator.clipboard.writeText` режется Permissions-Policy.
+Копируй через родителя: `await host.copyText(text)` (опционально вторым аргументом HTML
+для вставки в Excel). Если и это недоступно — предлагай скачать CSV (`<a download>` в
+sandbox работает: `allow-downloads`).
+
 Канонический пример (таблица из серверного метода):
 
 ```js

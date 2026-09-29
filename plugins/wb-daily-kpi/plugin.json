@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "code": "PLG-WB-DAILY-KPI",
+    "title": "Дневные показатели WB",
+    "runtime": "hybrid",
+    "api_version": "2",
+    "description": "Таблица KPI Wildberries по дням выбранного месяца: план и прогноз выручки, выкупы и заказы по схемам FBO/FBS/DBS/DBW, маржа с учётом возвратов, реклама и конверсии воронки.",
+    "capabilities": [
+      "db:read:a006_connection_mp",
+      "db:read:a012_wb_sales",
+      "db:read:a015_wb_orders",
+      "db:read:a026_wb_advert_daily",
+      "db:read:a036_wb_sales_funnel_daily",
+      "db:read:p903_wb_finance_report",
+      "network:none"
+    ],
+    "client_kits": []
+  },
+  "params": [],
+  "data": {},
+  "view_spec": {}
+}

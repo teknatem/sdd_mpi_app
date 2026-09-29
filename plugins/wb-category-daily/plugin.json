@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "code": "PLG-WB-CATEGORY-KPI",
+    "title": "Показатели WB по категориям",
+    "runtime": "hybrid",
+    "api_version": "2",
+    "description": "Таблица VR, CTR, CR в корзину и CR корз-заказ по категориям номенклатуры (измерение 1С) и дням выбранного месяца.",
+    "capabilities": [
+      "db:read:a004_nomenclature",
+      "db:read:a006_connection_mp",
+      "db:read:a026_wb_advert_daily",
+      "db:read:a036_wb_sales_funnel_daily",
+      "db:read:a040_wb_search_analytics_daily",
+      "network:none"
+    ],
+    "client_kits": []
+  },
+  "params": [],
+  "data": {},
+  "view_spec": {}
+}

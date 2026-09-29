@@ -23,6 +23,7 @@ use web_sys::HtmlIFrameElement;
 /// Потолок на записываемый документ. В духе `MAX_SCRIPT_BYTES` у бандла:
 /// отсечь очевидную аварию до похода на сервер, а не выражать бизнес-лимит.
 const MAX_DOCUMENT_BYTES: usize = 2 * 1024 * 1024;
+const MAX_CLIPBOARD_BYTES: usize = 512 * 1024;
 
 fn now_hms() -> String {
     let date = js_sys::Date::new_0();
@@ -216,6 +217,13 @@ pub fn PluginFrame(
                             log.run("blocked plugin tab navigation".to_string());
                         }
                     }
+                    "plugin_clipboard" => handle_plugin_clipboard(
+                        &data,
+                        &instance,
+                        &secret,
+                        iframe_element,
+                        log,
+                    ),
                     _ => {}
                 }
             }) as Box<dyn FnMut(_)>);
@@ -293,7 +301,7 @@ pub fn PluginFrame(
             <iframe
                 class="plugin-host__iframe"
                 sandbox="allow-scripts allow-downloads"
-                allow="fullscreen"
+                allow="fullscreen; clipboard-write"
                 allowfullscreen=true
                 srcdoc=srcdoc
                 on:load=move |event| {
@@ -330,6 +338,67 @@ fn is_navigable_from_plugin(key: &str) -> bool {
         && PLUGIN_NAVIGABLE_PREFIXES
             .iter()
             .any(|prefix| key.starts_with(prefix))
+}
+
+fn handle_plugin_clipboard(
+    data: &wasm_bindgen::JsValue,
+    instance: &str,
+    secret: &str,
+    iframe_element: StoredValue<Option<HtmlIFrameElement>, LocalStorage>,
+    log: Callback<String>,
+) {
+    let Some(request_id) = string_property(data, "requestId") else {
+        return;
+    };
+    let text = string_property(data, "text").unwrap_or_default();
+    let instance = instance.to_string();
+    let secret = secret.to_string();
+
+    let reply = move |ok: bool, error: Option<&str>| {
+        let message = if ok {
+            json!({
+                "type": "plugin_clipboard_result",
+                "instanceId": instance,
+                "secret": secret,
+                "requestId": request_id,
+                "ok": true,
+                "result": true
+            })
+        } else {
+            json!({
+                "type": "plugin_clipboard_result",
+                "instanceId": instance,
+                "secret": secret,
+                "requestId": request_id,
+                "ok": false,
+                "error": error.unwrap_or("Не удалось скопировать")
+            })
+        };
+        if let Some(iframe) = iframe_element.get_value() {
+            post_json(&iframe, message);
+        }
+    };
+
+    if text.len() > MAX_CLIPBOARD_BYTES {
+        log.run("clipboard: payload too large".to_string());
+        reply(false, Some("Слишком большой фрагмент для буфера обмена"));
+        return;
+    }
+    if text.is_empty() {
+        reply(false, Some("Нечего копировать"));
+        return;
+    }
+
+    spawn_local(async move {
+        let ok = crate::shared::clipboard::write_text(&text).await;
+        if ok {
+            log.run("clipboard: copied".to_string());
+            reply(true, None);
+        } else {
+            log.run("clipboard: copy failed".to_string());
+            reply(false, Some("Буфер обмена недоступен"));
+        }
+    });
 }
 
 #[allow(clippy::too_many_arguments)]

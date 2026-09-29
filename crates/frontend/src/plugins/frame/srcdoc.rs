@@ -115,8 +115,16 @@ const host = Object.freeze({
       key: String(key),
       title: String(title)
     }, "*");
+  },
+  // Clipboard API в srcdoc-iframe режется Permissions-Policy. Копирует родитель.
+  copyText(text, html = "") {
+    return request("plugin_clipboard", {
+      text: String(text || ""),
+      html: html ? String(html) : ""
+    });
   }
 });
+window.__pluginHost = host;
 
 function showError(error) {
   root.replaceChildren();
@@ -155,7 +163,11 @@ window.addEventListener("message", async event => {
   const message = event.data || {};
   if (message.instanceId !== INSTANCE_ID || message.secret !== BRIDGE_SECRET) return;
 
-  if (message.type === "plugin_invoke_result" || message.type === "plugin_document_result") {
+  if (
+    message.type === "plugin_invoke_result"
+    || message.type === "plugin_document_result"
+    || message.type === "plugin_clipboard_result"
+  ) {
     const waiter = pending.get(message.requestId);
     if (!waiter) return;
     pending.delete(message.requestId);
